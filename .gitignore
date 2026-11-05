@@ -1,0 +1,17 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.binlog
+# secrets
+build/out/
+build/dev-cert.pfx
+build/dev-cert.cer
+site/download/
+release/
+
+# private development-machine scripts (VM on a local server)
+infra/

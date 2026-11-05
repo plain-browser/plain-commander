@@ -1,0 +1,6 @@
+# Everything is LF in the repo and in the working tree (.editorconfig says end_of_line = lf).
+# Without this, core.autocrlf=true would check shell scripts out with CRLF and break bash.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.pfx binary

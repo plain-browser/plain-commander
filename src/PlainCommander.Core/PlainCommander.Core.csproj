@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure .NET, no UI: everything here is unit-testable on any OS. The one native piece, 7-Zip's 7z.dll, is
+       optional: without it (Linux, tests in WSL) archives fall back to the managed reader. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PlainCommander.Core</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="SharpCompress" />
+    <PackageReference Include="SSH.NET" />
+    <PackageReference Include="FluentFTP" />
+    <PackageReference Include="FluentFTP.GnuTLS" />
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PlainCommander.Core.Tests" />
+  </ItemGroup>
+</Project>

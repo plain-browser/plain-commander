@@ -1,0 +1,143 @@
+<Window
+    x:Class="PlainCommander.App.Views.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:PlainCommander.App.Helpers"
+    Title="Plain Commander">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown">
+    <Grid.Resources>
+      <!-- One setting per card: label and description on the left, the control on the right -->
+      <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="16,12" />
+      </Style>
+      <Style x:Key="CardTitle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <Style x:Key="CardHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+        <Setter Property="Margin" Value="0,8,0,4" />
+      </Style>
+    </Grid.Resources>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Grid x:Name="TitleRow" Grid.Row="0" Height="40" Padding="12,0,0,0" ColumnSpacing="6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <FontIcon Glyph="&#xE713;" FontSize="14" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+      <TextBlock Grid.Column="1" x:Uid="Settings_Title" VerticalAlignment="Center" Margin="4,0,8,0" FontWeight="SemiBold" />
+      <Grid x:Name="DragRegion" Grid.Column="2" Background="Transparent" />
+      <Grid x:Name="CaptionPadding" Grid.Column="3" Width="0" />
+    </Grid>
+
+    <NavigationView Grid.Row="1" x:Name="Nav" PaneDisplayMode="Top" IsBackButtonVisible="Collapsed" IsSettingsVisible="False"
+                    SelectionChanged="OnSectionChanged" Margin="8,0,8,8">
+      <NavigationView.MenuItems>
+        <NavigationViewItem x:Uid="Settings_Look" Tag="look" Icon="View" IsSelected="True" />
+        <NavigationViewItem x:Uid="Settings_Behaviour" Tag="behaviour" Icon="Setting" />
+      </NavigationView.MenuItems>
+      <ScrollViewer Padding="12,4,12,12">
+        <Grid>
+          <!-- Look -->
+          <StackPanel x:Name="LookPage" Spacing="6" MaxWidth="720" HorizontalAlignment="Stretch">
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Theme" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_ThemeHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <ComboBox Grid.Column="1" x:Name="ThemeBox" MinWidth="160" VerticalAlignment="Center" SelectionChanged="OnThemeChanged">
+                  <ComboBoxItem x:Uid="Settings_ThemeSystem" />
+                  <ComboBoxItem x:Uid="Settings_ThemeLight" />
+                  <ComboBoxItem x:Uid="Settings_ThemeDark" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Compact" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_CompactHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{x:Bind ViewModel.CompactRows, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Attributes" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_AttributesHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{x:Bind ViewModel.ShowAttributes, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Font" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_FontHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <ComboBox Grid.Column="1" x:Name="FontBox" IsEditable="True" MinWidth="220" VerticalAlignment="Center"
+                          TextSubmitted="OnFontSubmitted" SelectionChanged="OnFontSelected">
+                  <x:String>Segoe UI Variable Text</x:String>
+                  <x:String>Segoe UI</x:String>
+                  <x:String>Cascadia Mono</x:String>
+                  <x:String>Consolas</x:String>
+                  <x:String>Calibri</x:String>
+                  <x:String>Arial</x:String>
+                </ComboBox>
+                <NumberBox Grid.Column="2" x:Name="SizeBox" Minimum="10" Maximum="18" SmallChange="1" SpinButtonPlacementMode="Compact" MinWidth="110" VerticalAlignment="Center"
+                           ValueChanged="OnFontSizeChanged" />
+              </Grid>
+            </Border>
+          </StackPanel>
+
+          <!-- Behaviour -->
+          <StackPanel x:Name="BehaviourPage" Spacing="6" MaxWidth="720" HorizontalAlignment="Stretch" Visibility="Collapsed">
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Editor" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_EditorHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <TextBox Grid.Column="1" MinWidth="260" VerticalAlignment="Center" Text="{x:Bind ViewModel.Editor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Column="2" x:Uid="Settings_Browse" VerticalAlignment="Center" Click="OnBrowseEditor" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <StackPanel Spacing="10">
+                <Grid ColumnSpacing="16">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock x:Uid="Settings_Language" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_LanguageHint" Style="{StaticResource CardHint}" /></StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="LanguageBox" MinWidth="160" VerticalAlignment="Center" SelectionChanged="OnLanguageChanged">
+                    <ComboBoxItem x:Uid="Settings_LanguageSystem" />
+                    <ComboBoxItem Content="Polski" />
+                    <ComboBoxItem Content="English" />
+                  </ComboBox>
+                </Grid>
+                <InfoBar x:Uid="Settings_RestartNote" Severity="Informational" IsClosable="False"
+                         IsOpen="{x:Bind ViewModel.LanguageNeedsRestart, Mode=OneWay}" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel><TextBlock x:Uid="Settings_Parallelism" Style="{StaticResource CardTitle}" /><TextBlock x:Uid="Settings_ParallelismHint" Style="{StaticResource CardHint}" /></StackPanel>
+                <NumberBox Grid.Column="1" x:Name="ParallelismBox" Minimum="1" Maximum="16" SmallChange="1" SpinButtonPlacementMode="Compact" MinWidth="110" VerticalAlignment="Center"
+                           ValueChanged="OnParallelismChanged" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+    </NavigationView>
+  </Grid>
+</Window>

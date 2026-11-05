@@ -1,0 +1,115 @@
+<Window
+    x:Class="PlainCommander.App.Views.ConnectionsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:PlainCommander.Presentation"
+    xmlns:ui="using:PlainCommander.App.Helpers"
+    Title="Plain Commander">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid x:Name="TitleRow" Grid.Row="0" Height="40" Padding="12,0,0,0" ColumnSpacing="6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <FontIcon Glyph="&#xE774;" FontSize="14" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+      <TextBlock x:Name="TitleText" Grid.Column="1" VerticalAlignment="Center" Margin="4,0,8,0" FontWeight="SemiBold" />
+      <Grid x:Name="DragRegion" Grid.Column="2" Background="Transparent" />
+      <Grid x:Name="CaptionPadding" Grid.Column="3" Width="0" />
+    </Grid>
+
+    <Grid Grid.Row="1" Padding="12,4,16,8" ColumnSpacing="16">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="260" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Saved connections -->
+      <Grid RowSpacing="8">
+        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <ListView x:Name="List" ItemsSource="{x:Bind ViewModel.Sites}" SelectionMode="Single"
+                  SelectedItem="{x:Bind ViewModel.Selected, Mode=TwoWay}" DoubleTapped="OnListDoubleTapped"
+                  CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}">
+          <ListView.ItemContainerTransitions>
+            <TransitionCollection />
+          </ListView.ItemContainerTransitions>
+          <ListView.ItemTemplate>
+            <DataTemplate x:DataType="vm:SiteRow">
+              <Grid ColumnSpacing="8" Padding="0,6">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <FontIcon Glyph="{x:Bind ui:Ui.SiteGlyph(IsUnencrypted), Mode=OneWay}" FontSize="14" VerticalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="{x:Bind Title, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{x:Bind Subtitle, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontSize="11.5"
+                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListView.ItemTemplate>
+        </ListView>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+          <Button x:Uid="Con_New" Click="OnNew" />
+          <Button x:Uid="Con_Duplicate" Click="OnDuplicate" IsEnabled="{x:Bind ViewModel.HasSelection, Mode=OneWay}" />
+          <Button x:Uid="Con_Delete" Click="OnDelete" IsEnabled="{x:Bind ViewModel.HasSelection, Mode=OneWay}" />
+        </StackPanel>
+      </Grid>
+
+      <!-- The selected connection -->
+      <ScrollViewer Grid.Column="1" x:Name="Form" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10" MaxWidth="560" HorizontalAlignment="Left" MinWidth="380">
+          <TextBox x:Uid="Con_Name" Text="{x:Bind ViewModel.Selected.Name, Mode=TwoWay}" />
+          <Grid ColumnSpacing="8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+            <ComboBox x:Name="ProtocolBox" x:Uid="Con_Protocol" HorizontalAlignment="Stretch" SelectionChanged="OnProtocolChanged">
+              <x:String>SFTP</x:String>
+              <x:String>FTP</x:String>
+              <x:String>FTPS</x:String>
+              <x:String>S3</x:String>
+            </ComboBox>
+            <TextBox Grid.Column="1" x:Uid="Con_Host" Text="{x:Bind ViewModel.Selected.Host, Mode=TwoWay}" />
+            <TextBox Grid.Column="2" x:Uid="Con_Port" Text="{x:Bind ViewModel.Selected.Port, Mode=TwoWay}" />
+          </Grid>
+          <TextBox x:Uid="Con_User" Text="{x:Bind ViewModel.Selected.User, Mode=TwoWay}" />
+          <TextBox x:Uid="Con_StartPath" Text="{x:Bind ViewModel.Selected.StartPath, Mode=TwoWay}" />
+          <Grid x:Name="KeyRow" ColumnSpacing="8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBox x:Uid="Con_KeyFile" Text="{x:Bind ViewModel.Selected.KeyFile, Mode=TwoWay}" />
+            <Button Grid.Column="1" x:Uid="Con_Browse" VerticalAlignment="Bottom" Click="OnBrowseKey" />
+          </Grid>
+          <CheckBox x:Name="ActiveBox" x:Uid="Con_Active" Checked="OnActiveChanged" Unchecked="OnActiveChanged" />
+          <!-- S3 -->
+          <TextBox x:Name="RegionBox" x:Uid="Con_Region" Text="{x:Bind ViewModel.Selected.Region, Mode=TwoWay}" />
+          <CheckBox x:Name="HttpBox" x:Uid="Con_Http" Checked="OnHttpChanged" Unchecked="OnHttpChanged" />
+          <TextBlock x:Name="S3Hint" x:Uid="Con_S3Hint" TextWrapping="Wrap" FontSize="12.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <InfoBar x:Name="PlainWarning" IsOpen="True" IsClosable="False" Severity="Warning" x:Uid="Con_PlainFtp" />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock x:Name="PasswordState" VerticalAlignment="Center" FontSize="12.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <HyperlinkButton x:Name="ForgetButton" x:Uid="Con_Forget" Click="OnForget" Padding="4,2" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+      <TextBlock x:Name="EmptyHint" Grid.Column="1" x:Uid="Con_Empty" TextWrapping="Wrap" VerticalAlignment="Center"
+                 HorizontalAlignment="Center" MaxWidth="360" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Grid>
+
+    <Grid Grid.Row="2" Padding="16,8,16,12" ColumnSpacing="8">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBox x:Name="QuickBox" x:Uid="Con_Quick" Text="{x:Bind ViewModel.QuickAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+      <Button Grid.Column="1" x:Uid="Con_Connect" Style="{StaticResource AccentButtonStyle}" MinWidth="120" VerticalAlignment="Bottom"
+              IsEnabled="{x:Bind ViewModel.CanConnect, Mode=OneWay}" Click="OnConnect" />
+      <Button Grid.Column="2" x:Uid="Mr_Close" VerticalAlignment="Bottom" Click="OnClose" />
+    </Grid>
+  </Grid>
+</Window>

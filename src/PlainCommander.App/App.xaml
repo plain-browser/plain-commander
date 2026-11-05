@@ -1,0 +1,210 @@
+<Application
+    x:Class="PlainCommander.App.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:PlainCommander.App.Controls">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+      </ResourceDictionary.MergedDictionaries>
+      <!--
+        Palette of the "graphite" look: dark slate surfaces, cyan accent, amber folders. Every colour has a light
+        counterpart, so the theme setting keeps working. The cyan replaces the system accent in the whole app
+        (selection pill, focus lines, progress bars, accent buttons).
+      -->
+      <ResourceDictionary.ThemeDictionaries>
+      <ResourceDictionary x:Key="Default">
+        <Color x:Key="SystemAccentColor">#FF06B6D4</Color>
+        <Color x:Key="SystemAccentColorLight1">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight2">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight3">#FF67E8F9</Color>
+        <Color x:Key="SystemAccentColorDark1">#FF0891B2</Color>
+        <Color x:Key="SystemAccentColorDark2">#FF0E7490</Color>
+        <Color x:Key="SystemAccentColorDark3">#FF155E75</Color>
+        <SolidColorBrush x:Key="PcWindowBrush" Color="#FF17191F" />
+        <SolidColorBrush x:Key="PcBarBrush" Color="#FF14161C" />
+        <SolidColorBrush x:Key="PcStageBrush" Color="#FF0E1014" />
+        <SolidColorBrush x:Key="PcFKeyBarBrush" Color="#FF101217" />
+        <SolidColorBrush x:Key="PcFKeyBrush" Color="#FF181A20" />
+        <SolidColorBrush x:Key="PcFKeyHoverBrush" Color="#2606B6D4" />
+        <SolidColorBrush x:Key="PcFKeyHoverStrokeBrush" Color="#6606B6D4" />
+        <SolidColorBrush x:Key="PcFKeyPressedBrush" Color="#3306B6D4" />
+        <SolidColorBrush x:Key="PcCardBrush" Color="#FF15171E" />
+        <SolidColorBrush x:Key="PcStripBrush" Color="#FF121319" />
+        <SolidColorBrush x:Key="PcNavBrush" Color="#FF171922" />
+        <SolidColorBrush x:Key="PcHeaderBrush" Color="#FF13141A" />
+        <SolidColorBrush x:Key="PcFooterBrush" Color="#FF12141A" />
+        <SolidColorBrush x:Key="PcStrokeBrush" Color="#0DFFFFFF" />
+        <SolidColorBrush x:Key="PcStrokeStrongBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcActiveStrokeBrush" Color="#9906B6D4" />
+        <SolidColorBrush x:Key="PcActiveRingBrush" Color="#3306B6D4" />
+        <SolidColorBrush x:Key="PcFieldBrush" Color="#66000000" />
+        <SolidColorBrush x:Key="PcFieldFocusBrush" Color="#80000000" />
+        <SolidColorBrush x:Key="PcChipBrush" Color="#0DFFFFFF" />
+        <SolidColorBrush x:Key="PcChipHoverBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcAccentTextBrush" Color="#FF22D3EE" />
+        <SolidColorBrush x:Key="PcTextBrush" Color="#FFE2E8F0" />
+        <SolidColorBrush x:Key="PcTextSecondaryBrush" Color="#FF94A3B8" />
+        <SolidColorBrush x:Key="PcTextMutedBrush" Color="#FF64748B" />
+        <SolidColorBrush x:Key="PcFolderTextBrush" Color="#E6FDE68A" />
+        <SolidColorBrush x:Key="PcEncryptedTextBrush" Color="#FFC4B5FD" />
+        <SolidColorBrush x:Key="PcMarkBrush" Color="#6606B6D4" />
+        <SolidColorBrush x:Key="PcMarkTextBrush" Color="#FFCFFAFE" />
+        <SolidColorBrush x:Key="PcBlueBrush" Color="#FF60A5FA" />
+        <SolidColorBrush x:Key="PcAmberBrush" Color="#FFFBBF24" />
+        <SolidColorBrush x:Key="PcTealBrush" Color="#FF2DD4BF" />
+        <SolidColorBrush x:Key="PcPurpleBrush" Color="#FFC084FC" />
+        <SolidColorBrush x:Key="PcBadgeBrush" Color="#1A3B82F6" />
+        <SolidColorBrush x:Key="PcBadgeStrokeBrush" Color="#333B82F6" />
+        <SolidColorBrush x:Key="PcUsageTrackBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcElevatedBrush" Color="#FF171920" />
+        <LinearGradientBrush x:Key="PcUsageBrush" StartPoint="0,0" EndPoint="1,0">
+          <GradientStop Color="#FF06B6D4" Offset="0" />
+          <GradientStop Color="#FF3B82F6" Offset="1" />
+        </LinearGradientBrush>
+      </ResourceDictionary>
+      <ResourceDictionary x:Key="Dark">
+        <Color x:Key="SystemAccentColor">#FF06B6D4</Color>
+        <Color x:Key="SystemAccentColorLight1">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight2">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight3">#FF67E8F9</Color>
+        <Color x:Key="SystemAccentColorDark1">#FF0891B2</Color>
+        <Color x:Key="SystemAccentColorDark2">#FF0E7490</Color>
+        <Color x:Key="SystemAccentColorDark3">#FF155E75</Color>
+        <SolidColorBrush x:Key="PcWindowBrush" Color="#FF17191F" />
+        <SolidColorBrush x:Key="PcBarBrush" Color="#FF14161C" />
+        <SolidColorBrush x:Key="PcStageBrush" Color="#FF0E1014" />
+        <SolidColorBrush x:Key="PcFKeyBarBrush" Color="#FF101217" />
+        <SolidColorBrush x:Key="PcFKeyBrush" Color="#FF181A20" />
+        <SolidColorBrush x:Key="PcFKeyHoverBrush" Color="#2606B6D4" />
+        <SolidColorBrush x:Key="PcFKeyHoverStrokeBrush" Color="#6606B6D4" />
+        <SolidColorBrush x:Key="PcFKeyPressedBrush" Color="#3306B6D4" />
+        <SolidColorBrush x:Key="PcCardBrush" Color="#FF15171E" />
+        <SolidColorBrush x:Key="PcStripBrush" Color="#FF121319" />
+        <SolidColorBrush x:Key="PcNavBrush" Color="#FF171922" />
+        <SolidColorBrush x:Key="PcHeaderBrush" Color="#FF13141A" />
+        <SolidColorBrush x:Key="PcFooterBrush" Color="#FF12141A" />
+        <SolidColorBrush x:Key="PcStrokeBrush" Color="#0DFFFFFF" />
+        <SolidColorBrush x:Key="PcStrokeStrongBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcActiveStrokeBrush" Color="#9906B6D4" />
+        <SolidColorBrush x:Key="PcActiveRingBrush" Color="#3306B6D4" />
+        <SolidColorBrush x:Key="PcFieldBrush" Color="#66000000" />
+        <SolidColorBrush x:Key="PcFieldFocusBrush" Color="#80000000" />
+        <SolidColorBrush x:Key="PcChipBrush" Color="#0DFFFFFF" />
+        <SolidColorBrush x:Key="PcChipHoverBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcAccentTextBrush" Color="#FF22D3EE" />
+        <SolidColorBrush x:Key="PcTextBrush" Color="#FFE2E8F0" />
+        <SolidColorBrush x:Key="PcTextSecondaryBrush" Color="#FF94A3B8" />
+        <SolidColorBrush x:Key="PcTextMutedBrush" Color="#FF64748B" />
+        <SolidColorBrush x:Key="PcFolderTextBrush" Color="#E6FDE68A" />
+        <SolidColorBrush x:Key="PcEncryptedTextBrush" Color="#FFC4B5FD" />
+        <SolidColorBrush x:Key="PcMarkBrush" Color="#6606B6D4" />
+        <SolidColorBrush x:Key="PcMarkTextBrush" Color="#FFCFFAFE" />
+        <SolidColorBrush x:Key="PcBlueBrush" Color="#FF60A5FA" />
+        <SolidColorBrush x:Key="PcAmberBrush" Color="#FFFBBF24" />
+        <SolidColorBrush x:Key="PcTealBrush" Color="#FF2DD4BF" />
+        <SolidColorBrush x:Key="PcPurpleBrush" Color="#FFC084FC" />
+        <SolidColorBrush x:Key="PcBadgeBrush" Color="#1A3B82F6" />
+        <SolidColorBrush x:Key="PcBadgeStrokeBrush" Color="#333B82F6" />
+        <SolidColorBrush x:Key="PcUsageTrackBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="PcElevatedBrush" Color="#FF171920" />
+        <LinearGradientBrush x:Key="PcUsageBrush" StartPoint="0,0" EndPoint="1,0">
+          <GradientStop Color="#FF06B6D4" Offset="0" />
+          <GradientStop Color="#FF3B82F6" Offset="1" />
+        </LinearGradientBrush>
+      </ResourceDictionary>
+      <ResourceDictionary x:Key="Light">
+        <Color x:Key="SystemAccentColor">#FF06B6D4</Color>
+        <Color x:Key="SystemAccentColorLight1">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight2">#FF22D3EE</Color>
+        <Color x:Key="SystemAccentColorLight3">#FF67E8F9</Color>
+        <Color x:Key="SystemAccentColorDark1">#FF0891B2</Color>
+        <Color x:Key="SystemAccentColorDark2">#FF0E7490</Color>
+        <Color x:Key="SystemAccentColorDark3">#FF155E75</Color>
+        <SolidColorBrush x:Key="PcWindowBrush" Color="#FFF7F8FA" />
+        <SolidColorBrush x:Key="PcBarBrush" Color="#FFF1F3F6" />
+        <SolidColorBrush x:Key="PcStageBrush" Color="#FFE8EBF0" />
+        <SolidColorBrush x:Key="PcFKeyBarBrush" Color="#FFF1F3F6" />
+        <SolidColorBrush x:Key="PcFKeyBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="PcFKeyHoverBrush" Color="#1A06B6D4" />
+        <SolidColorBrush x:Key="PcFKeyHoverStrokeBrush" Color="#8006B6D4" />
+        <SolidColorBrush x:Key="PcFKeyPressedBrush" Color="#2606B6D4" />
+        <SolidColorBrush x:Key="PcCardBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="PcStripBrush" Color="#FFF3F5F8" />
+        <SolidColorBrush x:Key="PcNavBrush" Color="#FFF8FAFC" />
+        <SolidColorBrush x:Key="PcHeaderBrush" Color="#FFF6F7F9" />
+        <SolidColorBrush x:Key="PcFooterBrush" Color="#FFF6F7F9" />
+        <SolidColorBrush x:Key="PcStrokeBrush" Color="#14000000" />
+        <SolidColorBrush x:Key="PcStrokeStrongBrush" Color="#1F000000" />
+        <SolidColorBrush x:Key="PcActiveStrokeBrush" Color="#B30891B2" />
+        <SolidColorBrush x:Key="PcActiveRingBrush" Color="#330891B2" />
+        <SolidColorBrush x:Key="PcFieldBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="PcFieldFocusBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="PcChipBrush" Color="#0A000000" />
+        <SolidColorBrush x:Key="PcChipHoverBrush" Color="#14000000" />
+        <SolidColorBrush x:Key="PcAccentTextBrush" Color="#FF0E7490" />
+        <SolidColorBrush x:Key="PcTextBrush" Color="#FF1E293B" />
+        <SolidColorBrush x:Key="PcTextSecondaryBrush" Color="#FF64748B" />
+        <SolidColorBrush x:Key="PcTextMutedBrush" Color="#FF94A3B8" />
+        <SolidColorBrush x:Key="PcFolderTextBrush" Color="#FF92400E" />
+        <SolidColorBrush x:Key="PcEncryptedTextBrush" Color="#FF6D28D9" />
+        <SolidColorBrush x:Key="PcMarkBrush" Color="#5206B6D4" />
+        <SolidColorBrush x:Key="PcMarkTextBrush" Color="#FF155E75" />
+        <SolidColorBrush x:Key="PcBlueBrush" Color="#FF2563EB" />
+        <SolidColorBrush x:Key="PcAmberBrush" Color="#FFD97706" />
+        <SolidColorBrush x:Key="PcTealBrush" Color="#FF0D9488" />
+        <SolidColorBrush x:Key="PcPurpleBrush" Color="#FF9333EA" />
+        <SolidColorBrush x:Key="PcBadgeBrush" Color="#143B82F6" />
+        <SolidColorBrush x:Key="PcBadgeStrokeBrush" Color="#403B82F6" />
+        <SolidColorBrush x:Key="PcUsageTrackBrush" Color="#14000000" />
+        <SolidColorBrush x:Key="PcElevatedBrush" Color="#FFFFFFFF" />
+        <LinearGradientBrush x:Key="PcUsageBrush" StartPoint="0,0" EndPoint="1,0">
+          <GradientStop Color="#FF06B6D4" Offset="0" />
+          <GradientStop Color="#FF3B82F6" Offset="1" />
+        </LinearGradientBrush>
+      </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <Color x:Key="SystemAccentColor">#FF06B6D4</Color>
+      <Color x:Key="SystemAccentColorLight1">#FF22D3EE</Color>
+      <Color x:Key="SystemAccentColorLight2">#FF22D3EE</Color>
+      <Color x:Key="SystemAccentColorLight3">#FF67E8F9</Color>
+      <Color x:Key="SystemAccentColorDark1">#FF0891B2</Color>
+      <Color x:Key="SystemAccentColorDark2">#FF0E7490</Color>
+      <Color x:Key="SystemAccentColorDark3">#FF155E75</Color>
+      <FontFamily x:Key="PanelFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+
+      <!-- Splitter between the panels: an 8 px transparent grab area with a short grip that lights up on hover -->
+      <Style TargetType="controls:PanelSplitter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="controls:PanelSplitter">
+              <Grid Background="{TemplateBinding Background}">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                      <VisualState.Setters>
+                        <Setter Target="Grip.Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                        <Setter Target="Grip.Height" Value="48" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                      <VisualState.Setters>
+                        <Setter Target="Grip.Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                        <Setter Target="Grip.Height" Value="48" />
+                      </VisualState.Setters>
+                    </VisualState>
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <Rectangle x:Name="Grip" Width="2" Height="28" RadiusX="1" RadiusY="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
+              </Grid>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

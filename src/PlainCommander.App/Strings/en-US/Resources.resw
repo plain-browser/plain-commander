@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Menu_Files.Text" xml:space="preserve"><value>Files</value></data>
+  <data name="Menu_Mark.Text" xml:space="preserve"><value>Mark</value></data>
+  <data name="Menu_Commands.Text" xml:space="preserve"><value>Commands</value></data>
+  <data name="Menu_Configuration.Text" xml:space="preserve"><value>Configuration</value></data>
+  <data name="Menu_Show.Text" xml:space="preserve"><value>Show</value></data>
+  <data name="Cmd_Refresh.Text" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Show_Brief.Text" xml:space="preserve"><value>Brief</value></data>
+  <data name="Show_Full.Text" xml:space="preserve"><value>Full</value></data>
+  <data name="Show_SortName.Text" xml:space="preserve"><value>Sort by name</value></data>
+  <data name="Show_SortExt.Text" xml:space="preserve"><value>Sort by extension</value></data>
+  <data name="Show_SortDate.Text" xml:space="preserve"><value>Sort by date</value></data>
+  <data name="Show_SortSize.Text" xml:space="preserve"><value>Sort by size</value></data>
+  <data name="Show_Hidden.Text" xml:space="preserve"><value>Hidden and system files</value></data>
+  <data name="Col_Name.Text" xml:space="preserve"><value>Name</value></data>
+  <data name="Col_Ext.Text" xml:space="preserve"><value>Ext</value></data>
+  <data name="Col_Size.Text" xml:space="preserve"><value>Size</value></data>
+  <data name="Col_Attr.Text" xml:space="preserve"><value>Attr</value></data>
+  <data name="Dlg_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="Dlg_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Dlg_CopyTitle" xml:space="preserve"><value>Copy</value></data>
+  <data name="Dlg_MoveTitle" xml:space="preserve"><value>Move or rename</value></data>
+  <data name="Dlg_CopyOne" xml:space="preserve"><value>Copy “{0}” to:</value></data>
+  <data name="Dlg_CopyMany" xml:space="preserve"><value>Copy {0} selected items to:</value></data>
+  <data name="Dlg_MoveOne" xml:space="preserve"><value>Move “{0}” to:</value></data>
+  <data name="Dlg_MoveMany" xml:space="preserve"><value>Move {0} selected items to:</value></data>
+  <data name="Dlg_NewDirTitle" xml:space="preserve"><value>New folder</value></data>
+  <data name="Dlg_NewDirPrompt" xml:space="preserve"><value>Folder name (a\b\c creates nested folders):</value></data>
+  <data name="Dlg_RenameTitle" xml:space="preserve"><value>Rename</value></data>
+  <data name="Dlg_RenamePrompt" xml:space="preserve"><value>New name:</value></data>
+  <data name="Dlg_DeleteTitle" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="Dlg_DeleteForeverTitle" xml:space="preserve"><value>Delete permanently</value></data>
+  <data name="Dlg_DeleteButton" xml:space="preserve"><value>Delete</value></data>
+  <data name="Dlg_RecycleOne" xml:space="preserve"><value>Move “{0}” to the Recycle Bin?</value></data>
+  <data name="Dlg_RecycleMany" xml:space="preserve"><value>Files: {0}, folders: {1}. Move to the Recycle Bin?</value></data>
+  <data name="Dlg_DeleteOne" xml:space="preserve"><value>Delete “{0}” permanently?</value></data>
+  <data name="Dlg_DeleteMany" xml:space="preserve"><value>Files: {0}, folders: {1}. Delete permanently?</value></data>
+  <data name="Dlg_NoUndo" xml:space="preserve"><value>This cannot be undone. Folders are deleted with everything in them.</value></data>
+  <data name="Dlg_MarkTitle" xml:space="preserve"><value>Select by mask</value></data>
+  <data name="Dlg_UnmarkTitle" xml:space="preserve"><value>Deselect by mask</value></data>
+  <data name="Dlg_MaskHint" xml:space="preserve"><value>For example *.txt;*.md. *.* means all files.</value></data>
+  <data name="Dlg_ErrorTitle" xml:space="preserve"><value>Error</value></data>
+  <data name="Cf_Title" xml:space="preserve"><value>File already exists</value></data>
+  <data name="Cf_Source" xml:space="preserve"><value>Incoming: {0} bytes, {1}</value></data>
+  <data name="Cf_Target" xml:space="preserve"><value>Existing: {0} bytes, {1}</value></data>
+  <data name="Cf_Newer" xml:space="preserve"><value>(newer)</value></data>
+  <data name="Cf_Overwrite" xml:space="preserve"><value>Overwrite</value></data>
+  <data name="Cf_OverwriteAll" xml:space="preserve"><value>Overwrite all</value></data>
+  <data name="Cf_OverwriteOlder" xml:space="preserve"><value>Overwrite only older</value></data>
+  <data name="Cf_Skip" xml:space="preserve"><value>Skip</value></data>
+  <data name="Cf_SkipAll" xml:space="preserve"><value>Skip all</value></data>
+  <data name="Cf_KeepBoth" xml:space="preserve"><value>Keep both</value></data>
+  <data name="Cf_KeepBothAll" xml:space="preserve"><value>Keep both for all</value></data>
+  <data name="Er_Title" xml:space="preserve"><value>Operation error</value></data>
+  <data name="Er_Retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="Er_Skip" xml:space="preserve"><value>Skip</value></data>
+  <data name="Er_SkipAll" xml:space="preserve"><value>Skip all errors</value></data>
+  <data name="Er_Abort" xml:space="preserve"><value>Abort</value></data>
+  <data name="Elev_Title" xml:space="preserve"><value>Administrator rights needed</value></data>
+  <data name="Elev_Hint" xml:space="preserve"><value>You can try again with administrator rights. Windows will ask for permission.</value></data>
+  <data name="Elev_Button" xml:space="preserve"><value>As administrator</value></data>
+  <data name="Op_Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="Op_Resume" xml:space="preserve"><value>Resume</value></data>
+  <data name="Op_Background.Content" xml:space="preserve"><value>Background</value></data>
+  <data name="Op_Cancel.Content" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Op_Elevated.Text" xml:space="preserve"><value>as administrator</value></data>
+  <data name="Op_Queued" xml:space="preserve"><value>Queued: {0}</value></data>
+  <data name="Menu_FilesCopy.Text" xml:space="preserve"><value>Copy</value></data>
+  <data name="Menu_FilesMove.Text" xml:space="preserve"><value>Move / rename</value></data>
+  <data name="Menu_FilesRename.Text" xml:space="preserve"><value>Rename</value></data>
+  <data name="Menu_FilesMkDir.Text" xml:space="preserve"><value>New folder</value></data>
+  <data name="Menu_FilesDelete.Text" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="Menu_FilesDeleteForever.Text" xml:space="preserve"><value>Delete permanently</value></data>
+  <data name="Menu_MarkPlus.Text" xml:space="preserve"><value>Select group…</value></data>
+  <data name="Menu_MarkMinus.Text" xml:space="preserve"><value>Deselect group…</value></data>
+  <data name="Menu_MarkInvert.Text" xml:space="preserve"><value>Invert selection</value></data>
+  <data name="Menu_MarkAll.Text" xml:space="preserve"><value>Select all</value></data>
+  <data name="Menu_MarkNone.Text" xml:space="preserve"><value>Deselect all</value></data>
+  <data name="Mark_CopyNames.Text" xml:space="preserve"><value>Copy names to the clipboard</value></data>
+  <data name="Mark_CopyPaths.Text" xml:space="preserve"><value>Copy full paths to the clipboard</value></data>
+  <data name="Menu_Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Menu (F2)</value></data>
+  <data name="FKey_F2" xml:space="preserve"><value>Menu</value></data>
+  <data name="FKey_F3" xml:space="preserve"><value>View</value></data>
+  <data name="FKey_F4" xml:space="preserve"><value>Edit</value></data>
+  <data name="FKey_F5" xml:space="preserve"><value>Copy</value></data>
+  <data name="FKey_F6" xml:space="preserve"><value>Move</value></data>
+  <data name="FKey_F7" xml:space="preserve"><value>New folder</value></data>
+  <data name="FKey_F8" xml:space="preserve"><value>Delete</value></data>
+  <data name="FKey_Shift_F6" xml:space="preserve"><value>Rename</value></data>
+  <data name="FKey_Shift_F8" xml:space="preserve"><value>Delete permanently</value></data>
+  <data name="FKey_Ctrl_F2" xml:space="preserve"><value>Full view</value></data>
+  <data name="FKey_Ctrl_F3" xml:space="preserve"><value>Sort: name</value></data>
+  <data name="FKey_Ctrl_F4" xml:space="preserve"><value>Sort: extension</value></data>
+  <data name="FKey_Ctrl_F5" xml:space="preserve"><value>Sort: date</value></data>
+  <data name="FKey_Ctrl_F6" xml:space="preserve"><value>Sort: size</value></data>
+  <data name="FKey_Alt_F2" xml:space="preserve"><value>Right panel drive</value></data>
+  <data name="Panel_Drive.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Drive (Alt+F1 / Alt+F2)</value></data>
+  <data name="Panel_View.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Brief / full view (Ctrl+F1 / Ctrl+F2)</value></data>
+  <data name="Panel_Menu.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Panel menu</value></data>
+  <data name="Show_Compact.Text" xml:space="preserve"><value>Compact rows</value></data>
+  <data name="Show_Attributes.Text" xml:space="preserve"><value>Attributes column</value></data>
+  <data name="QuickView_Hint.Text" xml:space="preserve"><value>Ctrl+Q closes</value></data>
+  <data name="Show_QuickView.Text" xml:space="preserve"><value>Quick view</value></data>
+  <data name="Show_Filter.Text" xml:space="preserve"><value>Filter…</value></data>
+  <data name="Show_Flat.Text" xml:space="preserve"><value>All files in subfolders</value></data>
+  <data name="Dlg_FilterTitle" xml:space="preserve"><value>Filter</value></data>
+  <data name="Dlg_FilterPrompt" xml:space="preserve"><value>Show only files matching a mask (e.g. *.pdf;*.docx) or containing the text in their name. Empty turns the filter off.</value></data>
+  <data name="Flt_Name" xml:space="preserve"><value>Name contains (several words: all of them) or mask</value></data>
+  <data name="Flt_NameHint" xml:space="preserve"><value>e.g. report 2026 or *.pdf;*.docx</value></data>
+  <data name="Flt_Extensions" xml:space="preserve"><value>Extensions</value></data>
+  <data name="Flt_Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Flt_DateAny" xml:space="preserve"><value>any</value></data>
+  <data name="Flt_DateToday" xml:space="preserve"><value>today</value></data>
+  <data name="Flt_DateLast7Days" xml:space="preserve"><value>last 7 days</value></data>
+  <data name="Flt_DateLast30Days" xml:space="preserve"><value>last 30 days</value></data>
+  <data name="Flt_DateThisYear" xml:space="preserve"><value>this year</value></data>
+  <data name="Flt_DateRange" xml:space="preserve"><value>from–to…</value></data>
+  <data name="Flt_DateField" xml:space="preserve"><value>by date</value></data>
+  <data name="Flt_Modified" xml:space="preserve"><value>modified</value></data>
+  <data name="Flt_Created" xml:space="preserve"><value>created</value></data>
+  <data name="Flt_From" xml:space="preserve"><value>From</value></data>
+  <data name="Flt_To" xml:space="preserve"><value>To (inclusive)</value></data>
+  <data name="Flt_MinSize" xml:space="preserve"><value>Size from</value></data>
+  <data name="Flt_MaxSize" xml:space="preserve"><value>Size to</value></data>
+  <data name="Flt_FilesOnly" xml:space="preserve"><value>Files only (hide folders)</value></data>
+  <data name="Flt_Taken" xml:space="preserve"><value>photo taken</value></data>
+  <data name="Flt_MinLength" xml:space="preserve"><value>Length from (min)</value></data>
+  <data name="Flt_MaxLength" xml:space="preserve"><value>Length to (min)</value></data>
+  <data name="Flt_BadValue" xml:space="preserve"><value>Enter sizes in bytes or with a unit (10k, 2M, 1G) and lengths in minutes (90, 1:30) or as h:mm:ss.</value></data>
+  <data name="Show_FolderSizes.Text" xml:space="preserve"><value>Folder sizes (measured in the background)</value></data>
+  <data name="Show_DetailDimensions.Text" xml:space="preserve"><value>Column: image and video size</value></data>
+  <data name="Show_DetailTaken.Text" xml:space="preserve"><value>Column: date photo taken</value></data>
+  <data name="Show_DetailDuration.Text" xml:space="preserve"><value>Column: recording length</value></data>
+  <data name="Show_DetailVersion.Text" xml:space="preserve"><value>Column: program version</value></data>
+  <data name="Show_SortDetail.Text" xml:space="preserve"><value>Sort by the extra column</value></data>
+  <data name="Flt_Apply" xml:space="preserve"><value>Filter</value></data>
+  <data name="Flt_Clear" xml:space="preserve"><value>Turn filter off</value></data>
+  <data name="Show_SortCreated.Text" xml:space="preserve"><value>Sort by creation date</value></data>
+  <data name="CommandLine.PlaceholderText" xml:space="preserve"><value>Command in the current folder (Alt+F8); Ctrl+Enter inserts the name, Ctrl+P the path</value></data>
+  <data name="Viewer_Text.Text" xml:space="preserve"><value>Text</value></data>
+  <data name="Viewer_Hex.Text" xml:space="preserve"><value>Hex</value></data>
+  <data name="Viewer_Image.Text" xml:space="preserve"><value>Image</value></data>
+  <data name="Viewer_Encoding.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Text encoding</value></data>
+  <data name="Viewer_Wrap.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Word wrap (W)</value></data>
+  <data name="Menu_FilesView.Text" xml:space="preserve"><value>View</value></data>
+  <data name="Menu_FilesEdit.Text" xml:space="preserve"><value>Edit</value></data>
+  <data name="Menu_FilesNewFile.Text" xml:space="preserve"><value>New file…</value></data>
+  <data name="FKey_Shift_F4" xml:space="preserve"><value>New file</value></data>
+  <data name="Dlg_NewFileTitle" xml:space="preserve"><value>New file</value></data>
+  <data name="Dlg_NewFilePrompt" xml:space="preserve"><value>File name:</value></data>
+  <data name="Menu_Settings.Text" xml:space="preserve"><value>Settings…</value></data>
+  <data name="Menu_Settings_Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Settings</value></data>
+  <data name="Settings_Title.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="Settings_Look.Content" xml:space="preserve"><value>Look</value></data>
+  <data name="Settings_Behaviour.Content" xml:space="preserve"><value>Behaviour</value></data>
+  <data name="Settings_Theme.Text" xml:space="preserve"><value>Theme</value></data>
+  <data name="Settings_ThemeHint.Text" xml:space="preserve"><value>Light, dark or whatever Windows uses</value></data>
+  <data name="Settings_ThemeSystem.Content" xml:space="preserve"><value>Use Windows setting</value></data>
+  <data name="Settings_ThemeLight.Content" xml:space="preserve"><value>Light</value></data>
+  <data name="Settings_ThemeDark.Content" xml:space="preserve"><value>Dark</value></data>
+  <data name="Settings_Compact.Text" xml:space="preserve"><value>Compact rows</value></data>
+  <data name="Settings_CompactHint.Text" xml:space="preserve"><value>22 px instead of 26 px, more files on screen</value></data>
+  <data name="Settings_Attributes.Text" xml:space="preserve"><value>Attributes column</value></data>
+  <data name="Settings_AttributesHint.Text" xml:space="preserve"><value>In the full view, when the panel is wide enough</value></data>
+  <data name="Settings_Font.Text" xml:space="preserve"><value>Panel font</value></data>
+  <data name="Settings_FontHint.Text" xml:space="preserve"><value>Font name and size 10–18</value></data>
+  <data name="Settings_Editor.Text" xml:space="preserve"><value>Editor (F4)</value></data>
+  <data name="Settings_EditorHint.Text" xml:space="preserve"><value>Program started with the file name; notepad.exe by default</value></data>
+  <data name="Settings_Browse.Content" xml:space="preserve"><value>Browse…</value></data>
+  <data name="Settings_Language.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_LanguageHint.Text" xml:space="preserve"><value>Of the application interface</value></data>
+  <data name="Settings_LanguageSystem.Content" xml:space="preserve"><value>Use Windows setting</value></data>
+  <data name="Settings_RestartNote.Message" xml:space="preserve"><value>The language changes after the application is restarted.</value></data>
+  <data name="Settings_Parallelism.Text" xml:space="preserve"><value>Parallel copying of small files</value></data>
+  <data name="Settings_ParallelismHint.Text" xml:space="preserve"><value>Threads for files under 4 MB; 1 for spinning disks, 8 for SSDs</value></data>
+  <data name="Cmd_History.Text" xml:space="preserve"><value>Folder history</value></data>
+  <data name="Cmd_Favorites.Text" xml:space="preserve"><value>Favorite folders</value></data>
+  <data name="Cmd_Swap.Text" xml:space="preserve"><value>Swap panels</value></data>
+  <data name="Cmd_Mirror.Text" xml:space="preserve"><value>Same folder in the other panel</value></data>
+  <data name="History_Empty" xml:space="preserve"><value>No folders visited yet</value></data>
+  <data name="Favorites_Add" xml:space="preserve"><value>Add “{0}” to favorites</value></data>
+  <data name="Favorites_Remove" xml:space="preserve"><value>Remove current folder from favorites</value></data>
+  <data name="Dlg_FolderGone" xml:space="preserve"><value>Folder not found: {0}</value></data>
+  <data name="Cmd_EditPath.Text" xml:space="preserve"><value>Type a path</value></data>
+  <data name="Panel_PathBox.PlaceholderText" xml:space="preserve"><value>Folder path</value></data>
+  <data name="Menu_FilesPack.Text" xml:space="preserve"><value>Pack…</value></data>
+  <data name="Menu_FilesPermissions.Text" xml:space="preserve"><value>Attributes and permissions…</value></data>
+  <data name="Menu_FilesChecksumCreate.Text" xml:space="preserve"><value>Create checksums…</value></data>
+  <data name="Menu_FilesChecksumVerify.Text" xml:space="preserve"><value>Verify checksums</value></data>
+  <data name="Cmd_CompareFiles.Text" xml:space="preserve"><value>Compare files (content)</value></data>
+  <data name="Attr_Title" xml:space="preserve"><value>Attributes and date</value></data>
+  <data name="Attr_One" xml:space="preserve"><value>Attributes of “{0}”:</value></data>
+  <data name="Attr_Many" xml:space="preserve"><value>Attributes of {0} marked items (a box with a dash stays as it is):</value></data>
+  <data name="Attr_ReadOnly" xml:space="preserve"><value>Read-only</value></data>
+  <data name="Attr_Hidden" xml:space="preserve"><value>Hidden</value></data>
+  <data name="Attr_System" xml:space="preserve"><value>System</value></data>
+  <data name="Attr_Archive" xml:space="preserve"><value>Archive</value></data>
+  <data name="Attr_ChangeDate" xml:space="preserve"><value>Change the modification date</value></data>
+  <data name="Attr_Now" xml:space="preserve"><value>Now</value></data>
+  <data name="Attr_Recursive" xml:space="preserve"><value>Also the content of folders</value></data>
+  <data name="Sum_Title" xml:space="preserve"><value>Checksums</value></data>
+  <data name="Sum_One" xml:space="preserve"><value>Compute the checksum of “{0}” and save it to:</value></data>
+  <data name="Sum_Many" xml:space="preserve"><value>Compute the checksums of {0} marked items (with folder content) and save them to:</value></data>
+  <data name="Sum_Algorithm" xml:space="preserve"><value>Algorithm</value></data>
+  <data name="Sum_File" xml:space="preserve"><value>File</value></data>
+  <data name="Sum_Create" xml:space="preserve"><value>Create</value></data>
+  <data name="Perm_Title" xml:space="preserve"><value>Permissions on the server</value></data>
+  <data name="Perm_One" xml:space="preserve"><value>Permissions of “{0}”:</value></data>
+  <data name="Perm_Many" xml:space="preserve"><value>Permissions of {0} marked items:</value></data>
+  <data name="Perm_Read" xml:space="preserve"><value>Read</value></data>
+  <data name="Perm_Write" xml:space="preserve"><value>Write</value></data>
+  <data name="Perm_Exec" xml:space="preserve"><value>Execute</value></data>
+  <data name="Perm_Owner" xml:space="preserve"><value>Owner</value></data>
+  <data name="Perm_Group" xml:space="preserve"><value>Group</value></data>
+  <data name="Perm_Others" xml:space="preserve"><value>Others</value></data>
+  <data name="Perm_Octal" xml:space="preserve"><value>Octal</value></data>
+  <data name="Perm_Recursive" xml:space="preserve"><value>Also the content of folders (subfolders get “x” where they have “r”)</value></data>
+  <data name="Perm_Apply" xml:space="preserve"><value>Apply</value></data>
+  <data name="FKey_Alt_F5" xml:space="preserve"><value>Pack</value></data>
+  <data name="Dlg_PackTitle" xml:space="preserve"><value>Pack</value></data>
+  <data name="Dlg_PackOne" xml:space="preserve"><value>Pack “{0}” into the archive:</value></data>
+  <data name="Dlg_PackMany" xml:space="preserve"><value>Pack the selected items ({0}) into the archive:</value></data>
+  <data name="Cmd_Undo.Text" xml:space="preserve"><value>Undo last operation</value></data>
+  <data name="Undo_Title" xml:space="preserve"><value>Undo the operation?</value></data>
+  <data name="Undo_Button" xml:space="preserve"><value>Undo</value></data>
+  <data name="Menu_FilesUnpack.Text" xml:space="preserve"><value>Unpack…</value></data>
+  <data name="Menu_FilesEncrypt.Text" xml:space="preserve"><value>Encrypt…</value></data>
+  <data name="Menu_FilesDecrypt.Text" xml:space="preserve"><value>Decrypt…</value></data>
+  <data name="Dlg_PackPasswordZip" xml:space="preserve"><value>Password (AES-256; Windows Explorer cannot open such a zip, 7-Zip and WinRAR can)</value></data>
+  <data name="Enc_Title" xml:space="preserve"><value>Encrypt</value></data>
+  <data name="Enc_One" xml:space="preserve"><value>Encrypt “{0}” into a password-protected copy:</value></data>
+  <data name="Enc_Many" xml:space="preserve"><value>Encrypt the selected items ({0}), each into its own password-protected copy:</value></data>
+  <data name="Enc_Format" xml:space="preserve"><value>Format</value></data>
+  <data name="Enc_Format7z" xml:space="preserve"><value>7z — AES-256, file names hidden too</value></data>
+  <data name="Enc_FormatZip" xml:space="preserve"><value>zip — AES-256</value></data>
+  <data name="Enc_FormatPce" xml:space="preserve"><value>pce — Plain Commander: AES-256-GCM, Argon2id (fastest)</value></data>
+  <data name="Enc_NotePce" xml:space="preserve"><value>Plain Commander's own format: authenticated encryption (AES-256-GCM, password key through Argon2id), zstd compression only when it pays; disk speed. The file name and time are hidden inside. Opens only in Plain Commander: Enter and the password open the content like an archive (F5 copies a file or folder out), Files → Decrypt writes everything to disk.</value></data>
+  <data name="Enc_Folder" xml:space="preserve"><value>Save in folder</value></data>
+  <data name="Enc_HideName" xml:space="preserve"><value>Hide the file name (random .pce name)</value></data>
+  <data name="Enc_Compress" xml:space="preserve"><value>Compression</value></data>
+  <data name="Enc_CompressAuto" xml:space="preserve"><value>automatic — a sample of the first megabyte decides (recommended)</value></data>
+  <data name="Enc_CompressAlways" xml:space="preserve"><value>always (zstd)</value></data>
+  <data name="Enc_CompressNever" xml:space="preserve"><value>never</value></data>
+  <data name="Enc_NoSevenZip" xml:space="preserve"><value>7z and zip need the 7-Zip library, which is missing here.</value></data>
+  <data name="Dlg_DecryptTitle" xml:space="preserve"><value>Decrypt</value></data>
+  <data name="Dlg_DecryptPrompt" xml:space="preserve"><value>Enter the password for “{0}”:</value></data>
+  <data name="Enc_Note7z" xml:space="preserve"><value>Opens in 7-Zip, WinRAR, NanaZip and Plain Commander.</value></data>
+  <data name="Enc_NoteZip" xml:space="preserve"><value>Opens in 7-Zip, WinRAR and Plain Commander; Windows Explorer does not open AES zips. File names in a zip stay visible.</value></data>
+  <data name="Enc_Password" xml:space="preserve"><value>Password</value></data>
+  <data name="Enc_Button" xml:space="preserve"><value>Encrypt</value></data>
+  <data name="Enc_DeleteTitle" xml:space="preserve"><value>Delete the originals?</value></data>
+  <data name="Enc_DeleteQuestion" xml:space="preserve"><value>Encrypted: {0}. Delete the unencrypted originals for good (not to the Recycle Bin)?</value></data>
+  <data name="Enc_DeleteNote" xml:space="preserve"><value>On SSDs and in backups deleted data may still be recoverable; deleting does not replace whole-disk encryption (BitLocker).</value></data>
+  <data name="Enc_DeleteButton" xml:space="preserve"><value>Delete originals</value></data>
+  <data name="Enc_KeepButton" xml:space="preserve"><value>Keep</value></data>
+  <data name="Menu_FilesAttachImage.Text" xml:space="preserve"><value>Attach image as drive</value></data>
+  <data name="Menu_FilesDetachDrive.Text" xml:space="preserve"><value>Detach drive (eject)</value></data>
+  <data name="Drv_Network" xml:space="preserve"><value>Network — computers and shared folders</value></data>
+  <data name="Dlg_PackFormat" xml:space="preserve"><value>Format</value></data>
+  <data name="Dlg_PackPassword" xml:space="preserve"><value>Password (encrypts content and file names)</value></data>
+  <data name="Dlg_PackPasswordNone" xml:space="preserve"><value>no password</value></data>
+  <data name="Dlg_PackPasswordRepeat" xml:space="preserve"><value>Repeat password</value></data>
+  <data name="Dlg_UnpackTitle" xml:space="preserve"><value>Unpack</value></data>
+  <data name="Dlg_UnpackOne" xml:space="preserve"><value>Unpack “{0}” into the folder:</value></data>
+  <data name="Dlg_UnpackMany" xml:space="preserve"><value>Unpack the selected archives ({0}) into the folder:</value></data>
+  <data name="Dlg_UnpackOwnFolders" xml:space="preserve"><value>Each archive into its own folder (named after the archive)</value></data>
+  <data name="Dlg_UnpackButton" xml:space="preserve"><value>Unpack</value></data>
+  <data name="Dlg_ArchivePasswordTitle" xml:space="preserve"><value>Archive password</value></data>
+  <data name="Dlg_ArchivePasswordPrompt" xml:space="preserve"><value>The archive “{0}” is encrypted. Enter its password:</value></data>
+  <data name="Dlg_ArchivePasswordWrong" xml:space="preserve"><value>Wrong password. Try again.</value></data>
+  <data name="Cmd_Search.Text" xml:space="preserve"><value>Find files…</value></data>
+  <data name="FKey_Alt_F7" xml:space="preserve"><value>Find</value></data>
+  <data name="Search_Title.Text" xml:space="preserve"><value>Find files</value></data>
+  <data name="Search_Masks.Text" xml:space="preserve"><value>Name:</value></data>
+  <data name="Search_MasksBox.PlaceholderText" xml:space="preserve"><value>e.g. *.txt;*.md</value></data>
+  <data name="Search_Subfolders.Content" xml:space="preserve"><value>Include subfolders</value></data>
+  <data name="Search_Root.Text" xml:space="preserve"><value>In folder:</value></data>
+  <data name="Search_Hidden.Content" xml:space="preserve"><value>Hidden too</value></data>
+  <data name="Search_Text.Text" xml:space="preserve"><value>With text:</value></data>
+  <data name="Search_TextBox.PlaceholderText" xml:space="preserve"><value>part of the file content (empty = no content search)</value></data>
+  <data name="Search_Case.Content" xml:space="preserve"><value>Match case</value></data>
+  <data name="Search_Size.Text" xml:space="preserve"><value>Size:</value></data>
+  <data name="Search_Date.Text" xml:space="preserve"><value>Modified:</value></data>
+  <data name="Search_After.Header" xml:space="preserve"><value>from</value></data>
+  <data name="Search_Before.Header" xml:space="preserve"><value>to</value></data>
+  <data name="Search_ClearDates.Content" xml:space="preserve"><value>Clear dates</value></data>
+  <data name="Search_Start.Content" xml:space="preserve"><value>Search</value></data>
+  <data name="Search_Stop.Content" xml:space="preserve"><value>Stop</value></data>
+  <data name="Cmd_Compare.Text" xml:space="preserve"><value>Compare and synchronize folders…</value></data>
+  <data name="FKey_Shift_F2" xml:space="preserve"><value>Compare</value></data>
+  <data name="Cmp_Title" xml:space="preserve"><value>Compare folders</value></data>
+  <data name="Cmp_Intro" xml:space="preserve"><value>Compare the left panel folder with the right one and mark the differences in both.</value></data>
+  <data name="Cmp_Subfolders" xml:space="preserve"><value>Include subfolders</value></data>
+  <data name="Cmp_ByContent" xml:space="preserve"><value>Compare content of files with the same size</value></data>
+  <data name="Cmp_Run" xml:space="preserve"><value>Compare</value></data>
+  <data name="Cmp_Hint" xml:space="preserve"><value>Marked are files and folders that are only in that panel, newer there, or have the same time but a different size. Then F5 copies exactly the changes.</value></data>
+  <data name="Cmd_NewTab.Text" xml:space="preserve"><value>New tab</value></data>
+  <data name="Cmd_CloseTab.Text" xml:space="preserve"><value>Close tab</value></data>
+  <data name="Cmd_NextTab.Text" xml:space="preserve"><value>Next tab</value></data>
+  <data name="Menu_FilesMultiRename.Text" xml:space="preserve"><value>Multi-rename…</value></data>
+  <data name="Mr_Title" xml:space="preserve"><value>Multi-rename</value></data>
+  <data name="Mr_TitleCount" xml:space="preserve"><value>Rename: {0} items</value></data>
+  <data name="Mr_Name.Text" xml:space="preserve"><value>Name</value></data>
+  <data name="Mr_Ext.Text" xml:space="preserve"><value>Extension</value></data>
+  <data name="Mr_Insert.Content" xml:space="preserve"><value>Insert</value></data>
+  <data name="Mr_Search.Text" xml:space="preserve"><value>Search</value></data>
+  <data name="Mr_Replace.Text" xml:space="preserve"><value>Replace with</value></data>
+  <data name="Mr_Regex.Content" xml:space="preserve"><value>Regular expression</value></data>
+  <data name="Mr_Case.Content" xml:space="preserve"><value>Match case</value></data>
+  <data name="Mr_Translit.Content" xml:space="preserve"><value>Latin letters only</value></data>
+  <data name="Mr_Translit.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Removes diacritics (ą→a, ł→l) and spells Cyrillic and Greek in Latin letters</value></data>
+  <data name="Mr_Letters.Text" xml:space="preserve"><value>Letters</value></data>
+  <data name="Mr_Counter.Text" xml:space="preserve"><value>Counter [C]</value></data>
+  <data name="Mr_Start.Header" xml:space="preserve"><value>Start</value></data>
+  <data name="Mr_Step.Header" xml:space="preserve"><value>Step</value></data>
+  <data name="Mr_Digits.Header" xml:space="preserve"><value>Digits</value></data>
+  <data name="Mr_Apply.Content" xml:space="preserve"><value>Rename</value></data>
+  <data name="Mr_Undo.Content" xml:space="preserve"><value>Undo</value></data>
+  <data name="Mr_Close.Content" xml:space="preserve"><value>Close</value></data>
+  <data name="Mr_TokName" xml:space="preserve"><value>name</value></data>
+  <data name="Mr_TokNameRange" xml:space="preserve"><value>name characters 1–3</value></data>
+  <data name="Mr_TokExt" xml:space="preserve"><value>extension</value></data>
+  <data name="Mr_TokCounter" xml:space="preserve"><value>counter</value></data>
+  <data name="Mr_TokParent" xml:space="preserve"><value>parent folder</value></data>
+  <data name="Mr_TokDate" xml:space="preserve"><value>modification date</value></data>
+  <data name="Mr_TokTime" xml:space="preserve"><value>modification time</value></data>
+  <data name="Mr_CaseKeep" xml:space="preserve"><value>Unchanged</value></data>
+  <data name="Mr_CaseLower" xml:space="preserve"><value>lower case</value></data>
+  <data name="Mr_CaseUpper" xml:space="preserve"><value>UPPER CASE</value></data>
+  <data name="Mr_CaseFirst" xml:space="preserve"><value>First upper</value></data>
+  <data name="Mr_CaseWords" xml:space="preserve"><value>Every Word Upper</value></data>
+  <data name="Search_Options.Text" xml:space="preserve"><value>Options</value></data>
+  <data name="Search_NameRegex.Content" xml:space="preserve"><value>Name as regular expression</value></data>
+  <data name="Search_TextRegex.Content" xml:space="preserve"><value>Text as regular expression</value></data>
+  <data name="Search_InArchives.Content" xml:space="preserve"><value>Search in archives</value></data>
+  <data name="Search_Feed.Content" xml:space="preserve"><value>To panel</value></data>
+  <data name="Panel_CloseResults.ToolTipService.ToolTip" xml:space="preserve"><value>Close the results and go back to the folder</value></data>
+  <data name="Sync_Open" xml:space="preserve"><value>Synchronize…</value></data>
+  <data name="Sync_MarksOnly" xml:space="preserve"><value>Just mark</value></data>
+  <data name="Sync_Title" xml:space="preserve"><value>Synchronize folders</value></data>
+  <data name="Sync_TitleCount" xml:space="preserve"><value>Synchronize ({0} differences)</value></data>
+  <data name="Sync_Name.Text" xml:space="preserve"><value>File</value></data>
+  <data name="Sync_Difference.Text" xml:space="preserve"><value>Difference</value></data>
+  <data name="Sync_Defaults.Content" xml:space="preserve"><value>Defaults</value></data>
+  <data name="Sync_AllRight.Content" xml:space="preserve"><value>All →</value></data>
+  <data name="Sync_AllLeft.Content" xml:space="preserve"><value>All ←</value></data>
+  <data name="Sync_None.Content" xml:space="preserve"><value>None</value></data>
+  <data name="Sync_ShowDiff.Content" xml:space="preserve"><value>Show differences (F3)</value></data>
+  <data name="Sync_Run.Content" xml:space="preserve"><value>Synchronize</value></data>
+  <data name="Sync_Defaults.ToolTipService.ToolTip" xml:space="preserve"><value>Newer and one-sided files go where they are missing; "different content" stays as is</value></data>
+  <data name="Diff_Title" xml:space="preserve"><value>Differences: {0}</value></data>
+  <data name="Diff_Previous.Content" xml:space="preserve"><value>↑ Previous change</value></data>
+  <data name="Diff_Next.Content" xml:space="preserve"><value>↓ Next change</value></data>
+  <data name="Sync_Offer" xml:space="preserve"><value>Differences: {0}. They are marked in both panels, so F5 copies what is marked. You can also synchronize: review each difference, pick a direction and copy everything at once.</value></data>
+  <data name="Cmd_Connect.Text" xml:space="preserve"><value>Connect to a server (FTP, SFTP, S3)…</value></data>
+  <data name="Cmd_Disconnect.Text" xml:space="preserve"><value>Disconnect the server</value></data>
+  <data name="Con_Title" xml:space="preserve"><value>Server connections</value></data>
+  <data name="Con_Name.Header" xml:space="preserve"><value>Name</value></data>
+  <data name="Con_Name.PlaceholderText" xml:space="preserve"><value>e.g. Company server</value></data>
+  <data name="Con_Protocol.Header" xml:space="preserve"><value>Protocol</value></data>
+  <data name="Con_Host.Header" xml:space="preserve"><value>Server</value></data>
+  <data name="Con_Host.PlaceholderText" xml:space="preserve"><value>e.g. ftp.example.com</value></data>
+  <data name="Con_Port.Header" xml:space="preserve"><value>Port</value></data>
+  <data name="Con_Port.PlaceholderText" xml:space="preserve"><value>default</value></data>
+  <data name="Con_User.Header" xml:space="preserve"><value>User</value></data>
+  <data name="Con_User.PlaceholderText" xml:space="preserve"><value>empty = anonymous (FTP)</value></data>
+  <data name="Con_StartPath.Header" xml:space="preserve"><value>Start folder</value></data>
+  <data name="Con_StartPath.PlaceholderText" xml:space="preserve"><value>empty = home folder</value></data>
+  <data name="Con_KeyFile.Header" xml:space="preserve"><value>Private key (optional)</value></data>
+  <data name="Con_KeyFile.PlaceholderText" xml:space="preserve"><value>empty = password login</value></data>
+  <data name="Con_Browse.Content" xml:space="preserve"><value>Browse…</value></data>
+  <data name="Con_Active.Content" xml:space="preserve"><value>Active mode (instead of passive)</value></data>
+  <data name="Con_Region.Header" xml:space="preserve"><value>Region</value></data>
+  <data name="Con_Region.PlaceholderText" xml:space="preserve"><value>empty = from an AWS host name, else us-east-1</value></data>
+  <data name="Con_Http.Content" xml:space="preserve"><value>No encryption (HTTP, e.g. MinIO on the local network)</value></data>
+  <data name="Con_S3Hint.Text" xml:space="preserve"><value>S3: the host is e.g. s3.eu-central-1.amazonaws.com or a MinIO, R2, Wasabi address. The user is the access key, the password the secret key. Buckets are the top-level folders.</value></data>
+  <data name="Con_PlainFtp.Message" xml:space="preserve"><value>Plain FTP encrypts nothing, the password included. If the server allows it, choose FTPS or SFTP.</value></data>
+  <data name="Con_Forget.Content" xml:space="preserve"><value>Forget password</value></data>
+  <data name="Con_PasswordSaved" xml:space="preserve"><value>The password is remembered in the Windows Credential Manager.</value></data>
+  <data name="Con_PasswordNotSaved" xml:space="preserve"><value>The password is not remembered: it will be asked when connecting.</value></data>
+  <data name="Con_Empty.Text" xml:space="preserve"><value>No saved connections. Add one, or type an address below, e.g. sftp://jan@server.com</value></data>
+  <data name="Con_Quick.Header" xml:space="preserve"><value>Or an address</value></data>
+  <data name="Con_Quick.PlaceholderText" xml:space="preserve"><value>sftp://user@server/folder</value></data>
+  <data name="Con_Connect.Content" xml:space="preserve"><value>Connect</value></data>
+  <data name="Con_New.Content" xml:space="preserve"><value>New</value></data>
+  <data name="Con_Duplicate.Content" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Con_Delete.Content" xml:space="preserve"><value>Delete</value></data>
+  <data name="Rmt_ConnectMenu" xml:space="preserve"><value>Connect to a server…</value></data>
+  <data name="Rmt_Upload" xml:space="preserve"><value>Upload</value></data>
+  <data name="Rmt_UploadBackTitle" xml:space="preserve"><value>Upload the changes?</value></data>
+  <data name="Rmt_UploadBack" xml:space="preserve"><value>“{0}” changed in the editor. Upload it back to {1}?</value></data>
+  <data name="Rmt_LoginTitle" xml:space="preserve"><value>Login</value></data>
+  <data name="Rmt_Login" xml:space="preserve"><value>Log in</value></data>
+  <data name="Rmt_PasswordPrompt" xml:space="preserve"><value>Password of {0} on {1}:</value></data>
+  <data name="Rmt_SecretPrompt" xml:space="preserve"><value>Secret key for the access key {0} on {1}:</value></data>
+  <data name="Rmt_SecretPlaceholder" xml:space="preserve"><value>Secret key</value></data>
+  <data name="Rmt_KeyPrompt" xml:space="preserve"><value>Passphrase of the private key ({0} on {1}):</value></data>
+  <data name="Rmt_PasswordPlaceholder" xml:space="preserve"><value>Password</value></data>
+  <data name="Rmt_KeyPlaceholder" xml:space="preserve"><value>Passphrase</value></data>
+  <data name="Rmt_Remember" xml:space="preserve"><value>Remember (Windows Credential Manager)</value></data>
+  <data name="Rmt_PlainFtp" xml:space="preserve"><value>This is plain FTP: the password crosses the network as plain text.</value></data>
+  <data name="Rmt_PlainHttp" xml:space="preserve"><value>An unencrypted connection (HTTP): the secret key is not sent, but the files travel in the clear.</value></data>
+  <data name="Rmt_HostTitle" xml:space="preserve"><value>Unknown server</value></data>
+  <data name="Rmt_HostChangedTitle" xml:space="preserve"><value>The server key changed</value></data>
+  <data name="Rmt_HostUnknown" xml:space="preserve"><value>First connection to {0}:{1}. Check that the fingerprint matches the one the server administrator gave you:</value></data>
+  <data name="Rmt_HostChanged" xml:space="preserve"><value>The server {0}:{1} presented a different key than before:</value></data>
+  <data name="Rmt_HostChangedWarning" xml:space="preserve"><value>This may mean someone is impersonating the server. Connect only if you know the key was replaced on purpose.</value></data>
+  <data name="Rmt_HostBefore" xml:space="preserve"><value>Before: {0}</value></data>
+  <data name="Rmt_HostHint" xml:space="preserve"><value>“Always trust” remembers the fingerprint; you will not be asked again until the key changes.</value></data>
+  <data name="Rmt_TrustAlways" xml:space="preserve"><value>Always trust</value></data>
+  <data name="Rmt_TrustOnce" xml:space="preserve"><value>This time only</value></data>
+  <data name="Rmt_Reject" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="Menu_Net.Text" xml:space="preserve"><value>Network</value></data>
+  <data name="Menu_Help.Text" xml:space="preserve"><value>Help</value></data>
+  <data name="Menu_Exit.Text" xml:space="preserve"><value>Exit</value></data>
+  <data name="Net_Manage.Text" xml:space="preserve"><value>Server connections…</value></data>
+  <data name="Help_Keys.Text" xml:space="preserve"><value>Keyboard shortcuts</value></data>
+  <data name="Help_About.Text" xml:space="preserve"><value>About…</value></data>
+  <data name="Help_AboutText" xml:space="preserve"><value>Plain Commander {0}
+A dual-pane file manager for Windows 11.
+
+.NET {1}, WinUI 3 (Windows App SDK). Open source libraries: CommunityToolkit.Mvvm, SharpCompress, SSH.NET, FluentFTP (with GnuTLS), Serilog.</value></data>
+  <data name="Keys_Tab" xml:space="preserve"><value>switch panels</value></data>
+  <data name="Keys_Enter" xml:space="preserve"><value>open a folder, an archive, an encrypted .pce file (after its password: browse and F5) or a file</value></data>
+  <data name="Keys_Back" xml:space="preserve"><value>parent folder</value></data>
+  <data name="Keys_CtrlPgDn" xml:space="preserve"><value>enter a folder or archive; open an installer (exe, msi) or a disk image as an archive; an encrypted .pce file after its password</value></data>
+  <data name="Keys_Insert" xml:space="preserve"><value>mark and move down</value></data>
+  <data name="Keys_SpaceKey" xml:space="preserve"><value>Space</value></data>
+  <data name="Keys_Space" xml:space="preserve"><value>mark and measure a folder</value></data>
+  <data name="Keys_Drives" xml:space="preserve"><value>drive and server menu of the left / right panel</value></data>
+  <data name="Keys_CommandLine" xml:space="preserve"><value>command line</value></data>
+  <data name="Keys_InsertName" xml:space="preserve"><value>name / path to the command line</value></data>
+  <data name="Keys_LettersKey" xml:space="preserve"><value>letters</value></data>
+  <data name="Keys_QuickSearch" xml:space="preserve"><value>quick search: part of a name (case and accents ignored); ↑/↓ next matches, Ctrl+S keeps only the matches</value></data>
+  <data name="Keys_Menu" xml:space="preserve"><value>menu</value></data>
+  <data name="Drop_Copy" xml:space="preserve"><value>Copy to “{0}”</value></data>
+  <data name="Drop_Move" xml:space="preserve"><value>Move to “{0}”</value></data>
+  <data name="Panel_NewTab.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>New tab (Ctrl+T)</value></data>
+  <data name="Panel_Root.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Root of the drive</value></data>
+  <data name="Panel_Up.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Up one folder (Backspace)</value></data>
+  <data name="Panel_FilterBox.PlaceholderText" xml:space="preserve"><value>Filter…</value></data>
+  <data name="Panel_FilterBox.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Shows only names containing this text or matching masks (*.txt; *.md). Esc clears, Ctrl+S for more conditions.</value></data>
+  <data name="Tool_Refresh.Text" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Tool_NewFolder.Text" xml:space="preserve"><value>New folder</value></data>
+  <data name="Tool_QuickView.Text" xml:space="preserve"><value>Quick view</value></data>
+  <data name="Tool_Search.Text" xml:space="preserve"><value>Search</value></data>
+  <data name="Tool_SwitchPanel.Text" xml:space="preserve"><value>Switch panel</value></data>
+  <data name="Tool_Active.Text" xml:space="preserve"><value>Active:</value></data>
+  <data name="Toolbar_ActiveLeft" xml:space="preserve"><value>left panel</value></data>
+  <data name="Toolbar_ActiveRight" xml:space="preserve"><value>right panel</value></data>
+  <data name="CommandLine_Run.Content" xml:space="preserve"><value>Run</value></data>
+</root>

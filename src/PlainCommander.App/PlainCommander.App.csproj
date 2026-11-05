@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <RootNamespace>PlainCommander.App</RootNamespace>
+    <AssemblyName>PlainCommander</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!--
+      Dev loop builds unpackaged (the exe runs straight from bin). build\msix.ps1 passes -p:Packaged=true to
+      produce the signed MSIX. Both carry the Windows App SDK runtime themselves, so nothing else is installed.
+    -->
+    <WindowsPackageType Condition="'$(Packaged)' != 'true'">None</WindowsPackageType>
+    <WindowsPackageType Condition="'$(Packaged)' == 'true'">MSIX</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- The MSIX carries .NET too: installing it must not ask for a Desktop Runtime download. -->
+    <SelfContained Condition="'$(Packaged)' == 'true'">true</SelfContained>
+    <ApplicationIcon>Assets\PlainCommander.ico</ApplicationIcon>
+    <AppxPackageDir Condition="'$(AppxPackageDir)' == ''">$(MSBuildThisFileDirectory)..\..\build\out\</AppxPackageDir>
+    <AppxBundle>Never</AppxBundle>
+    <GenerateTestArtifacts>false</GenerateTestArtifacts>
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
+    <PublishAot>false</PublishAot>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Program.cs: the same exe also runs as the elevated helper ("as administrator"). -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Windows.CsWin32">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\*.png" />
+    <Content Include="Assets\PlainCommander.ico" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 7-Zip's library (archives beyond zip/tar) and its license, for the platform being built. -->
+    <Content Include="..\..\third_party\7-Zip\arm64\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(RuntimeIdentifier)' == 'win-arm64'" />
+    <Content Include="..\..\third_party\7-Zip\x64\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" />
+    <Content Include="..\..\third_party\7-Zip\License.txt" Link="7-Zip-License.txt" CopyToOutputDirectory="PreserveNewest" />
+    <AppxManifest Include="Package.appxmanifest" Condition="'$(Packaged)' == 'true'">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PlainCommander.Core\PlainCommander.Core.csproj" />
+    <ProjectReference Include="..\PlainCommander.Presentation\PlainCommander.Presentation.csproj" />
+  </ItemGroup>
+
+</Project>

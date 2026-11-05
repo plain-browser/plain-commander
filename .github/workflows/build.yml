@@ -1,0 +1,22 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore -p:Platform=x64
+      - run: dotnet build --no-restore -c Release -p:Platform=x64
+      - run: dotnet test --project tests/PlainCommander.Core.Tests --no-build -c Release --report-xunit-trx
+      - run: dotnet test --project tests/PlainCommander.Presentation.Tests --no-build -c Release --report-xunit-trx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'

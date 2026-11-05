@@ -1,0 +1,115 @@
+<Window
+    x:Class="PlainCommander.App.Views.SearchWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:PlainCommander.Presentation"
+    xmlns:ui="using:PlainCommander.App.Helpers"
+    Title="Plain Commander">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid x:Name="TitleRow" Grid.Row="0" Height="40" Padding="12,0,0,0" ColumnSpacing="6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <FontIcon Glyph="&#xE721;" FontSize="14" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+      <TextBlock Grid.Column="1" x:Uid="Search_Title" VerticalAlignment="Center" Margin="4,0,8,0" FontWeight="SemiBold" />
+      <Grid x:Name="DragRegion" Grid.Column="2" Background="Transparent" />
+      <Grid x:Name="CaptionPadding" Grid.Column="3" Width="0" />
+    </Grid>
+
+    <!-- Criteria: what, where, content, then the optional bounds in one row -->
+    <Grid Grid.Row="1" Padding="16,4,16,8" ColumnSpacing="10" RowSpacing="8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <TextBlock Grid.Row="0" x:Uid="Search_Masks" VerticalAlignment="Center" />
+      <TextBox Grid.Row="0" Grid.Column="1" x:Name="MasksBox" Text="{x:Bind ViewModel.Masks, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" x:Uid="Search_MasksBox" />
+      <CheckBox Grid.Row="0" Grid.Column="2" x:Uid="Search_Subfolders" IsChecked="{x:Bind ViewModel.Subfolders, Mode=TwoWay}" MinWidth="0" />
+      <TextBlock Grid.Row="1" x:Uid="Search_Root" VerticalAlignment="Center" />
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="Cascadia Mono, Consolas" FontSize="12.5" />
+      <CheckBox Grid.Row="1" Grid.Column="2" x:Uid="Search_Hidden" IsChecked="{x:Bind ViewModel.IncludeHidden, Mode=TwoWay}" MinWidth="0" />
+      <TextBlock Grid.Row="2" x:Uid="Search_Text" VerticalAlignment="Center" />
+      <TextBox Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" x:Uid="Search_TextBox" />
+      <CheckBox Grid.Row="2" Grid.Column="2" x:Uid="Search_Case" IsChecked="{x:Bind ViewModel.CaseSensitive, Mode=TwoWay}" MinWidth="0" />
+      <TextBlock Grid.Row="3" x:Uid="Search_Size" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+        <TextBox Width="90" Text="{x:Bind ViewModel.MinSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="≥ np. 10k" />
+        <TextBox Width="90" Text="{x:Bind ViewModel.MaxSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="≤ np. 2M" />
+      </StackPanel>
+      <TextBlock Grid.Row="4" x:Uid="Search_Date" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <DatePicker x:Name="AfterPicker" Width="230" SelectedDateChanged="OnAfterChanged" x:Uid="Search_After" />
+        <DatePicker x:Name="BeforePicker" Width="230" SelectedDateChanged="OnBeforeChanged" x:Uid="Search_Before" />
+        <Button x:Name="ClearDates" Click="OnClearDates" x:Uid="Search_ClearDates" VerticalAlignment="Bottom" />
+      </StackPanel>
+      <TextBlock Grid.Row="5" x:Uid="Search_Options" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
+        <CheckBox x:Uid="Search_NameRegex" IsChecked="{x:Bind ViewModel.NameRegex, Mode=TwoWay}" MinWidth="0" />
+        <CheckBox x:Uid="Search_TextRegex" IsChecked="{x:Bind ViewModel.TextRegex, Mode=TwoWay}" MinWidth="0" />
+        <CheckBox x:Uid="Search_InArchives" IsChecked="{x:Bind ViewModel.InArchives, Mode=TwoWay}" MinWidth="0" />
+      </StackPanel>
+      <StackPanel Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+        <Button x:Name="StartButton" Style="{StaticResource AccentButtonStyle}" Click="OnStart" x:Uid="Search_Start" MinWidth="110" />
+        <Button x:Name="StopButton" Click="OnStop" x:Uid="Search_Stop" IsEnabled="{x:Bind ViewModel.IsRunning, Mode=OneWay}" />
+        <Button x:Name="FeedButton" Click="OnFeed" x:Uid="Search_Feed" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Results: Enter goes to the item in the active panel, F3 views it -->
+    <Grid Grid.Row="2" Margin="8,0,8,0">
+      <ListView x:Name="ResultList" ItemsSource="{x:Bind ViewModel.Results}" SelectionMode="Single" IsItemClickEnabled="False"
+                CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}" DoubleTapped="OnResultDoubleTapped" PreviewKeyDown="OnResultKeyDown">
+        <ListView.ItemContainerTransitions>
+          <TransitionCollection />
+        </ListView.ItemContainerTransitions>
+        <ListView.ItemContainerStyle>
+          <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+          </Style>
+        </ListView.ItemContainerStyle>
+        <ListView.ItemTemplate>
+          <DataTemplate x:DataType="vm:FileItem">
+            <Grid ColumnSpacing="8" Height="26">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20" /><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="116" />
+              </Grid.ColumnDefinitions>
+              <Image Width="16" Height="16" Source="{x:Bind ui:Ui.Image(Icon), Mode=OneWay}" />
+              <TextBlock Grid.Column="1" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked)}" />
+              <TextBlock Grid.Column="2" Text="{x:Bind ui:Ui.Folder(Entry.FullPath)}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="3" Text="{x:Bind SizeText}" TextAlignment="Right" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+          </DataTemplate>
+        </ListView.ItemTemplate>
+      </ListView>
+      <InfoBar VerticalAlignment="Top" Margin="8" Severity="Error" IsClosable="False"
+               IsOpen="{x:Bind ui:Ui.NotNull(ViewModel.Error), Mode=OneWay}" Message="{x:Bind ViewModel.Error, Mode=OneWay}" />
+    </Grid>
+
+    <Grid Grid.Row="3" Padding="12,6,12,8" ColumnSpacing="8">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <ProgressRing Grid.Column="1" Width="14" Height="14" IsActive="{x:Bind ViewModel.IsRunning, Mode=OneWay}" />
+    </Grid>
+  </Grid>
+</Window>

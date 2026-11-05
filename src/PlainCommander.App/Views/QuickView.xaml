@@ -1,0 +1,62 @@
+<UserControl
+    x:Class="PlainCommander.App.Views.QuickView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:PlainCommander.App.Helpers">
+
+  <!-- Ctrl+Q: the file under the cursor in the active panel, in the place of the other panel. -->
+  <Grid CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid Padding="12,8" ColumnSpacing="8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <FontIcon Glyph="&#xE7B3;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+      <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Title, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" x:Uid="QuickView_Hint" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- Text -->
+    <TextBox x:Name="TextView" Grid.Row="1" Margin="8,0,8,0" IsReadOnly="True" AcceptsReturn="True" IsSpellCheckEnabled="False" IsTabStop="False"
+             FontFamily="Cascadia Mono, Consolas" FontSize="13" Padding="10,8" CornerRadius="6"
+             Text="{x:Bind ViewModel.Viewer.Text, Mode=OneWay, FallbackValue=''}"
+             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             Visibility="{x:Bind ui:Ui.VisibleIf(ViewModel.Viewer.IsText), Mode=OneWay, FallbackValue=Collapsed}" />
+
+    <!-- Hex: the rows that fit; the wheel moves through the file -->
+    <Grid x:Name="HexHost" Grid.Row="1" Margin="8,0,8,0" CornerRadius="6" Background="{ThemeResource LayerFillColorDefaultBrush}"
+          SizeChanged="OnHexSizeChanged"
+          Visibility="{x:Bind ui:Ui.VisibleIf(ViewModel.Viewer.IsHex), Mode=OneWay, FallbackValue=Collapsed}">
+      <!-- 16 bytes a row need about 600 px; a narrower pane shows 8 (set in code from the width) -->
+      <ItemsRepeater Margin="10,6,10,6" ItemsSource="{x:Bind ViewModel.Viewer.HexPage, Mode=OneWay}">
+        <ItemsRepeater.Layout>
+          <StackLayout Orientation="Vertical" Spacing="0" />
+        </ItemsRepeater.Layout>
+        <ItemsRepeater.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <TextBlock Text="{x:Bind}" Height="20" FontFamily="Cascadia Mono, Consolas" FontSize="13" />
+          </DataTemplate>
+        </ItemsRepeater.ItemTemplate>
+      </ItemsRepeater>
+    </Grid>
+
+    <!-- Image -->
+    <Image x:Name="ImageView" Grid.Row="1" Margin="8,0,8,0" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+           Visibility="{x:Bind ui:Ui.VisibleIf(ViewModel.Viewer.IsImage), Mode=OneWay, FallbackValue=Collapsed}" />
+
+    <!-- Folder, server file, nothing under the cursor -->
+    <TextBlock Grid.Row="1" Margin="16" Text="{x:Bind ViewModel.Message, Mode=OneWay}" TextWrapping="Wrap"
+               HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+    <TextBlock Grid.Row="2" Padding="12,6,12,8" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+               Text="{x:Bind ViewModel.Viewer.Status, Mode=OneWay, FallbackValue=''}" TextTrimming="CharacterEllipsis" />
+  </Grid>
+</UserControl>

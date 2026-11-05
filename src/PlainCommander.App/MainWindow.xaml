@@ -1,0 +1,263 @@
+<Window
+    x:Class="PlainCommander.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:PlainCommander.App.Views"
+    xmlns:helpers="using:PlainCommander.App.Helpers"
+    xmlns:controls="using:PlainCommander.App.Controls"
+    Title="Plain Commander">
+  <!--
+    Graphite look: the window is layered in flat slate shades (title bar, toolbar, the darker stage under the
+    panel cards, command bar, function keys) instead of Mica, with a cyan accent. Colours live in App.xaml.
+  -->
+  <Grid x:Name="Root" PreviewKeyDown="OnRootPreviewKeyDown" PreviewKeyUp="OnRootPreviewKeyUp" Background="{ThemeResource PcStageBrush}">
+    <Grid.Resources>
+      <!-- Toolbar buttons: an icon in its own colour, a label and the shortcut in a muted tone -->
+      <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="{ThemeResource PcChipBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource PcStrokeBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource PcTextBrush}" />
+      </Style>
+      <Style x:Key="ToolKey" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="Foreground" Value="{ThemeResource PcTextMutedBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+    </Grid.Resources>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!--
+      Own title bar: the TitleBar control shifted the list's scroll clip by its height (WinAppSDK 2.6.4).
+      Only DragRegion is handed to SetTitleBar, so the buttons beside it keep receiving clicks.
+      CaptionPadding is widened in code to the system caption buttons (AppWindow.TitleBar.RightInset).
+    -->
+    <Grid x:Name="AppTitleBar" Grid.Row="0" Height="38" Padding="12,0,0,0" ColumnSpacing="4" Background="{ThemeResource PcWindowBrush}"
+          BorderThickness="0,0,0,1" BorderBrush="{ThemeResource PcStrokeBrush}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <!-- App mark: "PC" on a cyan-to-blue tile, the name and the version badge -->
+      <Border Grid.Column="0" Width="20" Height="20" CornerRadius="5" VerticalAlignment="Center">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0,1" EndPoint="1,0">
+            <GradientStop Color="#FF0891B2" Offset="0" />
+            <GradientStop Color="#FF3B82F6" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+        <TextBlock Text="PC" FontSize="9.5" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="6,0,4,0">
+        <TextBlock Text="Plain Commander" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource PcTextBrush}" />
+        <Border Padding="6,1" CornerRadius="4" BorderThickness="1" VerticalAlignment="Center"
+                Background="{ThemeResource PcBadgeBrush}" BorderBrush="{ThemeResource PcBadgeStrokeBrush}">
+          <TextBlock Text="{x:Bind helpers:Ui.VersionText}" FontSize="10.5" FontFamily="Cascadia Mono, Consolas" Foreground="{ThemeResource PcBlueBrush}" />
+        </Border>
+      </StackPanel>
+      <!-- The menu bar is built in code (MainWindow.Menu.cs) from one table; F2 shows the same menus as one flyout. -->
+      <MenuBar x:Name="TopMenu" Grid.Column="2" VerticalAlignment="Center" Margin="4,0,0,0">
+        <MenuBar.Resources>
+          <Style TargetType="MenuBarItem">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+          </Style>
+        </MenuBar.Resources>
+      </MenuBar>
+      <Grid x:Name="DragRegion" Grid.Column="3" Background="Transparent" />
+      <Button Grid.Column="4" Width="28" Height="28" Padding="0" IsTabStop="False" Background="Transparent" BorderThickness="0"
+              x:Uid="Menu_Settings_Button" Click="OnSettings">
+        <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="{ThemeResource PcTextSecondaryBrush}" />
+      </Button>
+      <Grid x:Name="CaptionPadding" Grid.Column="5" Width="0" />
+    </Grid>
+
+    <!-- Toolbar: the most used actions for the mouse, each with its key; on the right, which panel is active -->
+    <Grid Grid.Row="1" Padding="10,5,12,5" ColumnSpacing="6" Background="{ThemeResource PcBarBrush}"
+          BorderThickness="0,0,0,1" BorderBrush="{ThemeResource PcStrokeBrush}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Button Style="{StaticResource ToolButton}" Click="OnToolRefresh">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <FontIcon Glyph="&#xE72C;" FontSize="12" Foreground="{ThemeResource PcBlueBrush}" />
+            <TextBlock x:Uid="Tool_Refresh" VerticalAlignment="Center" />
+            <TextBlock Text="Ctrl+R" Style="{StaticResource ToolKey}" />
+          </StackPanel>
+        </Button>
+        <Button Style="{StaticResource ToolButton}" Click="OnToolNewFolder">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <FontIcon Glyph="&#xE8F4;" FontSize="12" Foreground="{ThemeResource PcAmberBrush}" />
+            <TextBlock x:Uid="Tool_NewFolder" VerticalAlignment="Center" />
+            <TextBlock Text="F7" Style="{StaticResource ToolKey}" />
+          </StackPanel>
+        </Button>
+        <Button Style="{StaticResource ToolButton}" Click="OnToolQuickView">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <FontIcon Glyph="&#xE7B3;" FontSize="12" Foreground="{ThemeResource PcTealBrush}" />
+            <TextBlock x:Uid="Tool_QuickView" VerticalAlignment="Center" />
+            <TextBlock Text="Ctrl+Q" Style="{StaticResource ToolKey}" />
+          </StackPanel>
+        </Button>
+        <Button Style="{StaticResource ToolButton}" Click="OnToolSearch">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <FontIcon Glyph="&#xE721;" FontSize="12" Foreground="{ThemeResource PcAccentTextBrush}" />
+            <TextBlock x:Uid="Tool_Search" VerticalAlignment="Center" />
+            <TextBlock Text="Alt+F7" Style="{StaticResource ToolKey}" />
+          </StackPanel>
+        </Button>
+        <Rectangle Width="1" Height="16" Margin="4,0" Fill="{ThemeResource PcStrokeStrongBrush}" VerticalAlignment="Center" />
+        <Button Style="{StaticResource ToolButton}" Click="OnToolSwitchPanel">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <FontIcon Glyph="&#xE89F;" FontSize="12" Foreground="{ThemeResource PcPurpleBrush}" />
+            <TextBlock x:Uid="Tool_SwitchPanel" VerticalAlignment="Center" />
+            <TextBlock Text="Tab" Style="{StaticResource ToolKey}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <TextBlock x:Uid="Tool_Active" FontSize="11.5" Foreground="{ThemeResource PcTextMutedBrush}" VerticalAlignment="Center" />
+        <TextBlock Text="{x:Bind helpers:Ui.ActiveSideText(ViewModel.Left.IsActive), Mode=OneWay}" FontSize="11.5" FontWeight="SemiBold"
+                   Foreground="{ThemeResource PcAccentTextBrush}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Two panels with a draggable splitter; double-click puts it back to 50/50. The split is saved with the window. -->
+    <Grid x:Name="Panels" Grid.Row="2" Padding="10,10,10,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition x:Name="LeftColumn" Width="*" MinWidth="400" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition x:Name="RightColumn" Width="*" MinWidth="400" />
+      </Grid.ColumnDefinitions>
+      <views:FilePanel x:Name="LeftPanel" Grid.Column="0" ViewModel="{x:Bind ViewModel.Left}" />
+      <controls:PanelSplitter x:Name="Splitter" Grid.Column="1" Width="8" IsTabStop="False" DoubleTapped="OnSplitterDoubleTapped" />
+      <views:FilePanel x:Name="RightPanel" Grid.Column="2" ViewModel="{x:Bind ViewModel.Right}" />
+      <!-- Ctrl+Q: takes the place of the panel that is not active -->
+      <views:QuickView x:Name="QuickViewPane" Grid.Column="2" Visibility="Collapsed" ViewModel="{x:Bind ViewModel.QuickView}" />
+    </Grid>
+
+    <!-- Command bar: prompt + command line on the left, the running operation as a chip on the right -->
+    <Grid Grid.Row="3" Padding="12,6,10,6" ColumnSpacing="8" Background="{ThemeResource PcBarBrush}"
+          BorderThickness="0,1,0,0" BorderBrush="{ThemeResource PcStrokeBrush}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <!-- Prompt shows the current folder only; the full path is in its tooltip and the breadcrumb. -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                  ToolTipService.ToolTip="{x:Bind ViewModel.ActivePanel.Path, Mode=OneWay}">
+        <FontIcon Glyph="&#xE756;" FontSize="13" Foreground="{ThemeResource PcAccentTextBrush}" />
+        <TextBlock Text="{x:Bind helpers:Ui.Prompt(ViewModel.ActivePanel.Path), Mode=OneWay}" VerticalAlignment="Center"
+                   MaxWidth="220" TextTrimming="CharacterEllipsis" FontFamily="Cascadia Mono, Consolas" FontSize="12.5" FontWeight="SemiBold"
+                   Foreground="{ThemeResource PcAccentTextBrush}" />
+      </StackPanel>
+      <!-- Enter runs in the active panel's folder, Up/Down walk the history, Esc goes back to the panel -->
+      <TextBox x:Name="CommandLine" Grid.Column="1" FontFamily="Cascadia Mono, Consolas" FontSize="12.5" CornerRadius="6"
+               Background="{ThemeResource PcFieldBrush}" BorderBrush="{ThemeResource PcStrokeStrongBrush}"
+               PlaceholderForeground="{ThemeResource PcTextMutedBrush}"
+               Text="{x:Bind ViewModel.CommandLine.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               IsSpellCheckEnabled="False" PreviewKeyDown="OnCommandLineKeyDown" x:Uid="CommandLine" />
+      <Button Grid.Column="2" Style="{StaticResource ToolButton}" Height="32" x:Uid="CommandLine_Run" Click="OnRunCommandLine" />
+      <!-- Click toggles between the progress card and working in the background -->
+      <Button x:Name="OperationChip" Grid.Column="3" Padding="10,0" Height="32" Click="OnToggleOperation"
+              Visibility="{x:Bind helpers:Ui.VisibleIf(ViewModel.Operations.IsRunning), Mode=OneWay}">
+        <Grid ColumnSpacing="8" RowSpacing="3">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <ProgressRing Grid.RowSpan="2" Width="14" Height="14" IsActive="{x:Bind ViewModel.Operations.IsRunning, Mode=OneWay}" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{x:Bind ViewModel.Operations.Current.Title, Mode=OneWay}" FontSize="12" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{x:Bind ViewModel.Operations.Current.AmountText, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          </StackPanel>
+          <ProgressBar Grid.Column="1" Grid.Row="1" MinHeight="3" Value="{x:Bind ViewModel.Operations.Current.TotalPercent, Mode=OneWay}"
+                       IsIndeterminate="{x:Bind ViewModel.Operations.Current.IsIndeterminate, Mode=OneWay}"
+                       ShowPaused="{x:Bind ViewModel.Operations.Current.IsPaused, Mode=OneWay}" />
+        </Grid>
+      </Button>
+    </Grid>
+
+    <views:FunctionBar x:Name="FunctionKeys" Grid.Row="4" />
+
+    <!--
+      Progress of the running operation: a card over the right panel's bottom corner, not a ContentDialog,
+      so conflict and error dialogs open on top of it. Clicking a panel sends the operation to the background.
+    -->
+    <Border x:Name="ProgressCard" Grid.Row="2" Grid.RowSpan="2" Width="440" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+            Margin="10,0,10,10" Padding="16,14" CornerRadius="12"
+            Background="{ThemeResource PcElevatedBrush}"
+            BorderBrush="{ThemeResource PcStrokeStrongBrush}" BorderThickness="1"
+            Visibility="{x:Bind ViewModel.Operations.IsDialogVisible, Mode=OneWay}">
+      <Border.Shadow>
+        <ThemeShadow />
+      </Border.Shadow>
+      <StackPanel Spacing="8">
+        <Grid ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="{x:Bind ViewModel.Operations.Current.Title, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+          <!-- The rest runs in the administrator helper after "access denied". -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                      Visibility="{x:Bind ViewModel.Operations.Current.IsElevated, Mode=OneWay}">
+            <FontIcon Glyph="&#xEA18;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Uid="Op_Elevated" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          </StackPanel>
+        </Grid>
+        <TextBlock Text="{x:Bind ViewModel.Operations.Current.CurrentItem, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <ProgressBar Value="{x:Bind ViewModel.Operations.Current.ItemPercent, Mode=OneWay}"
+                     ShowPaused="{x:Bind ViewModel.Operations.Current.IsPaused, Mode=OneWay}" />
+        <ProgressBar Value="{x:Bind ViewModel.Operations.Current.TotalPercent, Mode=OneWay}"
+                     IsIndeterminate="{x:Bind ViewModel.Operations.Current.IsIndeterminate, Mode=OneWay}"
+                     ShowPaused="{x:Bind ViewModel.Operations.Current.IsPaused, Mode=OneWay}" />
+        <Grid ColumnSpacing="12">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Operations.Current.AmountText, Mode=OneWay}" />
+          <TextBlock Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Operations.Current.SpeedText, Mode=OneWay}" />
+        </Grid>
+        <Grid Margin="0,4,0,0" ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind helpers:Ui.QueuedText(ViewModel.Operations.PendingCount), Mode=OneWay}" />
+          <Button x:Name="PauseButton" Grid.Column="1" Click="OnPauseOperation" Content="{x:Bind helpers:Ui.PauseLabel(ViewModel.Operations.Current.IsPaused), Mode=OneWay}" />
+          <Button x:Name="BackgroundButton" Grid.Column="2" x:Uid="Op_Background" Click="OnBackgroundOperation" />
+          <Button x:Name="CancelButton" Grid.Column="3" x:Uid="Op_Cancel" Click="OnCancelOperation" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>
