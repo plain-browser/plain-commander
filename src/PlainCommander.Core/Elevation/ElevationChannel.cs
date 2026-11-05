@@ -25,6 +25,7 @@ internal enum MessageType
 /// <param name="Question">Conflict/Error: the number the answer must carry.</param>
 /// <param name="Choice">Answer: a <see cref="ConflictChoice"/> or <see cref="ErrorChoice"/> as a number.</param>
 /// <param name="Value">Done of a command: the path it created or renamed to.</param>
+/// <param name="Paused">Run: the app's dialog is paused already, so the job must not do any work before a Resume.</param>
 /// <param name="Failure">Error: what went wrong at <see cref="FailureInfo.Path"/>; Done of a command: why it failed.</param>
 internal sealed record ElevationMessage(
     MessageType Type,
@@ -36,7 +37,8 @@ internal sealed record ElevationMessage(
     int Question = 0,
     int Choice = 0,
     OperationResult? Result = null,
-    string? Value = null);
+    string? Value = null,
+    bool Paused = false);
 
 /// <summary>An exception flattened for the pipe and rebuilt on the other side, close enough for the user's message.</summary>
 internal sealed record FailureInfo(string Path, string Kind, string Message, int HResult, RuleViolation Violation = default, string? RulePath = null)

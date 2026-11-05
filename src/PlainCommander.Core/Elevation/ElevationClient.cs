@@ -85,11 +85,9 @@ public sealed class ElevationClient : IAsyncDisposable
         try
         {
             await using var cancel = context.CancellationToken.Register(() => _ = SendQuietlyAsync(new ElevationMessage(MessageType.Cancel, id)));
-            await _channel.SendAsync(new ElevationMessage(MessageType.Run, id, Job: job)).ConfigureAwait(false);
-            if (context.Pause.IsPaused)
-            {
-                await _channel.SendAsync(new ElevationMessage(MessageType.Pause, id)).ConfigureAwait(false);
-            }
+            // A pause that is already on goes with the job itself: sent as a separate message after Run it would
+            // arrive when the helper has begun, and a small job could be done before the pause took hold.
+            await _channel.SendAsync(new ElevationMessage(MessageType.Run, id, Job: job, Paused: context.Pause.IsPaused)).ConfigureAwait(false);
 
             return await pending.Done.Task.ConfigureAwait(false);
         }

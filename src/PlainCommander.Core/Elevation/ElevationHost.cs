@@ -54,6 +54,11 @@ public static class ElevationHost
                 {
                     case MessageType.Run when message.Job is { } job && !jobs.ContainsKey(message.Id):
                         var hosted = new HostedJob(message.Id, job, channel, questions, () => Interlocked.Increment(ref nextQuestion));
+                        if (message.Paused)
+                        {
+                            hosted.Gate.Pause(); // before the job starts: it waits at its first step
+                        }
+
                         jobs[message.Id] = hosted;
                         _ = hosted.RunAsync().ContinueWith(_ => jobs.TryRemove(message.Id, out var _), TaskScheduler.Default);
                         break;

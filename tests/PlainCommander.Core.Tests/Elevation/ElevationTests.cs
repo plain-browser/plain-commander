@@ -132,6 +132,35 @@ public sealed class ElevationTests : IDisposable
     }
 
     [Fact]
+    public async Task A_job_that_starts_paused_does_no_work_until_it_is_resumed()
+    {
+        // The pause travels with the Run message: a helper that began first and heard "pause" later could finish a small
+        // job before it took hold. Many items make a head start visible.
+        for (var i = 0; i < 40; i++)
+        {
+            _s.File($"src/f{i}.txt");
+        }
+
+        _s.Dir("dst");
+        var (client, host) = await ConnectAsync();
+        var gate = new PauseGate();
+        gate.Pause();
+        var job = new TransferOperation(TransferKind.Copy, [_s.P("src")], new TransferTarget(_s.P("dst"), null)).ElevatedJob;
+
+        var run = client.RunAsync(job, Context(new ScriptedPrompts(), gate: gate));
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        var copiedWhilePaused = Directory.Exists(_s.P("dst", "src")) ? Directory.GetFiles(_s.P("dst", "src")).Length : 0;
+        gate.Resume();
+        var result = await run.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+        await client.DisposeAsync();
+        await host;
+
+        copiedWhilePaused.Should().Be(0, "a paused job must not copy anything");
+        result.Outcome.Should().Be(OperationOutcome.Completed);
+        Directory.GetFiles(_s.P("dst", "src")).Should().HaveCount(40);
+    }
+
+    [Fact]
     public async Task The_helper_leaves_when_idle()
     {
         var (client, host) = await ConnectAsync(TimeSpan.FromMilliseconds(200));
