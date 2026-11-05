@@ -16,7 +16,7 @@ bulk renaming in the same two panels, with the same keys.
 It lists and sorts a folder of 100,000 entries in about half a second, runs long copies in a queue you can pause, and lets you undo
 the last file operation with `Ctrl+Z`.
 
-![Plain Commander: two panels with a folder inside an encrypted container](docs/stage22-browse-pce.png)
+![Plain Commander: two panels, marked files, drive buttons with OneDrive, an encrypted .pce container in violet](docs/screenshot-main.png)
 
 > **Status:** the application is in active development (current release: 1.13.x). It is usable every day, but it is
 > not signed with a publicly trusted certificate yet; see [Installation](#installation).
