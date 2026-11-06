@@ -845,6 +845,11 @@ public sealed partial class FilePanel : UserControl
                 return; // focusing a row would pull the main window over the viewer, search or rename window
             }
 
+            if (List.ContainerFromIndex(index) is null)
+            {
+                List.UpdateLayout(); // rows of a list that was just replaced (rename, refresh) are built by a layout pass
+            }
+
             if (List.ContainerFromIndex(index) is ListViewItem row)
             {
                 var ok = row.Focus(FocusState.Programmatic);
@@ -854,8 +859,29 @@ public sealed partial class FilePanel : UserControl
             {
                 var ok = List.Focus(FocusState.Programmatic);
                 Log.Verbose("{Panel} FocusRow {Index}: no container, list focus {Result}", Name, index, ok);
+                FocusRowWhenBuilt(index);
             }
         });
+    }
+
+    /// <summary>The row was not there yet: focus on the list alone shows no frame, so the row gets it once it exists.</summary>
+    private void FocusRowWhenBuilt(int index)
+    {
+        void Handler(object? sender, object e)
+        {
+            if (List.ContainerFromIndex(index) is not ListViewItem row)
+            {
+                return; // wait for the pass that builds it
+            }
+
+            List.LayoutUpdated -= Handler;
+            if (CanTakeFocus?.Invoke() != false && ViewModel?.IsActive == true && ViewModel.CurrentIndex == index)
+            {
+                row.Focus(FocusState.Programmatic);
+            }
+        }
+
+        List.LayoutUpdated += Handler;
     }
 
     private void ApplyViewMode(bool brief)
