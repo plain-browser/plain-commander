@@ -82,4 +82,4 @@ https://github.com/plain-browser/plain-commander/issues
 
 ## Privacy policy URL
 
-(the published address of site/privacy.html, for example https://plain-browser.github.io/plain-commander/privacy.html)
+https://plain-browser.github.io/plain-commander/privacy.html

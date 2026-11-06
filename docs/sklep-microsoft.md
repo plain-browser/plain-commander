@@ -33,8 +33,7 @@ Zakładki od góry do dołu; w nawiasach, co wybrać dla Plain Commandera.
 - **Pricing and availability:** Markets „All worldwide markets”; Visibility „Public audience”, „available and
   discoverable”; Schedule „as soon as possible” / „never”; Pricing → grupa Default: waluta USD, cena **Free**;
   Free trial i Sale pricing bez zmian; Organizational licensing domyślne.
-- **Properties:** kategoria **Utilities & tools** (podkategoria File managers); Privacy policy URL → adres
-  `site/privacy.html` po publikacji strony; Website i Support contact → adres repozytorium i jego Issues;
+- **Properties:** kategoria **Utilities & tools** (podkategoria File managers); Privacy policy URL → https://plain-browser.github.io/plain-commander/privacy.html (strona z `site/privacy.html`, wdrażana workflow `pages.yml`); Website i Support contact → adres repozytorium i jego Issues;
   System requirements: Windows 11 22H2 (minimum), x64 lub ARM64; Product declarations: zaznaczyć
   „This app depends on non-Microsoft drivers or NT services” **nie**, „accessibility” wedle uznania.
 - **Age ratings:** kwestionariusz IARC; wszystkie odpowiedzi „nie” (narzędzie, bez treści, bez komunikacji między
