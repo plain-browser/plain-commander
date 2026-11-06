@@ -732,7 +732,9 @@ domyślny i nie wymaga 7-Zip.
   `Type = Network`, korzeń `\\wsl.localhost\Ubuntu`): pigułki z ikoną terminala obok `C: D:` i pozycje
   `Ubuntu   \\wsl.localhost\Ubuntu` w menu Alt+F1/F2 (pogrubione, gdy panel jest w tej dystrybucji); klik przez
   `ChangeDriveAsync`, więc wraca do ostatniego folderu na niej. Klucze `_lastPathPerDrive` dla UNC bez końcowego `\`
-  (`RootKey`). Zatrzymana dystrybucja startuje przy pierwszym wejściu. Testy: Core +1, Presentation +1.
+  (`RootKey`). Zatrzymana dystrybucja startuje przy pierwszym wejściu. Testy: Core +1, Presentation +1. Sprawdzone na
+  maszynie testowej z WSL 3.0.3 i Ubuntu 26.04: pigułka i wpis w menu, korzeń dystrybucji, `..` → lista pod
+  `wsl.localhost`, powrót przez pigułkę do ostatniego folderu (`home`).
 
 ## 5. Skróty klawiszowe
 
