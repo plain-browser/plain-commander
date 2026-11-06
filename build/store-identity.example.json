@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to build/store-identity.json and paste the values from Partner Center: Product management -> Product identity.",
+  "Name": "12345PublisherName.PlainCommander",
+  "Publisher": "CN=00000000-0000-0000-0000-000000000000",
+  "PublisherDisplayName": "Publisher Name"
+}

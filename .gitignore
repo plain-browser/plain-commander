@@ -15,3 +15,4 @@ release/
 
 # private development-machine scripts (VM on a local server)
 infra/
+build/store-identity.json
