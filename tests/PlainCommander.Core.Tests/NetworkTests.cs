@@ -32,7 +32,7 @@ public sealed class NetworkTests
     public async Task Lists_computers_then_shares_and_leads_back_up_from_a_share()
     {
         var browser = new FakeBrowser();
-        var fs = new NetworkFileSystem(new FakeDisk(), browser);
+        var fs = new NetworkFileSystem(new FakeDisk(), browser, () => []);
 
         (await List(fs, "net://")).Select(e => (e.Name, e.FullPath)).Should().Equal(("nas", "net://nas"), ("pc", "net://pc"));
         var shares = await List(fs, "net://nas");
@@ -73,7 +73,7 @@ public sealed class NetworkTests
     [Fact]
     public async Task A_server_opened_by_path_joins_the_computer_list()
     {
-        var fs = new NetworkFileSystem(new FakeDisk(), new FakeBrowser());
+        var fs = new NetworkFileSystem(new FakeDisk(), new FakeBrowser(), () => []);
 
         await List(fs, @"\\backup\media");
 

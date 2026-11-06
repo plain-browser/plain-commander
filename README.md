@@ -71,7 +71,8 @@ the last file operation with `Ctrl+Z`.
 - **Full** and **brief** (multi-column) views, switchable per panel (`Ctrl+F1` / `Ctrl+F2`); compact rows; an
   optional attributes column; adjustable font and size.
 - **Drive buttons** (`C:`, `D:`, …) on each panel, plus OneDrive and WSL buttons, the network and open servers in the
-  `Alt+F1` / `Alt+F2` menu. A drive remembers the folder you were in on it.
+  `Alt+F1` / `Alt+F2` menu. Choosing the drive the other panel is on lands in its folder; otherwise a drive
+  remembers the folder you were in on it.
 - **Editable path bar** (`Ctrl+L`) with clickable breadcrumbs; type a local path, a UNC path
   (`\\server\share`) or a server address (`sftp://user@host/path`).
 - **Favorites** (`Ctrl+D`), **history** (`Alt+Down`), "same folder in the other panel" (`Ctrl+Left` / `Ctrl+Right`),

@@ -376,4 +376,20 @@ public sealed class PanelViewModelTests : IDisposable
         await _panel.ChangeDriveAsync(work);
         _panel.Path.Should().Be(work, "the button leads to the top folder even from inside it");
     }
+
+    [Fact]
+    public async Task ChangeDrive_meets_the_other_panel_in_its_folder()
+    {
+        var theirs = _tree.Dir("theirs");
+        var root = Path.GetPathRoot(_tree.Root)!;
+        _panel.OtherPanelPath = () => theirs;
+
+        // a panel not yet on that drive (here: showing nothing) lands where the other panel is
+        (await _panel.ChangeDriveAsync(root)).Should().BeTrue();
+        _panel.Path.Should().Be(theirs);
+
+        // already on the drive: its button still goes to the root
+        await _panel.ChangeDriveAsync(root);
+        _panel.Path.Should().Be(root);
+    }
 }

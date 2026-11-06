@@ -991,14 +991,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         MarkCurrentDrive();
     }
 
-    /// <summary>
-    /// Drive button / Alt+F1: the current drive goes to its root,
-    /// another drive goes back to the folder this panel last showed on it.
-    /// </summary>
+    /// <summary>The other panel's path: choosing the drive it stands on lands in its folder.</summary>
+    public Func<string?>? OtherPanelPath { get; set; }
+
     /// <summary>The drive for a letter typed in the Alt+F1/F2 menu ("d" → D:\), or null.</summary>
     public DriveItem? FindDrive(char letter) =>
         Drives.FirstOrDefault(d => d.Letter.Length == 1 && char.ToUpperInvariant(d.Letter[0]) == char.ToUpperInvariant(letter));
 
+    /// <summary>
+    /// Drive button / Alt+F1: the current drive goes to its root; another drive lands in the folder
+    /// the other panel shows on it, else in the folder this panel last showed there, else its root.
+    /// </summary>
     public Task<bool> ChangeDriveAsync(string root)
     {
         if (Drives.Any(d => d.IsCloud && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase)))
@@ -1009,6 +1012,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (string.Equals(CurrentRoot, root, StringComparison.OrdinalIgnoreCase))
         {
             return NavigateAsync(root);
+        }
+
+        if (OtherPanelPath?.Invoke() is { Length: > 0 } other
+            && !RemotePath.IsRemote(other) && !NetworkPath.IsVirtual(other) && ArchiveFileSystem.Locate(other) is null
+            && string.Equals(RootKey(System.IO.Path.GetPathRoot(other) ?? string.Empty), RootKey(root), StringComparison.OrdinalIgnoreCase)
+            && _fs.DirectoryExists(other))
+        {
+            return NavigateAsync(other); // the other panel is on that drive: meet it in its folder
         }
 
         return _lastPathPerDrive.TryGetValue(RootKey(root), out var last) && _fs.DirectoryExists(last)

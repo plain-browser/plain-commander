@@ -74,6 +74,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Right.CloudProvider = cloud;
         Left.WslProvider = wsl;
         Right.WslProvider = wsl;
+        Left.OtherPanelPath = () => Right.Path;
+        Right.OtherPanelPath = () => Left.Path;
         Left.EncryptedHandler = (item, browse) => HandleEncryptedAsync(Left, item, browse);
         Right.EncryptedHandler = (item, browse) => HandleEncryptedAsync(Right, item, browse);
         Left.ApplySettings(Settings.Left, Settings.ShowHidden);

@@ -20,7 +20,7 @@ public sealed class NetworkPanelTests : IDisposable
     public NetworkPanelTests()
     {
         _images = new FakeImages(_disk);
-        var fs = new NetworkFileSystem(_disk, new FakeBrowser());
+        var fs = new NetworkFileSystem(_disk, new FakeBrowser(), () => []); // no WSL: the test machine may have one
         _vm = new MainViewModel(fs, new RecordingLauncher(), new SettingsStore(Path.Combine(_tree.Root, "s.json")), _dialogs, new NoPrompts(), new FakeBin(), disks: _images)
         {
             AttachWait = TimeSpan.FromSeconds(2),
