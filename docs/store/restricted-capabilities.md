@@ -1,0 +1,13 @@
+# Restricted capabilities — texts for Partner Center (Submission options)
+
+## Why do you need the runFullTrust capability, and how will it be used in your product?
+
+Plain Commander is a dual-pane file manager built as a self-contained desktop application (WinUI 3, .NET) and packaged as MSIX. It needs a full-trust process because its entire purpose is to work with the user's files outside the app's package: it lists, copies, moves, renames, deletes (to the Recycle Bin) and compares files and folders on local disks, removable drives, network shares and OneDrive folders chosen by the user, which the UWP sandbox and broker APIs cannot do at this scale. It calls Win32 and shell APIs (IFileOperation, shell context menus, file properties, volume and network enumeration), opens files with their default programs, and reads and writes archives through the bundled 7-Zip library. It also connects to FTP, SFTP and S3 servers entered by the user. The app has no telemetry and no background service; it only acts on what the user does in its window.
+
+## Why do you need the allowElevation capability, and how will it be used in your product?
+
+When a file operation fails with "Access denied" (for example copying into a protected folder), the app offers a button "As administrator". Only after the user clicks it, the app starts its own executable (the same PlainCommander.exe, with an --elevated switch) with a UAC prompt, as a helper for that one operation. The helper receives the job over a private named pipe that verifies the parent process ID, performs the copy, move or delete, reports progress, and exits when the operation finishes. The app never elevates by itself, never at startup, and installs no service or scheduled task. Without this capability the packaged app could not trigger the UAC prompt for the helper, and the user would have to restart the whole file manager as administrator.
+
+## Notes for certification (Additional Testing Information page)
+
+Plain Commander is a dual-pane file manager. No sign-in or account is needed and every feature works right after installation. To try it: start the app, press F7 to create a folder, F5 to copy files between the two panels, Tab to switch the active panel. The "As administrator" helper can be seen by copying a file into C:\Windows (access denied), then clicking "As administrator" in the error dialog (UAC prompt appears). Archives open like folders (Enter on a .zip file). The app has no telemetry and contacts no server unless the tester opens an FTP, SFTP or S3 address. Interface languages: English and Polish (follows the Windows display language).
