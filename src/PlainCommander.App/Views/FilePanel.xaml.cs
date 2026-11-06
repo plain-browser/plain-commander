@@ -227,6 +227,9 @@ public sealed partial class FilePanel : UserControl
                 FocusStrayed?.Invoke(this, EventArgs.Empty);
             }
         };
+        // A click gives the row focus "by pointer", and WinUI draws no focus frame for that: the cursor moved but
+        // nothing shows where it is. Once the click is done the row gets the same focus the arrow keys give it.
+        List.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ShowFrameAfterClick)), true);
         List.LayoutUpdated += OnListLayoutUpdated;
         List.SizeChanged += OnListSizeChanged;
     }
@@ -265,7 +268,7 @@ public sealed partial class FilePanel : UserControl
     public void FocusListNow()
     {
         var index = List.SelectedIndex >= 0 ? List.SelectedIndex : 0;
-        if (CanTakeFocus?.Invoke() != false && List.ContainerFromIndex(index) is ListViewItem row && row.Focus(FocusState.Programmatic))
+        if (CanTakeFocus?.Invoke() != false && List.ContainerFromIndex(index) is ListViewItem row && row.Focus(FocusState.Keyboard))
         {
             return;
         }
@@ -812,6 +815,14 @@ public sealed partial class FilePanel : UserControl
         }
     }
 
+    private void ShowFrameAfterClick()
+    {
+        if (XamlRoot is not null && ViewModel?.IsActive == true && FocusManager.GetFocusedElement(XamlRoot) is ListViewItem { FocusState: FocusState.Pointer } row)
+        {
+            row.Focus(FocusState.Keyboard);
+        }
+    }
+
     private void OnFocusRequested(object? sender, int index)
     {
         if (index < 0 || index >= List.Items.Count)
@@ -852,7 +863,7 @@ public sealed partial class FilePanel : UserControl
 
             if (List.ContainerFromIndex(index) is ListViewItem row)
             {
-                var ok = row.Focus(FocusState.Programmatic);
+                var ok = row.Focus(FocusState.Keyboard);
                 Log.Verbose("{Panel} FocusRow {Index}: row focus {Result}", Name, index, ok);
             }
             else
@@ -877,7 +888,7 @@ public sealed partial class FilePanel : UserControl
             List.LayoutUpdated -= Handler;
             if (CanTakeFocus?.Invoke() != false && ViewModel?.IsActive == true && ViewModel.CurrentIndex == index)
             {
-                row.Focus(FocusState.Programmatic);
+                row.Focus(FocusState.Keyboard);
             }
         }
 
@@ -930,7 +941,7 @@ public sealed partial class FilePanel : UserControl
             List.LayoutUpdated -= Handler;
             if (List.ContainerFromIndex(vm.CurrentIndex) is ListViewItem row)
             {
-                row.Focus(FocusState.Programmatic);
+                row.Focus(FocusState.Keyboard);
             }
             else
             {

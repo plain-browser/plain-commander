@@ -109,12 +109,15 @@ public sealed partial class MainWindow : Window
         Root.Loaded += OnLoaded;
 
         // Panels move keyboard focus only while this window is in front (see FilePanel.CanTakeFocus); when it
-        // comes back and nothing holds focus (the focused row was replaced meanwhile), the active panel gets it.
+        // comes back (after Word or another program was closed), the active panel's row gets focus again unless
+        // nothing needs it: a text box keeps its caret. Focus that is missing, rests on the list itself or on a row
+        // that does not show the frame (it was last focused by pointer, or the window took it away) is set anew.
         Activated += (_, e) =>
         {
             _isForeground = e.WindowActivationState != WindowActivationState.Deactivated;
-            if (_isForeground && Content.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is null)
+            if (_isForeground && Content.XamlRoot is { } root && !_dialogs.IsOpen && NeedsRowFocus(FocusManager.GetFocusedElement(root)))
             {
+                Serilog.Log.Debug("Window activated with focus on {Source}; focusing the active panel's row", FocusManager.GetFocusedElement(root)?.GetType().Name ?? "nothing");
                 ActivePanelView.FocusList();
             }
         };
@@ -638,6 +641,14 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Clicking into a panel while the progress card is up sends the operation to the background.</summary>
+    private static bool NeedsRowFocus(object? focused) => focused switch
+    {
+        null => true,
+        ListViewItem row => row.FocusState != FocusState.Keyboard,
+        ListViewBase => true,
+        _ => false, // a text box, the command line, a button: the user put focus there
+    };
+
     /// <summary>Focus landed in the inactive panel without the user asking: back to the active panel's row.</summary>
     private void ReturnStrayFocus()
     {
