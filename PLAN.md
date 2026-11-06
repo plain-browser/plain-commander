@@ -736,6 +736,26 @@ domyślny i nie wymaga 7-Zip.
   maszynie testowej z WSL 3.0.3 i Ubuntu 26.04: pigułka i wpis w menu, korzeń dystrybucji, `..` → lista pod
   `wsl.localhost`, powrót przez pigułkę do ostatniego folderu (`home`).
 
+### 1.13.8 — fokus uciekał do prawego panelu
+
+- Zgłoszenie po 1.13.7: przy chodzeniu po folderach w lewym panelu prawy „mrugał”, a czasem stawał się aktywny i klawiatura
+  szła do niego. Odtworzone na maszynie testowej z logiem fokusu: po Enter/Backspace wiersz z fokusem znika z listy
+  (nowe `Items`), a WinUI przenosi fokus na następną kontrolkę, którą znajduje — okruszek prawego panelu
+  (`BreadcrumbBarItem`) — i zgłasza go ze stanem `Keyboard`, bo `FocusState` odzwierciedla ostatnie urządzenie, nie
+  intencję użytkownika. `GotFocus` z tym stanem aktywował prawy panel; kolejny klawisz (Backspace) szedł już w prawo.
+  To nie było związane z WSL (działo się na `C:\`), tylko zbiegło się w czasie.
+- Poprawka: panel staje się aktywny wyłącznie po kliknięciu w nim (`PointerPressed`, także obsłużone zdarzenia) albo
+  jawnie (Tab, Alt+F1/F2, pigułki dysków). Fokus, który wszedł do nieaktywnego panelu, jest od razu zwracany
+  aktywnemu (`FilePanel.FocusStrayed` → `MainWindow.ReturnStrayFocus` → `FocusListNow`), z wpisem w logu
+  „Focus strayed into the inactive …”.
+- Przy okazji: odświeżenie z obserwatora, które przynosi te same wpisy, nie podmienia listy (`SameListing` w
+  `NavigateAsync` z `keepState`) — koniec mrugania przy fałszywych zdarzeniach; jawne `focusName` nadal przesuwa
+  kursor. Udziały WSL nie dają powiadomień (`ReadDirectoryChangesW` → błąd 1 „Niepoprawna funkcja”): obserwator
+  loguje to raz i nie wymusza ponownego odczytu (wcześniej każde wejście listowało katalog dwa razy).
+- Testy: Presentation +1 (`Refresh_that_brings_the_same_entries_keeps_the_rows_and_the_cursor`). Na maszynie
+  testowej: Enter/Backspace z klawiatury i dwuklikiem w lewym przy prawym na `C:\` i w WSL, Tab, klik w wiersz
+  i w pole filtra prawego panelu.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |

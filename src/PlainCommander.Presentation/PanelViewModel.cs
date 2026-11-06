@@ -519,6 +519,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 StartWatching(full);
             }
 
+            if (keepState && string.Equals(Path, full, StringComparison.Ordinal) && SameListing(Items, items))
+            {
+                // A watcher event with nothing new (a WSL share after each listing, a file touched and restored):
+                // the rows stay, so the panel does not flicker and neither the cursor nor the keyboard focus moves.
+                UpdateDriveState(drive);
+                UpdateStatus();
+                if (focusName is not null && IndexOfName(focusName) is var at && at >= 0 && at != CurrentIndex)
+                {
+                    MoveCursor(at); // asked to land on a file (just written): that still happens
+                }
+
+                Log.Verbose("Unchanged {Path}: {Count} entries kept", full, items.Length);
+                return true;
+            }
+
             if (!keepState)
             {
                 Remember(full);
@@ -1361,6 +1376,27 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>True when a re-read brought the same entries with the same properties, in the same order.</summary>
+    private static bool SameListing(IReadOnlyList<FileItem> shown, FileItem[] fresh)
+    {
+        if (shown.Count != fresh.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < fresh.Length; i++)
+        {
+            var a = shown[i];
+            var b = fresh[i];
+            if (a.Entry != b.Entry || a.DetailKind != b.DetailKind || !Equals(a.Details, b.Details))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private void StartWatching(string path)
     {
         _watcher?.Dispose();
@@ -1381,6 +1417,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                     {
                         if (!IsLoading)
                         {
+                            Log.Verbose("Change in {Path}: refreshing", Path);
                             _ = RefreshAsync(); // a navigation in progress brings fresh content anyway
                         }
                     });

@@ -94,6 +94,8 @@ public sealed partial class MainWindow : Window
                 ActivatePanel(ViewModel.Right);
             }
         };
+        LeftPanel.FocusStrayed += (_, _) => ReturnStrayFocus();
+        RightPanel.FocusStrayed += (_, _) => ReturnStrayFocus();
         ViewModel.PanelFocusRequested += (_, _) =>
         {
             Helpers.WindowFront.Bring(this);
@@ -636,6 +638,15 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Clicking into a panel while the progress card is up sends the operation to the background.</summary>
+    /// <summary>Focus landed in the inactive panel without the user asking: back to the active panel's row.</summary>
+    private void ReturnStrayFocus()
+    {
+        if (!_dialogs.IsOpen && !ViewModel.QuickView.IsOpen)
+        {
+            ActivePanelView.FocusListNow();
+        }
+    }
+
     private void ActivatePanel(PanelViewModel panel)
     {
         ViewModel.Activate(panel);

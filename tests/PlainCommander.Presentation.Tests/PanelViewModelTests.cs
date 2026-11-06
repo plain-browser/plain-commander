@@ -309,6 +309,31 @@ public sealed class PanelViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Refresh_that_brings_the_same_entries_keeps_the_rows_and_the_cursor()
+    {
+        _tree.File("a.txt");
+        _tree.File("b.txt");
+        _tree.Dir("d");
+        await _panel.NavigateAsync(_tree.Root, "b.txt");
+        var shown = _panel.Items;
+        var focusRequests = 0;
+        _panel.FocusRequested += (_, _) => focusRequests++;
+
+        (await _panel.RefreshAsync()).Should().BeTrue();
+
+        _panel.Items.Should().BeSameAs(shown, "nothing changed, so the list is not rebuilt (no flicker, no focus moves)");
+        _panel.CurrentItem!.Name.Should().Be("b.txt");
+        focusRequests.Should().Be(0);
+
+        _tree.File("c.txt");
+        await _panel.RefreshAsync();
+
+        _panel.Items.Should().NotBeSameAs(shown);
+        _panel.Items.Select(i => i.Name).Should().Contain("c.txt");
+        _panel.CurrentItem!.Name.Should().Be("b.txt");
+    }
+
+    [Fact]
     public async Task Wsl_distributions_come_with_the_drive_refresh()
     {
         _panel.WslProvider = () => ["Ubuntu", "Debian"];

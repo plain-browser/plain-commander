@@ -211,14 +211,20 @@ public sealed partial class FilePanel : UserControl
     public FilePanel()
     {
         InitializeComponent();
+        // A click anywhere in the panel makes it the active one; Tab is handled by the window. Focus alone proves
+        // nothing: when a navigation or refresh removes the focused row, WinUI parks focus on the next control it finds
+        // (the other panel's breadcrumb or list), and reports it as "keyboard" or "pointer" after the last input device,
+        // not after anything the user did. Until 1.13.7 that parked focus activated the other panel, so Backspace after
+        // Enter walked the wrong side.
+        AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => ActivatedByUser?.Invoke(this, EventArgs.Empty)), true);
         GotFocus += (_, e) =>
         {
-            // Only focus the user brought here (click, keyboard) makes this the active panel. When a refresh
-            // removes the focused row of the other panel, WinUI parks focus on the first control of the window,
-            // which used to be this list: after F5, F7 or Ctrl+M in the right panel the left one became active.
-            if ((e.OriginalSource as Control)?.FocusState is FocusState.Pointer or FocusState.Keyboard)
+            var state = (e.OriginalSource as Control)?.FocusState;
+            Log.Verbose("{Panel} got focus ({State}) on {Source}, active: {Active}", Name, state, e.OriginalSource?.GetType().Name, ViewModel?.IsActive);
+            if (ViewModel?.IsActive == false && CanTakeFocus?.Invoke() != false)
             {
-                ActivatedByUser?.Invoke(this, EventArgs.Empty);
+                Log.Debug("Focus strayed into the inactive {Panel} ({Source}); returning it", Name, e.OriginalSource?.GetType().Name);
+                FocusStrayed?.Invoke(this, EventArgs.Empty);
             }
         };
         List.LayoutUpdated += OnListLayoutUpdated;
@@ -230,8 +236,11 @@ public sealed partial class FilePanel : UserControl
     /// <summary>Below this even the narrow layout leaves the name no room: attributes go.</summary>
     private const double TinyWidth = 360;
 
-    /// <summary>Raised when focus enters the panel (click, Tab), so the window can make it active.</summary>
+    /// <summary>Raised on a click in the panel (and by its own controls when they act), so the window can make it active.</summary>
     public event EventHandler? ActivatedByUser;
+
+    /// <summary>Raised when WinUI moved focus into this inactive panel on its own; the window sends it back.</summary>
+    public event EventHandler? FocusStrayed;
 
     /// <summary>
     /// Set by the window: false while another window of the app is in front. Refreshes then keep the cursor
@@ -249,6 +258,18 @@ public sealed partial class FilePanel : UserControl
     public void FocusList()
     {
         var index = List.SelectedIndex >= 0 ? List.SelectedIndex : 0;
+        FocusRow(index);
+    }
+
+    /// <summary>Focus back on the row at once when it exists (no visible flash elsewhere), the usual way otherwise.</summary>
+    public void FocusListNow()
+    {
+        var index = List.SelectedIndex >= 0 ? List.SelectedIndex : 0;
+        if (CanTakeFocus?.Invoke() != false && List.ContainerFromIndex(index) is ListViewItem row && row.Focus(FocusState.Programmatic))
+        {
+            return;
+        }
+
         FocusRow(index);
     }
 
@@ -820,16 +841,19 @@ public sealed partial class FilePanel : UserControl
         {
             if (CanTakeFocus?.Invoke() == false)
             {
+                Log.Verbose("{Panel} FocusRow {Index}: cannot take focus now", Name, index);
                 return; // focusing a row would pull the main window over the viewer, search or rename window
             }
 
             if (List.ContainerFromIndex(index) is ListViewItem row)
             {
-                row.Focus(FocusState.Programmatic);
+                var ok = row.Focus(FocusState.Programmatic);
+                Log.Verbose("{Panel} FocusRow {Index}: row focus {Result}", Name, index, ok);
             }
             else
             {
-                List.Focus(FocusState.Programmatic);
+                var ok = List.Focus(FocusState.Programmatic);
+                Log.Verbose("{Panel} FocusRow {Index}: no container, list focus {Result}", Name, index, ok);
             }
         });
     }

@@ -1,3 +1,4 @@
+using Serilog;
 using System.Runtime.CompilerServices;
 using PlainCommander.Core.Model;
 
@@ -94,7 +95,20 @@ public sealed class LocalFileSystem : IFileSystem
             watcher.Deleted += (_, _) => onChanged();
             watcher.Changed += (_, _) => onChanged();
             watcher.Renamed += (_, _) => onChanged();
-            watcher.Error += (_, _) => onChanged(); // buffer overflow: we lost events, so refresh
+            watcher.Error += (_, e) =>
+            {
+                var ex = e.GetException();
+                if (ex is System.ComponentModel.Win32Exception { NativeErrorCode: 1 })
+                {
+                    // ERROR_INVALID_FUNCTION: the file system has no change notifications (WSL shares);
+                    // nothing was lost, so there is nothing to re-read
+                    Log.Debug("No change notifications in {Path}", path);
+                    return;
+                }
+
+                Log.Debug(ex, "Watcher error in {Path}", path);
+                onChanged(); // buffer overflow: we lost events, so refresh
+            };
             watcher.EnableRaisingEvents = true;
             return watcher;
         }
