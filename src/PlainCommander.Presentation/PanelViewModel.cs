@@ -949,10 +949,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>Finds the synced OneDrive folders; they are listed after the drives. Set by the main view model.</summary>
     public Func<IReadOnlyList<CloudFolder>>? CloudProvider { get; set; }
 
+    /// <summary>Finds the WSL distributions; they come after OneDrive, each as the share \\wsl.localhost\name. Set by the main view model.</summary>
+    public Func<IReadOnlyList<string>>? WslProvider { get; set; }
+
     public async Task RefreshDrivesAsync()
     {
         var drives = await Task.Run(_fs.GetDrives);
         var cloud = CloudProvider is { } provider ? await Task.Run(provider) : [];
+        var wsl = WslProvider is { } wslProvider ? await Task.Run(wslProvider) : [];
         Drives.Clear();
         foreach (var d in drives)
         {
@@ -962,6 +966,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         foreach (var c in cloud)
         {
             Drives.Add(new DriveItem(new DriveEntry(c.Path, c.Name, DriveType.Fixed, 0, 0, true, c.Name)));
+        }
+
+        foreach (var distro in wsl)
+        {
+            Drives.Add(new DriveItem(new DriveEntry(WslDistros.Root(distro), distro, DriveType.Network, 0, 0, true)));
         }
 
         MarkCurrentDrive();
@@ -987,10 +996,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return NavigateAsync(root);
         }
 
-        return _lastPathPerDrive.TryGetValue(root, out var last) && _fs.DirectoryExists(last)
+        return _lastPathPerDrive.TryGetValue(RootKey(root), out var last) && _fs.DirectoryExists(last)
             ? NavigateAsync(last)
             : NavigateAsync(root);
     }
+
+    /// <summary>"C:\" stays; a UNC root is remembered without its trailing backslash ("\\wsl.localhost\Ubuntu").</summary>
+    private static string RootKey(string root) => root.Length > 3 ? root.TrimEnd('\\') : root;
 
     public bool QuickSearchType(char c)
     {
@@ -1507,7 +1519,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var root = System.IO.Path.GetPathRoot(full);
         if (!string.IsNullOrEmpty(root))
         {
-            _lastPathPerDrive[root] = full;
+            _lastPathPerDrive[RootKey(root)] = full;
         }
     }
 
@@ -1525,11 +1537,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var root = CurrentRoot;
         // inside a OneDrive folder that button is the current one (not also the drive holding it)
         var cloud = Drives.Where(d => d.IsCloud && IsInside(Path, d.Root)).OrderByDescending(static d => d.Root.Length).FirstOrDefault();
+        var distro = WslDistros.DistroOf(Path);
         foreach (var d in Drives)
         {
             d.IsCurrent = cloud is not null
                 ? ReferenceEquals(d, cloud)
-                : !d.IsCloud && root is not null && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase);
+                : d.IsWsl
+                    ? distro is not null && string.Equals(WslDistros.DistroOf(d.Root), distro, StringComparison.OrdinalIgnoreCase)
+                    : !d.IsCloud && root is not null && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase);
         }
     }
 

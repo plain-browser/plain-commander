@@ -64,6 +64,11 @@ internal static class Texts
             return $"{drive.CloudName}   {drive.Root}";
         }
 
+        if (Core.Network.WslDistros.DistroOf(drive.Root) is { } distro)
+        {
+            return $"{distro}   {drive.Root}";
+        }
+
         var root = drive.Root.TrimEnd('\\');
         return drive.IsReady ? $"{root}   {DriveSummary(drive)}" : $"{root}   {(Polish ? "niedostępny" : "not ready")}";
     }

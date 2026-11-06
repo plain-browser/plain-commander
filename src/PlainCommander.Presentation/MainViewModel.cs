@@ -45,7 +45,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Core.Details.IFileDetailsProvider? details = null,
         IDiskImages? disks = null,
         Core.Undo.IRecycleBinRestore? restore = null,
-        Func<IReadOnlyList<CloudFolder>>? cloud = null)
+        Func<IReadOnlyList<CloudFolder>>? cloud = null,
+        Func<IReadOnlyList<string>>? wsl = null)
     {
         _disks = disks;
         _restore = restore;
@@ -71,6 +72,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Right = new PanelViewModel(withServers, launcher, icons) { DetailsProvider = details };
         Left.CloudProvider = cloud;
         Right.CloudProvider = cloud;
+        Left.WslProvider = wsl;
+        Right.WslProvider = wsl;
         Left.EncryptedHandler = (item, browse) => HandleEncryptedAsync(Left, item, browse);
         Right.EncryptedHandler = (item, browse) => HandleEncryptedAsync(Right, item, browse);
         Left.ApplySettings(Settings.Left, Settings.ShowHidden);

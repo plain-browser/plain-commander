@@ -255,6 +255,8 @@
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <FontIcon Glyph="&#xE753;" FontSize="11" VerticalAlignment="Center" Visibility="{x:Bind ui:Ui.CloudMark(IsCloud)}"
                           Foreground="{x:Bind ui:Ui.DrivePillForeground(IsCurrent), Mode=OneWay}" />
+                <FontIcon Glyph="&#xE756;" FontSize="11" VerticalAlignment="Center" Visibility="{x:Bind ui:Ui.VisibleIf(IsWsl)}"
+                          Foreground="{x:Bind ui:Ui.DrivePillForeground(IsCurrent), Mode=OneWay}" />
                 <TextBlock Text="{x:Bind ui:Ui.DriveLetter(PillText)}" FontFamily="Cascadia Mono, Consolas" FontSize="11"
                            Foreground="{x:Bind ui:Ui.DrivePillForeground(IsCurrent), Mode=OneWay}" />
               </StackPanel>

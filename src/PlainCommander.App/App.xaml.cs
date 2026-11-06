@@ -35,7 +35,7 @@ public partial class App : Application
         PlainCommander.Core.Archives.ArchivePasswords.Prompt = dialogs;
         Services = new ServiceCollection()
             .AddSingleton<IFileSystem>(_ => new PlainCommander.Core.Archives.ArchiveFileSystem(
-                new PlainCommander.Core.Network.NetworkFileSystem(new LocalFileSystem(), new PlainCommander.Core.Network.WindowsNetworkBrowser(OwnerWindow))))
+                new PlainCommander.Core.Network.NetworkFileSystem(new LocalFileSystem(), new PlainCommander.Core.Network.WindowsNetworkBrowser(OwnerWindow), PlainCommander.Core.Network.WslDistros.Find)))
             .AddSingleton<ILauncher>(_ => new ShellLauncher())
             .AddSingleton<IIconProvider>(_ => new IconService(ui))
             .AddSingleton<IDialogService>(dialogs)
@@ -56,7 +56,8 @@ public partial class App : Application
                 new PlainCommander.Core.Details.WindowsFileDetails(),
                 new DiskImages(OwnerWindow),
                 new PlainCommander.Core.Undo.WindowsRecycleBinRestore(),
-                PlainCommander.Core.FileSystem.CloudFolders.Find))
+                PlainCommander.Core.FileSystem.CloudFolders.Find,
+                PlainCommander.Core.Network.WslDistros.Find))
             .BuildServiceProvider();
 
         UnhandledException += (_, e) => Log.Fatal(e.Exception, "Unhandled exception");

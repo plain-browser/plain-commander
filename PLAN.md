@@ -722,6 +722,18 @@ domyślny i nie wymaga 7-Zip.
   dwóch elementów, Ctrl+PgDn z błędnym i dobrym hasłem, Enter → konflikt → „Zachowaj oba”. Zrzuty
   `docs/stage22-encrypt-pce.png`, `stage22-decrypt-password.png`, `stage22-browse-pce.png`.
 
+### Po 1.13.6 — WSL w wyborze dysku
+
+- Zgłoszenie: w menu Alt+F1/F2 nie było dystrybucji WSL2. `\\wsl.localhost` nie jest ani dyskiem (`DriveInfo`), ani
+  komputerem z NetServerEnum, więc nie miało skąd się wziąć. `WslDistros.Find` czyta rejestr
+  (`HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss\{guid}\DistributionName`, `State == 1`, domyślna pierwsza);
+  `NetworkFileSystem` dokłada komputer `wsl.localhost` do `net://` i listuje dystrybucje jako jego udziały (zamiast
+  NetShareEnum, które o nich nie wie). Panel dokłada dystrybucje do `Drives` za OneDrive (`DriveItem.IsWsl`,
+  `Type = Network`, korzeń `\\wsl.localhost\Ubuntu`): pigułki z ikoną terminala obok `C: D:` i pozycje
+  `Ubuntu   \\wsl.localhost\Ubuntu` w menu Alt+F1/F2 (pogrubione, gdy panel jest w tej dystrybucji); klik przez
+  `ChangeDriveAsync`, więc wraca do ostatniego folderu na niej. Klucze `_lastPathPerDrive` dla UNC bez końcowego `\`
+  (`RootKey`). Zatrzymana dystrybucja startuje przy pierwszym wejściu. Testy: Core +1, Presentation +1.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |

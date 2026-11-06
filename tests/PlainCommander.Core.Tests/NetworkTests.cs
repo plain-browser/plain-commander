@@ -51,6 +51,26 @@ public sealed class NetworkTests
     }
 
     [Fact]
+    public async Task Wsl_distributions_are_the_shares_of_wsl_localhost()
+    {
+        var fs = new NetworkFileSystem(new FakeDisk(), new FakeBrowser(), () => ["Ubuntu", "docker-desktop"]);
+
+        (await List(fs, "net://")).Select(e => e.Name).Should().Equal("nas", "pc", "wsl.localhost");
+        var distros = await List(fs, "net://wsl.localhost");
+        distros.Select(e => (e.Name, e.FullPath)).Should().Equal(("..", "net://"), ("Ubuntu", @"\\wsl.localhost\Ubuntu"), ("docker-desktop", @"\\wsl.localhost\docker-desktop"));
+        (await List(fs, @"\\wsl.localhost\Ubuntu"))[0].FullPath.Should().Be("net://wsl.localhost", "the top of a distribution goes up to the list");
+
+        var none = new NetworkFileSystem(new FakeDisk(), new FakeBrowser(), () => []);
+        (await List(none, "net://")).Select(e => e.Name).Should().Equal(["nas", "pc"], "without WSL there is no such computer");
+
+        WslDistros.IsServer("WSL$").Should().BeTrue();
+        WslDistros.Root("Ubuntu").Should().Be(@"\\wsl.localhost\Ubuntu");
+        WslDistros.DistroOf(@"\\wsl$\Ubuntu\home\c").Should().Be("Ubuntu");
+        WslDistros.DistroOf(@"\\wsl.localhost\").Should().BeNull();
+        WslDistros.DistroOf(@"\\nas\media").Should().BeNull();
+    }
+
+    [Fact]
     public async Task A_server_opened_by_path_joins_the_computer_list()
     {
         var fs = new NetworkFileSystem(new FakeDisk(), new FakeBrowser());

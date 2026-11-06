@@ -33,7 +33,7 @@ public static class Ui
     /// <summary>The drive button: a globe on a server, the drive's own icon elsewhere.</summary>
     public static string PanelGlyph(DriveEntry? drive, bool remote) => remote ? "\uE774" : DriveGlyph(drive);
 
-    public static string DriveGlyph(DriveEntry? drive) => drive?.CloudName is not null ? "\uE753" : drive?.Type switch
+    public static string DriveGlyph(DriveEntry? drive) => drive?.CloudName is not null ? "\uE753" : PlainCommander.Core.Network.WslDistros.DistroOf(drive?.Root) is not null ? "\uE756" : drive?.Type switch
     {
         DriveType.Removable => "\uE88E",
         DriveType.CDRom => "\uE958",

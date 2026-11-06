@@ -14,16 +14,19 @@ public sealed class NetworkFileSystem : IFileSystem
 {
     private readonly IFileSystem _disk;
     private readonly INetworkBrowser _browser;
+    private readonly Func<IReadOnlyList<string>> _wsl;
     private readonly ConcurrentDictionary<string, bool> _seen = new(StringComparer.OrdinalIgnoreCase);
     private (DateTime At, IReadOnlyList<string> Names)? _discovered;
 
     /// <summary>Discovery takes seconds; its answer is reused this long (going up from a server is then instant).</summary>
     public TimeSpan DiscoveryCache { get; set; } = TimeSpan.FromMinutes(2);
 
-    public NetworkFileSystem(IFileSystem disk, INetworkBrowser browser)
+    /// <param name="wsl">The WSL distributions: "wsl.localhost" joins the computers and lists them as its shares. Default: the registry.</param>
+    public NetworkFileSystem(IFileSystem disk, INetworkBrowser browser, Func<IReadOnlyList<string>>? wsl = null)
     {
         _disk = disk ?? throw new ArgumentNullException(nameof(disk));
         _browser = browser ?? throw new ArgumentNullException(nameof(browser));
+        _wsl = wsl ?? WslDistros.Find;
     }
 
     public async IAsyncEnumerable<FileEntry> ListAsync(string path, bool includeHidden, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -103,6 +106,11 @@ public sealed class NetworkFileSystem : IFileSystem
 
         var names = new SortedSet<string>(cached.Names, StringComparer.OrdinalIgnoreCase);
         names.UnionWith(_seen.Keys);
+        if (_wsl().Count > 0)
+        {
+            names.Add(WslDistros.Server);
+        }
+
         return names.Select(n => new FileEntry
         {
             Name = n,
@@ -115,13 +123,20 @@ public sealed class NetworkFileSystem : IFileSystem
     private List<FileEntry> ShareEntries(string server, bool includeHidden)
     {
         IReadOnlyList<NetworkShare> shares;
-        try
+        if (WslDistros.IsServer(server))
         {
-            shares = _browser.Shares(server, includeHidden);
+            shares = _wsl().Select(static n => new NetworkShare(n, string.Empty)).ToList();
         }
-        catch (UnauthorizedAccessException) when (_browser.Logon($@"\\{server}\IPC$"))
+        else
         {
-            shares = _browser.Shares(server, includeHidden);
+            try
+            {
+                shares = _browser.Shares(server, includeHidden);
+            }
+            catch (UnauthorizedAccessException) when (_browser.Logon($@"\\{server}\IPC$"))
+            {
+                shares = _browser.Shares(server, includeHidden);
+            }
         }
 
         _seen[server] = true;

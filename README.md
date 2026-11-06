@@ -70,7 +70,7 @@ the last file operation with `Ctrl+Z`.
 - Two panels, each with its own **tabs**; the active panel is always obvious (cursor frame, accent line).
 - **Full** and **brief** (multi-column) views, switchable per panel (`Ctrl+F1` / `Ctrl+F2`); compact rows; an
   optional attributes column; adjustable font and size.
-- **Drive buttons** (`C:`, `D:`, …) on each panel, plus OneDrive folders, the network and open servers in the
+- **Drive buttons** (`C:`, `D:`, …) on each panel, plus OneDrive and WSL buttons, the network and open servers in the
   `Alt+F1` / `Alt+F2` menu. A drive remembers the folder you were in on it.
 - **Editable path bar** (`Ctrl+L`) with clickable breadcrumbs; type a local path, a UNC path
   (`\\server\share`) or a server address (`sftp://user@host/path`).
@@ -178,6 +178,9 @@ never writes the weak legacy "ZipCrypto" and does not create rar archives.)
   typing `\\server` opens that server's shares; the Windows credential prompt appears when a share needs a login.
 - **OneDrive:** your personal and work or school OneDrive folders appear as buttons next to the drives and in the drive
   menu; a click opens the top folder.
+- **WSL:** every installed Linux distribution (Ubuntu, Debian, docker-desktop, …) gets a button next to the drives and
+  an entry in the drive menu, opening `\\wsl.localhost\<name>`; it also appears under *Network* as the computer
+  `wsl.localhost`. Like a drive, it remembers the folder you were in.
 - **Disk images:** *Files → Attach image as drive* mounts ISO, IMG, VHD and VHDX and shows the new drive at once;
   *Detach* removes it.
 

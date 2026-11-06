@@ -309,6 +309,23 @@ public sealed class PanelViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Wsl_distributions_come_with_the_drive_refresh()
+    {
+        _panel.WslProvider = () => ["Ubuntu", "Debian"];
+        await _panel.NavigateAsync(_tree.Root);
+
+        await _panel.RefreshDrivesAsync();
+
+        var wsl = _panel.Drives.Where(d => d.IsWsl).ToArray();
+        wsl.Select(d => d.PillText).Should().Equal("Ubuntu", "Debian");
+        wsl.Select(d => d.Root).Should().Equal(@"\\wsl.localhost\Ubuntu", @"\\wsl.localhost\Debian");
+        wsl.Select(d => d.MenuText).Should().Equal(@"Ubuntu   \\wsl.localhost\Ubuntu", @"Debian   \\wsl.localhost\Debian");
+        _panel.Drives.Last().IsWsl.Should().BeTrue("WSL comes after the drives");
+        wsl.Select(d => d.IsCurrent).Should().Equal(false, false);
+        _panel.FindDrive('U').Should().BeNull("a distribution is not a drive letter");
+    }
+
+    [Fact]
     public async Task OneDrive_folders_follow_the_drives_and_open_at_their_top_folder()
     {
         var personal = _tree.Dir("OneDrive");
