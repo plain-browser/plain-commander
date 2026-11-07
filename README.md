@@ -18,7 +18,7 @@ the last file operation with `Ctrl+Z`.
 
 ![Plain Commander: two panels, marked files, drive buttons with OneDrive, an encrypted .pce container in violet](docs/screenshot-main.png)
 
-> **Status:** the application is in active development (current release: 1.13.x). It is usable every day, but it is
+> **Status:** the application is in active development (current release: 1.14.x). It is usable every day, but it is
 > not signed with a publicly trusted certificate yet; see [Installation](#installation).
 
 ---

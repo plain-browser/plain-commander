@@ -756,6 +756,18 @@ domyślny i nie wymaga 7-Zip.
   testowej: Enter/Backspace z klawiatury i dwuklikiem w lewym przy prawym na `C:\` i w WSL, Tab, klik w wiersz
   i w pole filtra prawego panelu.
 
+### 1.14.0 — test dziwnych kombinacji
+- Testy przypadków brzegowych (nazwy, ścieżki, operacje, szyfrowanie, archiwa, stany paneli, system plików Windows)
+  i przeklikanie GUI na maszynie testowej: 45 błędów w logice i 9 w interfejsie, wszystkie naprawione. Opis błędów
+  i napraw: docs/testy-dziwne-kombinacje.md; testy regresji w `tests/*/Weird/` (prefiks `Regression_`).
+- Najważniejsze: zip-slip przy rozpakowywaniu, kasowanie celu po nieudanej kopii dużego pliku (ten sam plik przez
+  junction/symlink/8.3 rozpoznawany po tożsamości), nadpisanie przy zmianie wielkości liter na serwerze, usuwanie na
+  serwerze poza folderem, folder `aux`/`con` kopiowany do bieżącego katalogu, `null` w settings.json blokujący start.
+- Interfejs: Alt+F4 przy działającej operacji pyta, klawisze w trakcie zamykania dialogu i parkowania fokusu są
+  wstrzymywane i odtwarzane, aktywna karta zawsze widoczna, dialogi i okna w motywie aplikacji, kolory z kodu
+  zmieniają się od razu z motywem, minimalny rozmiar okna, Esc czyści wiersz poleceń.
+- `.pce`: hasło normalizowane do NFC (bit 3 flag nagłówka); pliki z 1.13.x próbują hasła jak wpisane, potem NFC i NFD.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
