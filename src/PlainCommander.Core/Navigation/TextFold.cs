@@ -56,8 +56,9 @@ public static class TextFold
     }
 
     /// <summary>
-    /// <see cref="string.Normalize(NormalizationForm)"/> that keeps unpaired surrogates (NTFS allows them in names)
-    /// instead of throwing: the text between them is normalized, the halves stay as they are.
+    /// <see cref="string.Normalize(NormalizationForm)"/> that keeps unpaired surrogates and the noncharacters U+FFFE and
+    /// U+FFFF (NTFS allows them in names; Normalize throws on them) instead of throwing: the text between them is
+    /// normalized, they stay as they are.
     /// </summary>
     internal static string Normalize(string text, NormalizationForm form)
     {
@@ -65,7 +66,7 @@ public static class TextFold
         var start = 0;
         for (var i = 0; i < text.Length; i++)
         {
-            if (!char.IsSurrogate(text[i]))
+            if (!char.IsSurrogate(text[i]) && text[i] < '￾')
             {
                 continue;
             }

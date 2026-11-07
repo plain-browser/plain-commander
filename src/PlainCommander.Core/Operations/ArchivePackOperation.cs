@@ -249,9 +249,18 @@ public sealed class ArchivePackOperation : IOperation, Undo.IUndoable
         tracker.Report(force: true);
     }
 
+    /// <remarks>
+    /// Zip names are written as UTF-8, and SharpCompress sets the UTF-8 flag (general purpose bit 11) only when the
+    /// encoding is exactly Encoding.UTF8. Its default is a UTF-8 encoding that does not compare equal, which left
+    /// the flag off: 7-Zip and Explorer then read "zażółć.txt" in the OEM code page as "za┼╝├│┼é─ç.txt".
+    /// </remarks>
     internal static WriterOptions Options((ArchiveType Type, CompressionType Compression) format) =>
         format.Type == ArchiveType.Zip
-            ? new ZipWriterOptions(CompressionType.Deflate, SharpCompress.Compressors.Deflate.CompressionLevel.Default) { UseZip64 = true }
+            ? new ZipWriterOptions(CompressionType.Deflate, SharpCompress.Compressors.Deflate.CompressionLevel.Default)
+            {
+                UseZip64 = true,
+                ArchiveEncoding = new ArchiveEncoding { Forced = System.Text.Encoding.UTF8 },
+            }
             : new WriterOptions(format.Compression);
 
     /// <summary>The archive exists: overwrite it, keep both (a free name) or stop.</summary>

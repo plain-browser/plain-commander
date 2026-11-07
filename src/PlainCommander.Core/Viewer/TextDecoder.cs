@@ -143,6 +143,17 @@ public static class TextDecoder
                 return false;
             }
 
+            // The second byte narrows the range: no overlong forms (E0 80, F0 80), no UTF-16 surrogates (ED A0) and
+            // nothing above U+10FFFF (F4 90). Without this, Windows-1250 text like "ŕ€€" passed as UTF-8.
+            var (low, high) = b switch
+            {
+                0xE0 => (0xA0, 0xBF),
+                0xED => (0x80, 0x9F),
+                0xF0 => (0x90, 0xBF),
+                0xF4 => (0x80, 0x8F),
+                _ => (0x80, 0xBF),
+            };
+
             for (var k = 1; k <= need; k++)
             {
                 if (i + k >= bytes.Length)
@@ -150,7 +161,8 @@ public static class TextDecoder
                     return true; // cut off by the sample size
                 }
 
-                if ((bytes[i + k] & 0xC0) != 0x80)
+                var next = bytes[i + k];
+                if (k == 1 ? next < low || next > high : (next & 0xC0) != 0x80)
                 {
                     return false;
                 }

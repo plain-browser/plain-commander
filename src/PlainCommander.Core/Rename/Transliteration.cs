@@ -76,7 +76,7 @@ public static class Transliteration
             }
 
             // Any other letter loses its marks: ą → a, é → e; Greek with accents then finds its table entry.
-            foreach (var part in c.ToString().Normalize(NormalizationForm.FormD))
+            foreach (var part in TextFold.Normalize(c.ToString(), NormalizationForm.FormD))
             {
                 if (CharUnicodeInfo.GetUnicodeCategory(part) == UnicodeCategory.NonSpacingMark)
                 {

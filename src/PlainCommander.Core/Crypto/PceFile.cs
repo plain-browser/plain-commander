@@ -40,6 +40,25 @@ public static class PceFile
     /// <summary>A GNU long name is a path; anything near this size is a crafted header, not a name.</summary>
     private const int MaxLongNameBytes = 256 * 1024;
 
+    /// <summary>
+    /// The stored name is data from the file: only its last segment, and only when that is a plain file name (not
+    /// empty, ".", "..", dots and spaces only on Windows, or with characters the disk refuses). Null otherwise.
+    /// </summary>
+    public static string? PlainName(string storedName)
+    {
+        ArgumentNullException.ThrowIfNull(storedName);
+        var trimmed = storedName.Replace('/', Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
+        var plain = Path.GetFileName(trimmed);
+
+        // On Windows Path.GetFileName reads "a:b" as drive "a:" plus name "b", which would pass; but the same text
+        // given to the file APIs is a stream name ("a:b") or a drive-relative path, so a colon in the last segment refuses the name.
+        var lastSegment = trimmed[(trimmed.LastIndexOf(Path.DirectorySeparatorChar) + 1)..];
+        return plain.Length == 0 || plain is "." or ".." || plain.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || (OperatingSystem.IsWindows() && (plain.TrimEnd('.', ' ').Length == 0 || lastSegment.Contains(':', StringComparison.Ordinal)))
+            ? null
+            : plain;
+    }
+
     /// <summary>A random 16-character name for "hide the file name": the real name is inside the container.</summary>
     public static string RandomName()
     {
@@ -527,6 +546,11 @@ public static class PceFile
     private static string Destination(string root, string key)
     {
         var relative = key.Replace('/', Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
+        if (relative.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new PceFormatException($"Entry \"{key.Replace('\0', '?')}\" is not a valid name."); // GetFullPath throws ArgumentException on it
+        }
+
         var destination = Path.GetFullPath(Path.Combine(root, relative));
         if (relative.Length == 0 || !destination.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
         {

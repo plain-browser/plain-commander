@@ -224,7 +224,15 @@ public sealed class RemoteDownloadOperation : IOperation
         var location = RemotePath.Parse(virtualPath) ?? throw new ArgumentException($"Not a remote path: {virtualPath}", nameof(virtualPath));
         var dir = Path.Combine(Path.GetTempPath(), "PlainCommander", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        var destination = Path.Combine(dir, RemotePath.LocalName(location.Name));
+        var local = RemotePath.LocalName(location.Name);
+        if (OperatingSystem.IsWindows() && ExactPath.NeedsPrefix(local))
+        {
+            // A server file called "CON" or "report." would open the console device or lose its dot on this disk. The
+            // temporary copy only has to be readable, so it gets a safe name; real downloads use the exact name.
+            local = "_" + local.TrimEnd('.', ' ');
+        }
+
+        var destination = Path.Combine(dir, local);
         var client = await connections.OpenAsync(location.Root, cancellationToken).ConfigureAwait(false);
         await using (client.ConfigureAwait(false))
         {

@@ -132,16 +132,8 @@ public sealed class DecryptOperation : IOperation, Undo.IUndoable
     }
 
     /// <summary>The stored name is data from the file: only a plain name is used, never a path.</summary>
-    private static string SafeName(string name)
-    {
-        var plain = Path.GetFileName(name.Replace('/', Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar));
-        if (plain.Length == 0 || plain is "." or ".." || plain.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            throw new PceFormatException($"The stored name \"{name}\" is not a valid file name.");
-        }
-
-        return plain;
-    }
+    private static string SafeName(string name) =>
+        PceFile.PlainName(name) ?? throw new PceFormatException($"The stored name \"{name}\" is not a valid file name.");
 
     /// <summary>The content's name is taken: overwrite (merge into an existing folder), keep both or skip.</summary>
     private static async Task<string?> ResolveExistingAsync(OperationContext context, StepRunner runner, string file, PceMetadata metadata, string target, bool isFolder)

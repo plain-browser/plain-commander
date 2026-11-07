@@ -103,7 +103,7 @@ public sealed record PanelFilter
     /// <summary>"pdf, .docx;txt" → ["pdf", "docx", "txt"].</summary>
     public static IReadOnlyList<string> ParseExtensions(string text) =>
         (text ?? string.Empty).Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(e => e.TrimStart('*').TrimStart('.'))
+            .Select(e => e.TrimStart('*', '.')) // "*.*" and ".*" mean no particular extension, not the extension "*"
             .Where(e => e.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

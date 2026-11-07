@@ -118,3 +118,52 @@ zaznaczenia giną po Ctrl+Tab i powrocie; junction wygląda jak zwykły folder; 
 
 Działało dobrze: dwa dialogi naraz, kolejka kopii w tle, szybkie wyszukiwanie z filtrem i zaznaczaniem, spam Ctrl+T/Ctrl+W,
 podgląd pustego i 300 MB pliku, `cd` przez pętlę junction, Tab podczas wczytywania 100 000 plików.
+
+## Runda 2 (2026-11-07): tłumaczenia, systemy plików, fuzzing, losowe sekwencje
+
+Nowe testy: `tests/PlainCommander.Presentation.Tests/Resources/`, `tests/PlainCommander.Core.Tests/Volumes/`,
+`tests/PlainCommander.Core.Tests/Fuzz/`, `tests/PlainCommander.Presentation.Tests/Monkey/`.
+Dyski testowe (FAT16, FAT32, exFAT, ReFS, mały NTFS) tworzy `build/test-volumes.ps1`; testy z `Volumes/` bez zmiennych
+`PC_TEST_VOLUMES` i `PC_TEST_FULL_VOLUME` się pomijają. Dłuższe przebiegi: `PC_FUZZ_ITERATIONS`, `PC_MONKEY_SEEDS`, `PC_MONKEY_STEPS`.
+Wszystkie błędy poniżej naprawione, każdy ma test `Regression_*`.
+
+**Systemy plików**
+- Zip bez hasła zapisywał nazwy w UTF-8 bez flagi UTF-8: 7-Zip i Eksplorator pokazywały „zażółć” jako krzaczki.
+- Kontynuacja kopiowania (`skipIdentical`) dopuszczała różnicę czasu poniżej 1 s, a FAT zapisuje czas co 2 s: pliki już skopiowane wracały jako konflikty.
+- Dwa martwe teksty w plikach zasobów.
+
+**Fuzzing**
+- `.pce` w folderze: nazwa z NUL kończyła się `ArgumentException` zamiast `PceFormatException`.
+- Nazwa zapisana w `.pce` służyła jako ścieżka pliku tymczasowego: `../../x` lub `C:\x` wychodziło poza folder tymczasowy.
+  Teraz `PceFile.PlainName`, który odrzuca też dwukropek (strumień ADS).
+- `RemotePath`: host z `[` lub `]` nie wracał po zapisie i odczycie do tej samej wartości.
+- U+FFFE w nazwie rzucał wyjątek w szukaniu, filtrze i transliteracji.
+- Pole rozszerzeń: `*.*` i `.*` ukrywały wszystkie pliki.
+- Wykrywanie UTF-8 przyjmowało zakodowane zbyt długo znaki, zastępcze i powyżej U+10FFFF.
+- Uszkodzone archiwa (SharpCompress) rzucały `OverflowException`, `IndexOutOfRangeException` i inne zamiast błędu archiwum.
+- `ContainedPath.Join` na Windows: wpis `dir/C:x` wychodził poza folder docelowy.
+- `ExactPath.Full`: nazwa w rodzaju `C: ` gubiła folder nadrzędny przez `Path.Combine`.
+
+**Strumienie ADS na FAT i exFAT**
+- Kopiowanie dużego pliku (powyżej 4 MB) z dodatkowym strumieniem na FAT lub exFAT kończyło się błędem „niepoprawna składnia nazwy”, a mniejsze pliki traciły strumienie po cichu.
+  Przeniesienie kasowało oryginał razem ze strumieniami. Teraz program pyta raz na plik (Kontynuuj, Pomiń plik, Anuluj) z polem „zrób tak samo dla pozostałych”.
+  Sam znacznik pochodzenia z internetu (`Zone.Identifier`) jest pomijany bez pytania, jak w Eksploratorze.
+  Pytanie nie pojawia się na NTFS i ReFS; dysk wpięty jako folder też jest rozpoznawany. Rozpoznanie: `NativeFile.SupportsStreams`, pytanie: `TransferOperation.ShouldSkipForLostStreamsAsync`.
+  Elevated helper dalej kontynuuje bez pytania.
+
+**Losowe sekwencje poleceń**
+- Ctrl+Z po zastąpieniu nowego folderu plikiem o tej samej nazwie kończył się awarią operacji.
+- Ctrl+B w folderze usuniętym w międzyczasie rzucał `DirectoryNotFoundException`.
+- Anulowanie w chwili błędu kroku logowało operację jako awarię i kończyło ją jako przerwaną, nie anulowaną.
+- Zmiana nazwy w widoku płaskim i odświeżenie mylą wiersze różniące się tylko wielkością liter (foldery z rozróżnianiem wielkości, np. WSL).
+
+**Dalsze poprawki tej rundy**
+- Zmiana na dysku zgłoszona przez obserwatora w czasie wczytywania panelu była odrzucana, więc lista mogła zostać nieaktualna do następnej zmiany.
+  Teraz wczytywanie, które się kończy, odświeża panel jeszcze raz (`PanelViewModel`, flaga zmiany w trakcie wczytywania).
+- F3 na pliku z serwera o nazwie specjalnej dla Windows (`CON`, `nul.txt`, `report.`, `notes `): kopia tymczasowa dostaje nazwę z podkreśleniem, więc otwiera się jako zwykły plik.
+
+**Zostawione bez zmian**
+- Wznowiona jako administrator operacja nadal nie pyta o strumienie ADS: pomocnik kontynuuje bez nich.
+- Uszkodzony zip z fałszywym rekordem końca wolno się wczytuje w SharpCompress, około 6 s. Na Windows czyta go 7z.dll.
+- Limity KDF w `.pce` pozwalają spreparowanemu nagłówkowi zająć około 1 GiB pamięci. To w granicach opisanych limitów.
+- `::` wpisane w Ctrl+L daje ścieżkę `::\`, bo tak robi .NET. Program zgłasza tylko, że nie znalazł folderu.

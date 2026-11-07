@@ -41,7 +41,7 @@ public static class ExactPath
         }
 
         var parent = Path.GetDirectoryName(trimmed);
-        return string.IsNullOrEmpty(parent) ? Path.GetFullPath(path) : Path.Combine(Path.GetFullPath(parent), name);
+        return string.IsNullOrEmpty(parent) ? Path.GetFullPath(path) : Path.Join(Path.GetFullPath(parent), name); // Join, not Combine: a name like "C: " would count as a new root
     }
 
     /// <summary>The form to give File/Directory APIs: \\?\ when any name would otherwise lose a trailing dot or space.</summary>

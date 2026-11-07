@@ -65,9 +65,10 @@ public sealed class ArchiveCatalog
             {
                 catalog.ReadManaged(archiveFile, info.LastWriteTimeUtc);
             }
-            catch (Exception ex) when (ex is InvalidOperationException or SharpCompress.Common.SharpCompressException)
+            catch (Exception ex) when (ArchiveReaders.Damaged.IsDamage(ex))
             {
-                throw new NotAnArchiveException(archiveFile, ex); // the managed reader knows no format for it
+                // The managed reader knows no format for it, or its parser broke on damage (IndexOutOfRange, Overflow …).
+                throw new NotAnArchiveException(archiveFile, ex);
             }
         }
 

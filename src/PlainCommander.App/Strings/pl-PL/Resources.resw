@@ -48,6 +48,13 @@
   <data name="Cf_Title" xml:space="preserve"><value>Plik już istnieje</value></data>
   <data name="Cf_Source" xml:space="preserve"><value>Kopiowany: {0}, {1}</value></data>
   <data name="Cf_Target" xml:space="preserve"><value>Istniejący: {0}, {1}</value></data>
+  <data name="Ads_Title" xml:space="preserve"><value>Dodatkowe dane pliku zostaną utracone</value></data>
+  <data name="Ads_BodyCopy" xml:space="preserve"><value>Dysk docelowy (FAT lub exFAT) nie przechowuje dodatkowych strumieni danych dołączonych do tego pliku. Plik zostanie skopiowany bez nich.</value></data>
+  <data name="Ads_BodyMove" xml:space="preserve"><value>Dysk docelowy (FAT lub exFAT) nie przechowuje dodatkowych strumieni danych dołączonych do tego pliku. Plik zostanie przeniesiony bez nich, a one znikną razem z oryginałem.</value></data>
+  <data name="Ads_Streams" xml:space="preserve"><value>Strumienie: {0}</value></data>
+  <data name="Ads_Continue" xml:space="preserve"><value>Kontynuuj</value></data>
+  <data name="Ads_Skip" xml:space="preserve"><value>Pomiń plik</value></data>
+  <data name="Ads_All" xml:space="preserve"><value>Zrób tak samo dla pozostałych plików</value></data>
   <data name="Cf_Byte" xml:space="preserve"><value>B</value></data>
   <data name="Cf_Bytes" xml:space="preserve"><value>B</value></data>
   <data name="Cf_Newer" xml:space="preserve"><value>(nowszy)</value></data>
@@ -85,7 +92,6 @@
   <data name="Menu_MarkNone.Text" xml:space="preserve"><value>Odznacz wszystko</value></data>
   <data name="Mark_CopyNames.Text" xml:space="preserve"><value>Kopiuj nazwy do schowka</value></data>
   <data name="Mark_CopyPaths.Text" xml:space="preserve"><value>Kopiuj pełne ścieżki do schowka</value></data>
-  <data name="Menu_Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Menu (F2)</value></data>
   <data name="FKey_F2" xml:space="preserve"><value>Menu</value></data>
   <data name="FKey_F3" xml:space="preserve"><value>Podgląd</value></data>
   <data name="FKey_F4" xml:space="preserve"><value>Edycja</value></data>
@@ -111,7 +117,6 @@
   <data name="Show_Filter.Text" xml:space="preserve"><value>Filtr…</value></data>
   <data name="Show_Flat.Text" xml:space="preserve"><value>Wszystkie pliki z podkatalogów</value></data>
   <data name="Dlg_FilterTitle" xml:space="preserve"><value>Filtr</value></data>
-  <data name="Dlg_FilterPrompt" xml:space="preserve"><value>Pokaż tylko pliki pasujące do maski (np. *.pdf;*.docx) albo zawierające tekst w nazwie. Puste pole wyłącza filtr.</value></data>
   <data name="Flt_Name" xml:space="preserve"><value>Nazwa zawiera (kilka słów: wszystkie) albo maska</value></data>
   <data name="Flt_NameHint" xml:space="preserve"><value>np. raport 2026 albo *.pdf;*.docx</value></data>
   <data name="Flt_Extensions" xml:space="preserve"><value>Rozszerzenia</value></data>

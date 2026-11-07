@@ -35,19 +35,22 @@ internal static class NativeFile
         return null;
     }
 
-    /// <summary>Copies every named data stream (":Zone.Identifier" and the like) from one file to another; Windows only.</summary>
-    public static void CopyStreams(string source, string destination)
+    /// <summary>
+    /// The alternate data streams of a file (":Zone.Identifier", ":note"), each with its leading colon. Empty when there
+    /// are none, on a file system without streams (FAT, network shares of other systems) and off Windows.
+    /// </summary>
+    public static IReadOnlyList<string> NamedStreams(string source)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return;
+            return [];
         }
 
         var names = new List<string>();
         var find = FindFirstStreamW(source, 0, out var data, 0);
         if (find == InvalidHandle)
         {
-            return; // no streams at all, or a file system without them (FAT, network)
+            return names; // no streams at all, or a file system without them
         }
 
         try
@@ -66,6 +69,51 @@ internal static class NativeFile
         finally
         {
             FindClose(find);
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Whether the volume holding <paramref name="path"/> can keep alternate data streams. FAT, exFAT and many removable
+    /// or network volumes cannot: opening "file:stream" there fails. True when unknown, so the old behaviour stays.
+    /// </summary>
+    public static bool SupportsStreams(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
+        try
+        {
+            var root = new char[1024];
+            if (!GetVolumePathNameW(path, root, root.Length) || !GetVolumeInformationW(new string(root, 0, Array.IndexOf(root, '\0')), null, 0, out _, out _, out var flags, null, 0))
+            {
+                return true;
+            }
+
+            return (flags & FileNamedStreams) != 0;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>Copies every named data stream (":Zone.Identifier" and the like) from one file to another; Windows only.</summary>
+    /// <remarks>Does nothing when the target volume cannot keep streams: the caller has already asked, or the streams are not worth a question.</remarks>
+    public static void CopyStreams(string source, string destination)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var names = NamedStreams(source);
+        if (names.Count == 0 || !SupportsStreams(destination))
+        {
+            return;
         }
 
         foreach (var name in names)
@@ -108,6 +156,7 @@ internal static class NativeFile
     }
 
     private const uint BackupSemantics = 0x02000000;
+    private const uint FileNamedStreams = 0x00040000;
     private static readonly IntPtr InvalidHandle = new(-1);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -140,6 +189,14 @@ internal static class NativeFile
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out ByHandleFileInformation info);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetVolumePathNameW(string path, [Out] char[] volumePath, int length);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetVolumeInformationW(string root, char[]? label, int labelLength, out uint serial, out uint maxComponent, out uint flags, char[]? fileSystem, int fileSystemLength);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     private static extern IntPtr FindFirstStreamW(string name, int level, out FindStreamData data, uint flags);

@@ -533,6 +533,40 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         return choice;
     });
 
+    public Task<StreamsChoice> ResolveLostStreamsAsync(LostStreamsInfo info, CancellationToken cancellationToken) => OnUiAsync(async () =>
+    {
+        var body = new StackPanel { Spacing = 8, MinWidth = 440 };
+        body.Children.Add(new TextBlock { Text = info.SourcePath, TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        body.Children.Add(new TextBlock { Text = Loc.Get(info.IsMove ? "Ads_BodyMove" : "Ads_BodyCopy"), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = Loc.Format("Ads_Streams", string.Join(", ", info.Streams)), TextWrapping = TextWrapping.Wrap });
+        var all = new CheckBox { Content = Loc.Get("Ads_All") };
+        body.Children.Add(all);
+
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("Ads_Title"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("Ads_Continue"),
+            SecondaryButtonText = Loc.Get("Ads_Skip"),
+            CloseButtonText = Loc.Get("Dlg_Cancel"),
+            DefaultButton = ContentDialogButton.Secondary, // the safe answer: nothing is lost
+        };
+
+        var result = await ShowAsync(dialog, cancellationToken);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return StreamsChoice.Cancel;
+        }
+
+        var every = all.IsChecked == true;
+        return result switch
+        {
+            ContentDialogResult.Primary => every ? StreamsChoice.ContinueAll : StreamsChoice.Continue,
+            ContentDialogResult.Secondary => every ? StreamsChoice.SkipAll : StreamsChoice.Skip,
+            _ => StreamsChoice.Cancel,
+        };
+    });
+
     public Task<ErrorChoice> ResolveErrorAsync(string path, Exception exception, bool canElevate, CancellationToken cancellationToken) => OnUiAsync(async () =>
     {
         var choice = ErrorChoice.Abort;

@@ -53,6 +53,8 @@ internal static class ContainedPath
     /// <paramref name="root"/> joined with the key ("a/b", either slash), or null when the key would leave it: a ".."
     /// segment, a drive or other rooted form, or (on Windows) a name of dots and spaces only, which Windows reads as "..".
     /// Empty and "." segments are dropped. A key with nothing left is <paramref name="root"/> itself when allowed.
+    /// A drive form is refused in any segment, not only the first: Path.Combine starts over at the last rooted part,
+    /// so "a/C:x" would otherwise come out as "C:x", outside the root.
     /// </summary>
     public static string? Join(string root, string key, bool allowRoot = false)
     {
@@ -64,7 +66,7 @@ internal static class ContainedPath
                 continue;
             }
 
-            if (segment == ".." || (OperatingSystem.IsWindows() && (segment.TrimEnd('.', ' ').Length == 0 || (segments.Count == 0 && Path.IsPathRooted(segment)))))
+            if (segment == ".." || (OperatingSystem.IsWindows() && (segment.TrimEnd('.', ' ').Length == 0 || Path.IsPathRooted(segment))))
             {
                 return null;
             }

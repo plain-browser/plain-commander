@@ -146,7 +146,8 @@ public static class RemotePath
             }
         }
 
-        return host.Length == 0 ? null : new RemoteLocation(protocol, user, host.ToLowerInvariant(), port, NormalizeInner(inner));
+        // A bracket left in the host ("::]") would be written back as "[::]]" and read as another host.
+        return host.Length == 0 || host.AsSpan().IndexOfAny('[', ']') >= 0 ? null : new RemoteLocation(protocol, user, host.ToLowerInvariant(), port, NormalizeInner(inner));
     }
 
     /// <summary>An address the user typed (Ctrl+L, cd, F5 target): "\" counts as "/" there, as in any Windows path box.</summary>

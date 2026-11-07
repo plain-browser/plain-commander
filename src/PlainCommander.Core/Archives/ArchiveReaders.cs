@@ -39,7 +39,79 @@ public static class ArchiveReaders
 
     /// <param name="wanted">Keys of the files to read; null for all. Others may be skipped without decompressing.</param>
     public static IArchiveEntryReader Open(string archiveFile, IReadOnlySet<string>? wanted = null) =>
-        UsesSevenZip(archiveFile) ? new SevenZipEntryReader(archiveFile, wanted) : new ManagedEntryReader(archiveFile, wanted);
+        UsesSevenZip(archiveFile)
+            ? new SevenZipEntryReader(archiveFile, wanted)
+            : new DamageAsIOReader(archiveFile, Damaged.Guard(archiveFile, () => new ManagedEntryReader(archiveFile, wanted)));
+
+    /// <summary>
+    /// SharpCompress meets a damaged archive with whatever exception its parser runs into (IndexOutOfRange, Overflow,
+    /// InvalidOperation, InvalidData, ArgumentOutOfRange …). Those become <see cref="NotAnArchiveException"/>, an
+    /// IOException, so a damaged archive is an error of that file (skip, retry) and not a crash of the operation.
+    /// </summary>
+    internal static class Damaged
+    {
+        public static bool IsDamage(Exception ex) =>
+            ex is not (IOException or UnauthorizedAccessException or OperationCanceledException or OutOfMemoryException or ObjectDisposedException);
+
+        public static T Guard<T>(string archiveFile, Func<T> read)
+        {
+            try
+            {
+                return read();
+            }
+            catch (Exception ex) when (IsDamage(ex))
+            {
+                throw new NotAnArchiveException(archiveFile, ex);
+            }
+        }
+    }
+
+    private sealed class DamageAsIOReader(string archiveFile, IArchiveEntryReader inner) : IArchiveEntryReader
+    {
+        public string Key => inner.Key;
+
+        public bool IsDirectory => inner.IsDirectory;
+
+        public long Size => inner.Size;
+
+        public DateTime? Modified => inner.Modified;
+
+        public bool MoveNext() => Damaged.Guard(archiveFile, inner.MoveNext);
+
+        public Stream OpenEntryStream() => new DamageAsIOStream(archiveFile, Damaged.Guard(archiveFile, inner.OpenEntryStream));
+
+        public void Dispose() => inner.Dispose();
+    }
+
+    /// <summary>An entry's content; a decompressor failing on damaged data reports it as <see cref="NotAnArchiveException"/>.</summary>
+    private sealed class DamageAsIOStream(string archiveFile, Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => Damaged.Guard(archiveFile, () => inner.Read(buffer, offset, count));
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 
     /// <summary>The managed (SharpCompress) reader: sequential for tarballs and solid archives, random access otherwise.</summary>
     private sealed class ManagedEntryReader : IArchiveEntryReader

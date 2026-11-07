@@ -347,7 +347,9 @@ public sealed class PanelViewModelTests : IDisposable
         wsl.Select(d => d.MenuText).Should().Equal(@"Ubuntu   \\wsl.localhost\Ubuntu", @"Debian   \\wsl.localhost\Debian");
         _panel.Drives.Last().IsWsl.Should().BeTrue("WSL comes after the drives");
         wsl.Select(d => d.IsCurrent).Should().Equal(false, false);
-        _panel.FindDrive('U').Should().BeNull("a distribution is not a drive letter");
+        // The first letter no real drive uses: this machine may have a U: of its own.
+        var free = Enumerable.Range('A', 26).Select(c => (char)c).First(c => !Directory.Exists(c + @":\"));
+        _panel.FindDrive(free).Should().BeNull("a distribution is not a drive letter");
     }
 
     [Fact]

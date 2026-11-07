@@ -49,7 +49,12 @@ internal sealed class StepRunner
                 await step().ConfigureAwait(false);
                 return true;
             }
-            catch (Exception ex) when (IsRecoverable(ex) && !Token.IsCancellationRequested)
+            catch (Exception ex) when (IsRecoverable(ex) && Token.IsCancellationRequested)
+            {
+                // cancelled while the step ran: its failure is part of stopping, not a question (nor a crash)
+                throw new OperationCanceledException(ex.Message, ex, Token);
+            }
+            catch (Exception ex) when (IsRecoverable(ex))
             {
                 switch (await AskAsync(path, ex).ConfigureAwait(false))
                 {

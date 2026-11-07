@@ -443,7 +443,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var dir = Path.Combine(Path.GetTempPath(), "PlainCommander", "pce-" + Guid.NewGuid().ToString("N"));
-        var tar = Path.Combine(dir, verified.Value.Metadata.Name + ".tar");
+        // The stored name is data from the file: a path in it ("..\..\x", "C:\x") must not move the TAR out of the temp folder.
+        var tar = Path.Combine(dir, (PceFile.PlainName(verified.Value.Metadata.Name) ?? Path.GetFileNameWithoutExtension(item.Name)) + ".tar");
         panel.Status = Texts.Decrypting(item.Name);
         try
         {

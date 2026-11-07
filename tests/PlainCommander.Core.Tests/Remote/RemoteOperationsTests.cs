@@ -190,6 +190,33 @@ public sealed class RemoteOperationsTests : IDisposable
         Directory.Delete(Path.GetDirectoryName(temp)!, recursive: true);
     }
 
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("nul.txt")]
+    [InlineData("report.")]
+    [InlineData("notes ")]
+    public async Task Regression_temp_copy_of_a_server_file_with_a_windows_special_name_opens_as_a_file(string name)
+    {
+        // F3 on a server file named "CON" opened the console device, and "report." lost its dot, so the viewer looked for another file.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "device and trailing-dot names are Windows rules");
+        Directory.CreateDirectory(Path.Combine(_server.Root, "etc"));
+        await File.WriteAllTextAsync(@"\\?\" + Path.Combine(_server.Root, "etc", name), "content", TestContext.Current.CancellationToken);
+        await using var server = new FolderServer(_server.Root);
+
+        var temp = await RemoteDownloadOperation.ToTempAsync(server.Connections, FolderServer.At("/etc/" + name), CancellationToken.None);
+
+        try
+        {
+            File.ReadAllText(temp).Should().Be("content");
+            Path.GetFileName(temp).Should().EndWith(name.TrimEnd('.', ' '));
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(temp)!, recursive: true);
+            File.Delete(@"\\?\" + Path.Combine(_server.Root, "etc", name));
+        }
+    }
+
     [Fact]
     public async Task The_file_system_lists_server_folders_with_a_parent_link_and_hidden_dot_files()
     {

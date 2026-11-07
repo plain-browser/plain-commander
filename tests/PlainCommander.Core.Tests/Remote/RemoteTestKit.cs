@@ -177,7 +177,8 @@ internal sealed class FolderRemoteClient : IRemoteClient
         info is FileInfo f ? f.Length : 0,
         new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero));
 
-    private string Local(string path) => Path.Combine(_root, RemotePath.NormalizeInner(path).TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+    // The exact form, so a server file named like a Windows device ("CON") is a file here too.
+    private string Local(string path) => PlainCommander.Core.FileSystem.ExactPath.Native(Path.Combine(_root, RemotePath.NormalizeInner(path).TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
 
     /// <summary>Like the real clients: a lost connection is reopened on the next call.</summary>
     private void Check()

@@ -27,6 +27,23 @@ public enum ErrorChoice
     Elevate,
 }
 
+/// <summary>What to do with a file whose alternate data streams the target volume cannot keep.</summary>
+public enum StreamsChoice
+{
+    /// <summary>Copy or move the file without its streams.</summary>
+    Continue,
+    ContinueAll,
+
+    /// <summary>Leave this file out (a move keeps it where it is).</summary>
+    Skip,
+    SkipAll,
+    Cancel,
+}
+
+/// <param name="Streams">Names with their leading colon, e.g. ":note". The internet-origin marker ":Zone.Identifier" is not listed.</param>
+/// <param name="IsMove">The source is deleted afterwards, so the streams are gone for good.</param>
+public sealed record LostStreamsInfo(string SourcePath, string TargetPath, IReadOnlyList<string> Streams, bool IsMove);
+
 public sealed record ConflictInfo(
     string SourcePath,
     long SourceSize,
@@ -42,6 +59,12 @@ public interface IOperationPrompts
 
     /// <param name="canElevate">The error is "access denied" and the operation can continue as administrator: offer <see cref="ErrorChoice.Elevate"/>.</param>
     Task<ErrorChoice> ResolveErrorAsync(string path, Exception exception, bool canElevate, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The target volume (FAT, exFAT, some network shares) cannot keep a file's alternate data streams. Asked once per
+    /// file until an "… all" answer. Implementations that cannot ask carry on without the streams.
+    /// </summary>
+    Task<StreamsChoice> ResolveLostStreamsAsync(LostStreamsInfo info, CancellationToken cancellationToken) => Task.FromResult(StreamsChoice.Continue);
 }
 
 public enum RuleViolation

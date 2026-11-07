@@ -48,6 +48,13 @@
   <data name="Cf_Title" xml:space="preserve"><value>File already exists</value></data>
   <data name="Cf_Source" xml:space="preserve"><value>Incoming: {0}, {1}</value></data>
   <data name="Cf_Target" xml:space="preserve"><value>Existing: {0}, {1}</value></data>
+  <data name="Ads_Title" xml:space="preserve"><value>Extra data will be lost</value></data>
+  <data name="Ads_BodyCopy" xml:space="preserve"><value>The target drive (FAT or exFAT) cannot store the extra data streams attached to this file. It will be copied without them.</value></data>
+  <data name="Ads_BodyMove" xml:space="preserve"><value>The target drive (FAT or exFAT) cannot store the extra data streams attached to this file. It will be moved without them, and they are deleted together with the original.</value></data>
+  <data name="Ads_Streams" xml:space="preserve"><value>Streams: {0}</value></data>
+  <data name="Ads_Continue" xml:space="preserve"><value>Continue</value></data>
+  <data name="Ads_Skip" xml:space="preserve"><value>Skip file</value></data>
+  <data name="Ads_All" xml:space="preserve"><value>Do the same for all other files</value></data>
   <data name="Cf_Byte" xml:space="preserve"><value>byte</value></data>
   <data name="Cf_Bytes" xml:space="preserve"><value>bytes</value></data>
   <data name="Cf_Newer" xml:space="preserve"><value>(newer)</value></data>
@@ -85,7 +92,6 @@
   <data name="Menu_MarkNone.Text" xml:space="preserve"><value>Deselect all</value></data>
   <data name="Mark_CopyNames.Text" xml:space="preserve"><value>Copy names to the clipboard</value></data>
   <data name="Mark_CopyPaths.Text" xml:space="preserve"><value>Copy full paths to the clipboard</value></data>
-  <data name="Menu_Button.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Menu (F2)</value></data>
   <data name="FKey_F2" xml:space="preserve"><value>Menu</value></data>
   <data name="FKey_F3" xml:space="preserve"><value>View</value></data>
   <data name="FKey_F4" xml:space="preserve"><value>Edit</value></data>
@@ -111,7 +117,6 @@
   <data name="Show_Filter.Text" xml:space="preserve"><value>Filter…</value></data>
   <data name="Show_Flat.Text" xml:space="preserve"><value>All files in subfolders</value></data>
   <data name="Dlg_FilterTitle" xml:space="preserve"><value>Filter</value></data>
-  <data name="Dlg_FilterPrompt" xml:space="preserve"><value>Show only files matching a mask (e.g. *.pdf;*.docx) or containing the text in their name. Empty turns the filter off.</value></data>
   <data name="Flt_Name" xml:space="preserve"><value>Name contains (several words: all of them) or mask</value></data>
   <data name="Flt_NameHint" xml:space="preserve"><value>e.g. report 2026 or *.pdf;*.docx</value></data>
   <data name="Flt_Extensions" xml:space="preserve"><value>Extensions</value></data>

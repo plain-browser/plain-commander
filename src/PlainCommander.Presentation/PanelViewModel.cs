@@ -31,6 +31,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private string _resultsWhat = string.Empty;
     private CancellationTokenSource? _debounce;
     private IDisposable? _watcher;
+    private volatile bool _changedWhileLoading;
 
     public PanelViewModel(IFileSystem fs, ILauncher launcher, IIconProvider? icons = null)
     {
@@ -586,6 +587,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             {
                 _listing = null;
                 IsLoading = false;
+                if (_changedWhileLoading)
+                {
+                    _changedWhileLoading = false;
+                    PostToUi(() => _ = RefreshAsync());
+                }
             }
 
             cts.Dispose();
@@ -712,6 +718,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             ShowResults(FlatMarker, root, entries);
             return true;
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // the folder went away (or became unreadable) since it was listed
+            Log.Warning(ex, "Cannot list the files below {Path}", root);
+            Status = Texts.CannotOpen(root, ex);
+            return false;
+        }
         finally
         {
             IsLoading = false;
@@ -760,7 +773,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var map = renames.ToDictionary(r => r.From, r => r.To, StringComparer.OrdinalIgnoreCase);
+        // paths compare as the disk does: on a case-sensitive one "a.txt" and "A.txt" are two files
+        var map = renames.ToDictionary(r => r.From, r => r.To, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         for (var i = 0; i < _results.Count; i++)
         {
             if (map.TryGetValue(_results[i].FullPath, out var to))
@@ -1459,7 +1473,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                         if (!IsLoading)
                         {
                             Log.Verbose("Change in {Path}: refreshing", Path);
-                            _ = RefreshAsync(); // a navigation in progress brings fresh content anyway
+                            _ = RefreshAsync();
+                        }
+                        else
+                        {
+                            // The listing under way may have read the folder before this change: it is not known to
+                            // include it, so the load that finishes next refreshes once more.
+                            _changedWhileLoading = true;
                         }
                     });
                 }
@@ -1519,6 +1539,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private int IndexOfName(string name)
     {
+        // the exact name first: in a case-sensitive folder "a.txt" and "A.txt" are two rows
+        for (var i = 0; i < Items.Count; i++)
+        {
+            if (string.Equals(Items[i].Name, name, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
         for (var i = 0; i < Items.Count; i++)
         {
             if (string.Equals(Items[i].Name, name, StringComparison.OrdinalIgnoreCase))

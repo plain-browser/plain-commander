@@ -172,7 +172,11 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
         // One pass in archive order: a solid archive is decompressed once, whatever was chosen.
         using var reader = opened!;
         var met = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        while (reader.MoveNext())
+        var more = false;
+
+        // A damaged archive can fail between entries too: that is an error of the archive (reported, the rest of the
+        // operation goes on), not a crash of the whole operation. What was not reached is reported as missing below.
+        while (await runner.Run(archiveFile, () => more = reader.MoveNext()).ConfigureAwait(false) && more)
         {
             runner.Token.ThrowIfCancellationRequested();
             if (reader.IsDirectory || !byKey.TryGetValue(reader.Key, out var plan))

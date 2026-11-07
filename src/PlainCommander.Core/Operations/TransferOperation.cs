@@ -35,6 +35,8 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
     private readonly ConflictChoice? _presetConflict;
     private readonly bool _skipIdentical;
     private int _stickyConflict = NoStickyChoice;
+    private int _stickyStreams = NoStickyChoice;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _volumeKeepsStreams = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="parallelism">Small files copied at once. 1 = strictly one after another (spinning disks).</param>
     /// <param name="presetConflict">An answer given up front for every conflict (sync uses OverwriteAll: the direction was already chosen).</param>
@@ -373,6 +375,12 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
 
             var replaces = false;
             string? placeholder = null;
+            if (!(_kind == TransferKind.Move && sameVolume) && await ShouldSkipForLostStreamsAsync(context, runner, item.Source, destination).ConfigureAwait(false))
+            {
+                skippedByConflict = true; // counted as skipped, like a conflict answered "skip"
+                return;
+            }
+
             if (File.Exists(destination))
             {
                 // Also the same file under another spelling (link, junction, 8.3 name, hard link): "overwriting"
@@ -465,12 +473,72 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         }
     }
 
-    /// <summary>Same size and same date (to the second): what this operation leaves behind after copying a file.</summary>
+    /// <summary>Same size and same date (within the 2 s FAT step): what this operation leaves behind after copying a file.</summary>
     private static bool LooksCopied(string source, string destination)
     {
         var s = new FileInfo(source);
         var d = new FileInfo(destination);
-        return s.Length == d.Length && Math.Abs((s.LastWriteTimeUtc - d.LastWriteTimeUtc).TotalSeconds) < 1;
+        // FAT stores times in 2 s steps, so a copy there can differ by up to 2 s: the same window the folder
+        // comparison allows. With 1 s, files already copied to a FAT/exFAT stick came back as conflicts.
+        return s.Length == d.Length && (s.LastWriteTimeUtc - d.LastWriteTimeUtc).Duration() <= Compare.CompareOptions.TimeTolerance;
+    }
+
+    /// <summary>
+    /// A file with alternate data streams going to a volume that cannot keep them (FAT, exFAT) loses them, and a move
+    /// deletes the only copy. Asks once per file, or once for all after an "… all" answer. True = leave this file out.
+    /// </summary>
+    private async Task<bool> ShouldSkipForLostStreamsAsync(OperationContext context, StepRunner runner, string source, string destination)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        // One answer per target folder (a folder can be another volume mounted inside this one), so a tree of small
+        // files costs two system calls per folder and none per file.
+        var folder = Path.GetDirectoryName(destination) ?? Path.GetPathRoot(destination) ?? string.Empty;
+        if (_volumeKeepsStreams.GetOrAdd(folder, static f => NativeFile.SupportsStreams(f)))
+        {
+            return false;
+        }
+
+        // The internet-origin marker is not worth a question; it is dropped quietly, as Explorer does.
+        var lost = NativeFile.NamedStreams(source).Where(n => !n.Equals(":Zone.Identifier", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (lost.Count == 0)
+        {
+            return false;
+        }
+
+        var sticky = Volatile.Read(ref _stickyStreams);
+        var choice = sticky == NoStickyChoice ? (StreamsChoice?)null : (StreamsChoice)sticky;
+        if (choice is null)
+        {
+            await runner.PromptGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
+            try
+            {
+                var again = Volatile.Read(ref _stickyStreams); // whoever waited re-checks: the answer may have been "… all"
+                choice = again == NoStickyChoice ? null : (StreamsChoice)again;
+                if (choice is null)
+                {
+                    choice = await context.Prompts.ResolveLostStreamsAsync(new LostStreamsInfo(source, destination, lost, _kind == TransferKind.Move), context.CancellationToken).ConfigureAwait(false);
+                    if (choice is StreamsChoice.ContinueAll or StreamsChoice.SkipAll)
+                    {
+                        Volatile.Write(ref _stickyStreams, (int)choice.Value);
+                    }
+                }
+            }
+            finally
+            {
+                runner.PromptGate.Release();
+            }
+        }
+
+        return choice switch
+        {
+            StreamsChoice.Continue or StreamsChoice.ContinueAll => false,
+            StreamsChoice.Skip or StreamsChoice.SkipAll => true,
+            _ => throw new OperationAbortedException("Cancelled at alternate data streams."),
+        };
     }
 
     /// <summary>Returns the path to write to, or null to skip this file.</summary>

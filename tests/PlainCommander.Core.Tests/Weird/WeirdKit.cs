@@ -5,8 +5,21 @@ namespace PlainCommander.Core.Tests.Weird;
 /// <summary>Prompts answered by callbacks, so a test can change the disk at the exact moment a question comes.</summary>
 internal sealed class HookPrompts(
     Func<ConflictInfo, ConflictChoice>? conflict = null,
-    Func<string, Exception, ErrorChoice>? error = null) : IOperationPrompts
+    Func<string, Exception, ErrorChoice>? error = null,
+    Func<LostStreamsInfo, StreamsChoice>? streams = null) : IOperationPrompts
 {
+    public List<LostStreamsInfo> LostStreams { get; } = [];
+
+    public Task<StreamsChoice> ResolveLostStreamsAsync(LostStreamsInfo info, CancellationToken cancellationToken)
+    {
+        lock (LostStreams)
+        {
+            LostStreams.Add(info);
+        }
+
+        return Task.FromResult(streams is null ? throw new InvalidOperationException("Unexpected streams question: " + info.SourcePath) : streams(info));
+    }
+
     public List<ConflictInfo> Conflicts { get; } = [];
 
     public List<Exception> Errors { get; } = [];

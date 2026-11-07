@@ -114,6 +114,19 @@ public sealed class UndoOperation : IOperation
         SimpleCommands.MoveEntry(now, back);
     }
 
+    /// <summary>A folder with nothing in it. Not a folder any more (replaced by a file meanwhile): false, it is recycled.</summary>
+    private static bool IsEmptyDirectory(string path)
+    {
+        try
+        {
+            return Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// The topmost created items only (a created folder takes its content along): empty folders are removed, the rest
     /// goes to the Recycle Bin in one go.
@@ -125,7 +138,7 @@ public sealed class UndoOperation : IOperation
         foreach (var c in top)
         {
             var native = ExactPath.Native(c.Path);
-            if (c.IsDirectory && !Directory.EnumerateFileSystemEntries(native).Any())
+            if (c.IsDirectory && IsEmptyDirectory(native))
             {
                 await Step(runner, tracker, c.Path, () => Directory.Delete(native)).ConfigureAwait(false);
             }
