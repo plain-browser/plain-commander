@@ -236,7 +236,7 @@ public sealed class ArchiveUpdateOperation : IOperation
         Func<string, bool> dropped,
         Func<string, string> renamed)
     {
-        var temp = _archive + ".part";
+        var temp = TempNames.ReserveFile(_archive);
         try
         {
             await using (var output = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
@@ -317,7 +317,7 @@ public sealed class ArchiveUpdateOperation : IOperation
 
     private void RewriteSevenZip(StepRunner runner, ProgressTracker tracker, List<(PlannedItem Item, string Key)> additions, string? newFolder, Func<string, bool> dropped, Func<string, string> renamed)
     {
-        var temp = _archive + ".part";
+        var temp = TempNames.ReserveFile(_archive);
         try
         {
             using (var archive = SevenZipArchive.Open(_archive))

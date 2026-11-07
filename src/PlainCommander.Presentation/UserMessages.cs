@@ -36,6 +36,14 @@ public static class UserMessages
             OperationRuleException { Violation: RuleViolation.AlreadyExists } e => Polish
                 ? $"„{e.Path}” już istnieje."
                 : $"“{e.Path}” already exists.",
+            OperationRuleException { Violation: RuleViolation.FolderGone } e => FolderGone(e.Path),
+            InvalidNameException { Problem: NameProblem.Empty } => Polish ? "Nazwa jest pusta." : "The name is empty.",
+            InvalidNameException { Problem: NameProblem.TooLong } => Polish
+                ? $"Nazwa jest za długa: można użyć najwyżej {SimpleCommands.MaxNameLength} znaków."
+                : $"The name is too long: at most {SimpleCommands.MaxNameLength} characters are allowed.",
+            InvalidNameException => Polish
+                ? "Nazwa zawiera niedozwolone znaki (\\ / : * ? \" < > |)."
+                : "The name contains characters that are not allowed (\\ / : * ? \" < > |).",
             Core.Remote.RemoteException { IsCancelled: true } => Polish ? "Logowanie anulowane." : "Login cancelled.",
             Core.Remote.RemoteException { IsUntrusted: true } => Polish
                 ? "Połączenie przerwane: klucz lub certyfikat serwera nie został zaakceptowany."
@@ -57,6 +65,9 @@ public static class UserMessages
             Core.Undo.UndoException { Problem: Core.Undo.UndoProblem.NotInRecycleBin } => Polish
                 ? "Tego elementu nie ma już w koszu (kosz opróżniony albo element przywrócony wcześniej)."
                 : "The item is not in the Recycle Bin any more (emptied, or restored before).",
+            ArchiveEntryOutsideException e => Polish
+                ? $"Wpis „{e.Entry}” wskazuje poza folder docelowy, więc nie został rozpakowany."
+                : $"The entry \"{e.Entry}\" points outside the target folder, so it was not extracted.",
             Core.Archives.NotAnArchiveException => Polish
                 ? "To nie jest archiwum w żadnym znanym formacie."
                 : "This is not an archive in any known format.",
@@ -69,6 +80,16 @@ public static class UserMessages
                 ? "Maski zmiany nazwy (np. *.bak) nie są jeszcze obsługiwane."
                 : "Rename masks (such as *.bak) are not supported yet.",
             ArgumentException => Polish ? "Nieprawidłowa nazwa lub ścieżka." : "Invalid name or path.",
+            PathTooLongException => Polish
+                ? "Nazwa lub ścieżka jest za długa."
+                : "The name or path is too long.",
+            IOException io when Win32Code(io) is 206 => Polish
+                ? "Nazwa lub ścieżka jest za długa."
+                : "The name or path is too long.",
+            IOException io when Win32Code(io) is 123 or 161 => Polish ? "Nieprawidłowa nazwa lub ścieżka." : "Invalid name or path.",
+            IOException io when Win32Code(io) is 80 or 183 => Polish ? "Element o tej nazwie już istnieje." : "An item with this name already exists.",
+            IOException io when Win32Code(io) is 2 or 3 => Polish ? "Nie znaleziono." : "Not found.",
+            IOException io when Win32Code(io) is 5 => Polish ? "Brak dostępu." : "Access denied.",
             IOException io when Win32Code(io) is 112 or 39 => Polish ? "Brak miejsca na dysku." : "The disk is full.",
             IOException io when Win32Code(io) is 32 or 33 => Polish
                 ? "Plik jest używany przez inny program."
@@ -76,6 +97,21 @@ public static class UserMessages
             _ => exception.Message,
         };
     }
+
+    /// <summary>The panel's folder was deleted or moved away meanwhile.</summary>
+    public static string FolderGone(string path) => Core.FileSystem.ExactPath.DisplayText(Polish
+        ? $"Folderu „{path}” już nie ma (usunięty albo przeniesiony), więc nic w nim nie zrobiono."
+        : $"The folder “{path}” is gone (deleted or moved), so nothing was done in it.");
+
+    /// <summary>The error is about the typed name (bad, too long, taken): worth asking for the name again.</summary>
+    public static bool IsAboutName(Exception exception) => exception switch
+    {
+        ArgumentException => true,
+        OperationRuleException { Violation: RuleViolation.AlreadyExists or RuleViolation.TypeMismatch } => true,
+        PathTooLongException => true,
+        IOException io => Win32Code(io) is 80 or 123 or 161 or 183 or 206,
+        _ => false,
+    };
 
     private static int Win32Code(IOException exception) => exception.HResult & 0xFFFF;
 }

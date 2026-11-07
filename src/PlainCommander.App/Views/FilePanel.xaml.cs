@@ -226,6 +226,10 @@ public sealed partial class FilePanel : UserControl
                 Log.Debug("Focus strayed into the inactive {Panel} ({Source}); returning it", Name, e.OriginalSource?.GetType().Name);
                 FocusStrayed?.Invoke(this, EventArgs.Empty);
             }
+            else if (ViewModel?.IsActive == true && e.OriginalSource is ListViewItem)
+            {
+                ListFocused?.Invoke(this, EventArgs.Empty);
+            }
         };
         // A click gives the row focus "by pointer", and WinUI draws no focus frame for that: the cursor moved but
         // nothing shows where it is. Once the click is done the row gets the same focus the arrow keys give it.
@@ -244,6 +248,12 @@ public sealed partial class FilePanel : UserControl
 
     /// <summary>Raised when WinUI moved focus into this inactive panel on its own; the window sends it back.</summary>
     public event EventHandler? FocusStrayed;
+
+    /// <summary>A row of this panel got focus while the panel is active (keys held meanwhile can go out).</summary>
+    public event EventHandler? ListFocused;
+
+    /// <summary>Set by the window: Esc in the list empties the command line; false when it was empty already.</summary>
+    public Func<bool>? ClearCommandLine { get; set; }
 
     /// <summary>
     /// Set by the window: false while another window of the app is in front. Refreshes then keep the cursor
@@ -727,17 +737,107 @@ public sealed partial class FilePanel : UserControl
         {
             old.FocusRequested -= panel.OnFocusRequested;
             old.PropertyChanged -= panel.OnViewModelPropertyChanged;
+            old.Tabs.CollectionChanged -= panel.OnTabsChanged;
+            panel.WatchTabs([]);
         }
 
         if (e.NewValue is PanelViewModel vm)
         {
             vm.FocusRequested += panel.OnFocusRequested;
             vm.PropertyChanged += panel.OnViewModelPropertyChanged;
+            vm.Tabs.CollectionChanged += panel.OnTabsChanged;
+            panel.WatchTabs(vm.Tabs);
             panel.ApplyViewMode(vm.BriefView);
             panel.ApplyDensity(vm.CompactRows);
             panel.ApplyAttributes(vm.ShowAttributes);
             panel.ApplyDetail(vm.Detail);
         }
+    }
+
+    private readonly HashSet<PanelTab> _watchedTabs = [];
+
+    /// <summary>Each tab tells when it becomes the active one, so the strip can scroll to it.</summary>
+    private void WatchTabs(IEnumerable<PanelTab> tabs)
+    {
+        foreach (var tab in _watchedTabs)
+        {
+            tab.PropertyChanged -= OnTabPropertyChanged;
+        }
+
+        _watchedTabs.Clear();
+        foreach (var tab in tabs)
+        {
+            if (_watchedTabs.Add(tab))
+            {
+                tab.PropertyChanged += OnTabPropertyChanged;
+            }
+        }
+    }
+
+    private void OnTabsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        WatchTabs(ViewModel.Tabs);
+        BringActiveTabIntoViewSoon();
+    }
+
+    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PanelTab.IsActive) && sender is PanelTab { IsActive: true })
+        {
+            BringActiveTabIntoViewSoon();
+        }
+    }
+
+    /// <summary>After layout: a new tab has no element yet when the collection reports it.</summary>
+    private void BringActiveTabIntoViewSoon() =>
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, BringActiveTabIntoView);
+
+    private void BringActiveTabIntoView()
+    {
+        var index = ViewModel is { } vm ? vm.Tabs.ToList().FindIndex(static t => t.IsActive) : -1;
+        if (index < 0)
+        {
+            return;
+        }
+
+        TabScroller.UpdateLayout();
+        if (TabsRepeater.TryGetElement(index) is not FrameworkElement tab)
+        {
+            return;
+        }
+
+        var left = tab.TransformToVisual(TabsRepeater).TransformPoint(default).X;
+        var right = left + tab.ActualWidth;
+        var offset = TabScroller.HorizontalOffset;
+        var width = TabScroller.ViewportWidth;
+        const double Edge = 16; // clear of the "more tabs" marks
+        if (left - Edge < offset)
+        {
+            TabScroller.ChangeView(Math.Max(0, left - Edge), null, null, disableAnimation: true);
+        }
+        else if (right + Edge > offset + width)
+        {
+            TabScroller.ChangeView(right + Edge - width, null, null, disableAnimation: true);
+        }
+
+        UpdateTabMarks();
+    }
+
+    /// <summary>The scroller may use the strip's width minus "+" (the Auto column would let it grow without end).</summary>
+    private void OnTabStripSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        TabScroller.MaxWidth = Math.Max(0, e.NewSize.Width - NewTabButton.Width - NewTabButton.Margin.Left - NewTabButton.Margin.Right);
+        BringActiveTabIntoViewSoon();
+    }
+
+    private void OnTabScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) => UpdateTabMarks();
+
+    /// <summary>Chevrons at the edges when tabs are hidden that side.</summary>
+    private void UpdateTabMarks()
+    {
+        var offset = TabScroller.HorizontalOffset;
+        TabsMoreLeft.Visibility = offset > 1 ? Visibility.Visible : Visibility.Collapsed;
+        TabsMoreRight.Visibility = offset + TabScroller.ViewportWidth < TabScroller.ExtentWidth - 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>The header of the detail column follows the panel; the rows size their own column from their item.</summary>
@@ -1128,6 +1228,9 @@ public sealed partial class FilePanel : UserControl
                 e.Handled = true;
                 _ = vm.SetFilterAsync(default(PlainCommander.Core.Navigation.PanelFilter)); // Esc takes the Ctrl+S filter off
                 break;
+            case VirtualKey.Escape when !ctrl && !alt && ClearCommandLine?.Invoke() == true:
+                e.Handled = true; // the name inserted with Ctrl+Enter goes again
+                break;
             case VirtualKey.Down or VirtualKey.Up when searching && !ctrl:
                 e.Handled = true;
                 vm.QuickSearchNext(forward: e.Key == VirtualKey.Down);
@@ -1152,6 +1255,12 @@ public sealed partial class FilePanel : UserControl
         var c = e.Character;
         if (char.IsControl(c) || c == ' ')
         {
+            return;
+        }
+
+        if (CanTakeFocus?.Invoke() == false)
+        {
+            e.Handled = true; // a dialog is opening: the key is held for it and typed again there, not searched for here
             return;
         }
 

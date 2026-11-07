@@ -452,7 +452,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private static string FullPathOf(string path) =>
         NetworkPath.IsVirtual(path) ? NetworkPath.Normalize(path)
         : NetworkPath.AsServerPlace(path) ?? RemotePath.Parse(path)?.FullPath
-        ?? (NetworkPath.UncServer(path) is not null && !OperatingSystem.IsWindows() ? path : ExactPath.Full(path)); // UNC means nothing off Windows (tests)
+        ?? (NetworkPath.UncServer(path) is not null && !OperatingSystem.IsWindows() ? path : System.IO.Path.TrimEndingDirectorySeparator(ExactPath.Full(path))); // UNC means nothing off Windows (tests)
 
     /// <summary>The panel lists computers or a computer's shares: places, not folders, so nothing can be written there.</summary>
     public bool IsNetworkList => NetworkPath.IsVirtual(Path);
@@ -606,18 +606,43 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         await NavigateAsync(fallback);
     }
 
-    /// <summary>Re-reads the folder, keeping marks, measured sizes and the cursor (or its position).</summary>
-    public Task<bool> RefreshAsync(string? focusName = null)
+    /// <summary>
+    /// Re-reads the folder, keeping marks, measured sizes and the cursor (or its position). When the folder itself is
+    /// gone (deleted or moved by another program, the other panel or an operation), the panel goes to the nearest
+    /// folder that still exists instead of keeping the stale list, where F7 would quietly recreate the deleted path.
+    /// </summary>
+    public async Task<bool> RefreshAsync(string? focusName = null)
     {
         if (string.IsNullOrEmpty(Path))
         {
-            return Task.FromResult(false);
+            return false;
         }
 
-        return _results is null
-            ? NavigateAsync(Path, focusName ?? CurrentItem?.Name, keepState: true)
-            : RefreshResultsAsync(focusName ?? CurrentItem?.Name);
+        if (_results is not null)
+        {
+            return await RefreshResultsAsync(focusName ?? CurrentItem?.Name);
+        }
+
+        if (await NavigateAsync(Path, focusName ?? CurrentItem?.Name, keepState: true))
+        {
+            return true;
+        }
+
+        if (IsLoading || !IsFolderGone)
+        {
+            return false; // another navigation took over, or the folder is there but unreadable: keep the list
+        }
+
+        await NavigateWithFallbackAsync(_fs.GetParent(Path), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        return true;
     }
+
+    /// <summary>The local folder or archive folder shown no longer exists. Servers and the network list are never "gone".</summary>
+    public bool IsFolderGone =>
+        _results is null && !string.IsNullOrEmpty(Path) && !IsRemote && !IsNetworkList && !_fs.DirectoryExists(Path);
+
+    /// <summary>Re-reads the folder after a command or operation; see <see cref="RefreshAsync"/>.</summary>
+    public Task<bool> RefreshAfterChangeAsync(string? focusName = null) => RefreshAsync(focusName);
 
     /// <summary>
     /// Shows found items in this panel like a folder: names relative to <paramref name="root"/>, operations work on
@@ -1314,6 +1339,10 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         {
             await NavigateWithFallbackAsync(tab.Path, fallback); // the folder is gone: nearest existing parent
         }
+        else if (tab.MarkedNames.Count > 0)
+        {
+            MarkOnly(tab.MarkedNames);
+        }
     }
 
     /// <summary>Writes what the panel shows into the active tab record, before leaving it or saving.</summary>
@@ -1329,6 +1358,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         tab.BriefView = BriefView;
         tab.Detail = Detail;
         tab.CursorName = CurrentItem is { Entry.IsParentLink: false } item ? item.Name : null;
+        tab.MarkedNames = _results is null ? Items.Where(static i => i.IsMarked).Select(static i => i.Name).ToHashSet(StringComparer.Ordinal) : new HashSet<string>();
     }
 
     public PanelSettings CaptureSettings()

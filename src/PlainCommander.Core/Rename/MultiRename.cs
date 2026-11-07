@@ -39,6 +39,7 @@ public enum RenameProblem
     None,
     Empty,
     InvalidName,
+    TooLong,
     DuplicateInBatch,
     ExistsOnDisk,
     BadMask,
@@ -145,6 +146,25 @@ public static class MultiRename
             }
         }
 
+        // A target held by a batch item that does not move away (unchanged or with a problem) exists too. An item
+        // that then stays can block another one in turn, so repeat until nothing changes.
+        bool blocked;
+        do
+        {
+            blocked = false;
+            var moving = new HashSet<string>(results.Where(r => r.Changes).Select(r => r.Source.FullPath), NameComparer);
+            for (var i = 0; i < results.Length; i++)
+            {
+                var r = results[i];
+                if (r.Changes && batch.Contains(r.NewPath) && !moving.Contains(r.NewPath) && !SameEntry(r.Source.FullPath, r.NewPath))
+                {
+                    results[i] = r with { Problem = RenameProblem.ExistsOnDisk };
+                    blocked = true;
+                }
+            }
+        }
+        while (blocked);
+
         return results;
     }
 
@@ -219,7 +239,7 @@ public static class MultiRename
             {
                 "N" => stem,
                 "E" => ext,
-                "C" => counter.ToString(culture).PadLeft(Math.Clamp(rules.CounterDigits, 1, 12), '0'),
+                "C" => Counter(counter, Math.Clamp(rules.CounterDigits, 1, 12)),
                 "P" => Path.GetFileName(Path.GetDirectoryName(source.FullPath)) ?? string.Empty,
                 "YMD" => local.ToString("yyyyMMdd", culture),
                 "Y" => local.ToString("yyyy", culture),
@@ -234,6 +254,10 @@ public static class MultiRename
             };
         });
     }
+
+    /// <summary>The counter padded with zeros to <paramref name="width"/> characters, a minus sign included: -5 → "-05".</summary>
+    private static string Counter(long counter, int width) =>
+        counter.ToString(counter < 0 ? "D" + Math.Max(width - 1, 1) : "D" + width, CultureInfo.InvariantCulture);
 
     /// <summary>"2-5" characters 2..5, "3" the third, "2-" from the second to the end (1-based, like WC).</summary>
     private static string Range(string text, string spec)
@@ -297,7 +321,7 @@ public static class MultiRename
             return RenameProblem.InvalidName;
         }
 
-        return RenameProblem.None;
+        return name.Length > Operations.SimpleCommands.MaxNameLength ? RenameProblem.TooLong : RenameProblem.None;
     }
 
     private static bool SameEntry(string a, string b) => NameComparer.Equals(a, b);
@@ -348,6 +372,15 @@ public static class MultiRename
 
     private static void MoveEntry(string from, string to)
     {
+        // "a." must stay "a." (not its twin "a"): the exact forms, both prefixed when one is, as .NET requires for a move.
+        from = FileSystem.ExactPath.Native(from);
+        to = FileSystem.ExactPath.Native(to);
+        if (FileSystem.ExactPath.IsPrefixed(from) || FileSystem.ExactPath.IsPrefixed(to))
+        {
+            from = FileSystem.ExactPath.Prefixed(from);
+            to = FileSystem.ExactPath.Prefixed(to);
+        }
+
         if (Directory.Exists(from))
         {
             Directory.Move(from, to);

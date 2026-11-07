@@ -168,6 +168,8 @@ public static class TextDiff
             return result;
         }
 
+        // trace[d] keeps only what step d reached: diagonals -d, -d + 2 … d, at (k + d) / 2. Step d reads nothing else
+        // of step d - 1, so the trace grows with D² / 2 instead of (N + M) · D.
         var offset = max + 1;
         var v = new int[(2 * max) + 3];
         var trace = new List<int[]>();
@@ -180,7 +182,6 @@ public static class TextDiff
                 throw new InvalidOperationException("Too many differences for a line diff.");
             }
 
-            trace.Add((int[])v.Clone());
             for (var k = -d; k <= d; k += 2)
             {
                 var x = k == -d || (k != d && v[offset + k - 1] < v[offset + k + 1]) ? v[offset + k + 1] : v[offset + k - 1] + 1;
@@ -198,16 +199,38 @@ public static class TextDiff
                     break;
                 }
             }
+
+            if (!found)
+            {
+                var step = new int[d + 1];
+                for (var k = -d; k <= d; k += 2)
+                {
+                    step[(k + d) / 2] = v[offset + k];
+                }
+
+                trace.Add(step);
+            }
         }
 
-        // Walk the trace backwards to recover the path.
+        // Walk the trace backwards to recover the path; the last step (the one that reached the end) is trace.Count.
         int cx = n, cy = m;
-        for (var d = trace.Count - 1; d >= 0; d--)
+        for (var d = trace.Count; d >= 0; d--)
         {
-            var vd = trace[d];
             var k = cx - cy;
-            var prevK = k == -d || (k != d && vd[offset + k - 1] < vd[offset + k + 1]) ? k + 1 : k - 1;
-            var prevX = d == 0 ? 0 : vd[offset + prevK];
+            int prevK, prevX;
+            if (d == 0)
+            {
+                prevK = k + 1;
+                prevX = 0;
+            }
+            else
+            {
+                var before = trace[d - 1];
+                int Before(int diagonal) => before[(diagonal + d - 1) / 2];
+                prevK = k == -d || (k != d && Before(k - 1) < Before(k + 1)) ? k + 1 : k - 1;
+                prevX = Before(prevK);
+            }
+
             var prevY = prevX - prevK;
             while (cx > prevX && cy > prevY)
             {

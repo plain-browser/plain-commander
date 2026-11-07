@@ -46,8 +46,10 @@
   <data name="Dlg_MaskHint" xml:space="preserve"><value>For example *.txt;*.md. *.* means all files.</value></data>
   <data name="Dlg_ErrorTitle" xml:space="preserve"><value>Error</value></data>
   <data name="Cf_Title" xml:space="preserve"><value>File already exists</value></data>
-  <data name="Cf_Source" xml:space="preserve"><value>Incoming: {0} bytes, {1}</value></data>
-  <data name="Cf_Target" xml:space="preserve"><value>Existing: {0} bytes, {1}</value></data>
+  <data name="Cf_Source" xml:space="preserve"><value>Incoming: {0}, {1}</value></data>
+  <data name="Cf_Target" xml:space="preserve"><value>Existing: {0}, {1}</value></data>
+  <data name="Cf_Byte" xml:space="preserve"><value>byte</value></data>
+  <data name="Cf_Bytes" xml:space="preserve"><value>bytes</value></data>
   <data name="Cf_Newer" xml:space="preserve"><value>(newer)</value></data>
   <data name="Cf_Overwrite" xml:space="preserve"><value>Overwrite</value></data>
   <data name="Cf_OverwriteAll" xml:space="preserve"><value>Overwrite all</value></data>
@@ -454,4 +456,10 @@ A dual-pane file manager for Windows 11.
   <data name="Toolbar_ActiveLeft" xml:space="preserve"><value>left panel</value></data>
   <data name="Toolbar_ActiveRight" xml:space="preserve"><value>right panel</value></data>
   <data name="CommandLine_Run.Content" xml:space="preserve"><value>Run</value></data>
+  <data name="Exit_Title" xml:space="preserve"><value>Operations are still running</value></data>
+  <data name="Exit_Running" xml:space="preserve"><value>Running: {0}</value></data>
+  <data name="Exit_Queued" xml:space="preserve"><value>Waiting in the queue: {0}</value></data>
+  <data name="Exit_Question" xml:space="preserve"><value>Closing now would leave them half done. Cancel them and close, or keep working and let them finish in the background?</value></data>
+  <data name="Exit_CancelAndClose" xml:space="preserve"><value>Cancel operations and close</value></data>
+  <data name="Exit_KeepWorking" xml:space="preserve"><value>Continue in background</value></data>
 </root>

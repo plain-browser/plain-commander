@@ -41,6 +41,11 @@ public sealed class RemoteFileSystem : IFileSystem
 
         foreach (var item in items)
         {
+            if (!RemotePath.IsSingleName(item.Name))
+            {
+                continue; // "", "." or ".." from an odd server (an S3 key "../x") cannot be addressed as an entry
+            }
+
             var hidden = item.Name.StartsWith('.');
             if (hidden && !includeHidden)
             {

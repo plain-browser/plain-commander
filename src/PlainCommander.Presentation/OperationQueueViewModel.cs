@@ -16,6 +16,8 @@ public sealed partial class OperationQueueViewModel : ObservableObject
     private readonly Lock _lock = new();
     private readonly Queue<Job> _pending = new();
     private bool _running;
+    private bool _shuttingDown;
+    private TaskCompletionSource? _idle;
 
     /// <param name="elevation">Lets "access denied" continue as administrator; null when not offered (tests, an elevated app).</param>
     /// <param name="showError">Shows why the administrator part could not run (UAC declined).</param>
@@ -45,6 +47,55 @@ public sealed partial class OperationQueueViewModel : ObservableObject
     /// <summary>An operation ended (any outcome), before its own completion step runs. The undo history listens.</summary>
     public event EventHandler<OperationFinishedEventArgs>? Finished;
 
+    /// <summary>An operation runs or waits in the queue (closing the window would abandon it).</summary>
+    public bool IsBusy
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _running;
+            }
+        }
+    }
+
+    /// <summary>
+    /// For closing the app: drops the queued operations, cancels the running one (its prompts close) and completes once
+    /// nothing runs any more. Operations queued after this call are cancelled at once.
+    /// </summary>
+    public Task CancelAllAsync()
+    {
+        List<Job> dropped;
+        OperationViewModel? current;
+        Task idle;
+        lock (_lock)
+        {
+            _shuttingDown = true;
+            dropped = [.. _pending];
+            _pending.Clear();
+            PendingCount = 0;
+            current = Current;
+            if (!_running)
+            {
+                idle = Task.CompletedTask;
+            }
+            else
+            {
+                _idle ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                idle = _idle.Task;
+            }
+        }
+
+        foreach (var job in dropped)
+        {
+            Log.Information("{Title}: dropped from the queue on exit", job.Title);
+            job.Done.TrySetResult(new OperationResult(OperationOutcome.Cancelled, 0, 0, []));
+        }
+
+        current?.Cancel();
+        return idle;
+    }
+
     /// <summary>Queues an operation. The task completes with its result after <paramref name="completed"/> ran.</summary>
     public Task<OperationResult> Enqueue(IOperation operation, string title, Func<OperationResult, Task>? completed = null)
     {
@@ -52,6 +103,11 @@ public sealed partial class OperationQueueViewModel : ObservableObject
         bool start;
         lock (_lock)
         {
+            if (_shuttingDown)
+            {
+                return Task.FromResult(new OperationResult(OperationOutcome.Cancelled, 0, 0, []));
+            }
+
             _pending.Enqueue(job);
             PendingCount = _pending.Count;
             start = !_running;
@@ -77,6 +133,8 @@ public sealed partial class OperationQueueViewModel : ObservableObject
                 {
                     _running = false;
                     PendingCount = 0;
+                    _idle?.TrySetResult();
+                    _idle = null;
                     return;
                 }
 
@@ -87,6 +145,11 @@ public sealed partial class OperationQueueViewModel : ObservableObject
             var vm = new OperationViewModel(job.Operation, job.Title);
             vm.PropertyChanged += OnCurrentPropertyChanged;
             Current = vm;
+            if (Volatile.Read(ref _shuttingDown))
+            {
+                vm.Cancel(); // CancelAllAsync ran between taking the job and showing it
+            }
+
             OperationResult result;
             try
             {
@@ -106,7 +169,7 @@ public sealed partial class OperationQueueViewModel : ObservableObject
             try
             {
                 Finished?.Invoke(this, new OperationFinishedEventArgs(job.Operation, job.Title, result));
-                if (job.Completed is not null)
+                if (job.Completed is not null && !Volatile.Read(ref _shuttingDown))
                 {
                     await job.Completed(result);
                 }

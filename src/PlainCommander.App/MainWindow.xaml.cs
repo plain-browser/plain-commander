@@ -67,8 +67,14 @@ public sealed partial class MainWindow : Window
             }
         };
         Root.ActualThemeChanged += (_, _) => ApplyTheme();
-        AppTitleBar.Loaded += (_, _) => UpdateCaptionPadding();
+        AppTitleBar.Loaded += (_, _) =>
+        {
+            UpdateCaptionPadding();
+            ApplyMinimumSize();
+            AppTitleBar.XamlRoot.Changed += (_, _) => ApplyMinimumSize(); // another monitor's scale
+        };
         AppTitleBar.SizeChanged += (_, _) => UpdateCaptionPadding();
+        TopMenu.SizeChanged += (_, _) => FitTitleBar(); // the menu's width depends on the language
         Activated += (_, e) =>
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated)
@@ -105,7 +111,15 @@ public sealed partial class MainWindow : Window
         RightPanel.ContextMenuRequested += (_, request) => ShowShellMenu(request);
         LeftPanel.ViewOptionRequested += (_, option) => ToggleViewOption(option);
         RightPanel.ViewOptionRequested += (_, option) => ToggleViewOption(option);
-        AppWindow.Closing += (_, _) => ViewModel.Save(CapturePlacement(), CurrentSplit());
+        AppWindow.Closing += OnAppWindowClosing;
+        _dialogs.CanReplayKeys = () => _isForeground;
+        _dialogs.AllClosed += (_, _) => ReplayKeysAfterDialog();
+        _strayKeyTimer = DispatcherQueue.CreateTimer();
+        _strayKeyTimer.Interval = TimeSpan.FromMilliseconds(150);
+        _strayKeyTimer.IsRepeating = false;
+        _strayKeyTimer.Tick += (_, _) => ReplayStrayKeys(tick: true);
+        LeftPanel.ListFocused += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => ReplayStrayKeys(tick: false));
+        RightPanel.ListFocused += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => ReplayStrayKeys(tick: false));
         Root.Loaded += OnLoaded;
 
         // Panels move keyboard focus only while this window is in front (see FilePanel.CanTakeFocus); when it
@@ -127,6 +141,17 @@ public sealed partial class MainWindow : Window
         RightPanel.CanTakeFocus = () => _isForeground && !_dialogs.IsOpen;
         foreach (var (view, panel) in new[] { (LeftPanel, ViewModel.Left), (RightPanel, ViewModel.Right) })
         {
+            // Esc in the list clears the command line once there is no quick search or filter left to take off
+            view.ClearCommandLine = () =>
+            {
+                if (string.IsNullOrEmpty(ViewModel.CommandLine.Text))
+                {
+                    return false;
+                }
+
+                ViewModel.CommandLine.Text = string.Empty;
+                return true;
+            };
             view.OpenServers = () => ViewModel.Remote.OpenRoots;
             view.OpenAddress = async address =>
             {
@@ -269,9 +294,44 @@ public sealed partial class MainWindow : Window
 
     private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var focused = FocusManager.GetFocusedElement(Content.XamlRoot) as DependencyObject;
         if (_dialogs.IsOpen)
         {
-            return; // keys belong to the dialog
+            // Keys belong to the dialog. One typed while it is still opening (or closing) reaches the window, where it
+            // would act on the panel behind it; it waits and is typed again once the dialog (or the window) has the keyboard.
+            var chord = CurrentModifiers();
+            _ = _dialogs.HeldKeys.IsReplayed(e.Key); // a replayed key that meets a new dialog is held once more like any other
+            if (!HeldKeys.IsExempt(e.Key, chord) && (_dialogs.IsClosing || Helpers.Ui.IsInside(focused, Root)))
+            {
+                e.Handled = true;
+                _dialogs.HeldKeys.Hold(e.Key, chord);
+            }
+
+            return;
+        }
+
+        var replayed = _dialogs.HeldKeys.IsReplayed(e.Key);
+        if (!HeldKeys.IsExempt(e.Key, CurrentModifiers()) && (IsStray(focused) || (_dialogs.HeldKeys.Any && !replayed)))
+        {
+            // WinUI parked focus in the inactive panel (its breadcrumb) after the list changed, or earlier keys still
+            // wait: the key belongs to the active panel and goes there, after the ones before it, once its row has focus.
+            e.Handled = true;
+            if (replayed)
+            {
+                _dialogs.HeldKeys.HoldAgain(e.Key, CurrentModifiers());
+            }
+            else
+            {
+                _dialogs.HeldKeys.Hold(e.Key, CurrentModifiers());
+            }
+
+            if (!_strayKeyTimer.IsRunning)
+            {
+                ActivePanelView.FocusList();
+                _strayKeyTimer.Start();
+            }
+
+            return;
         }
 
         if (ViewModel.Operations.IsDialogVisible)
@@ -301,7 +361,170 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnRootPreviewKeyUp(object sender, KeyRoutedEventArgs e) => SyncModifiers();
+    private void OnRootPreviewKeyUp(object sender, KeyRoutedEventArgs e)
+    {
+        if (_dialogs.HeldKeys.SwallowRelease(e.Key))
+        {
+            e.Handled = true; // its press is held for later; the release alone must not act (it opened the menu bar)
+        }
+
+        SyncModifiers();
+    }
+
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _strayKeyTimer;
+
+    /// <summary>Focus in the panel that is not active: nothing the user did puts it there (a click activates the panel).</summary>
+    private bool IsStray(DependencyObject? focused)
+    {
+        if (focused is null || ViewModel.QuickView.IsOpen)
+        {
+            return false;
+        }
+
+        var inactive = ReferenceEquals(ViewModel.ActivePanel, ViewModel.Left) ? RightPanel : LeftPanel;
+        return Helpers.Ui.IsInside(focused, inactive);
+    }
+
+    /// <summary>The keyboard is on the active panel's list (not its breadcrumb, where Enter would navigate).</summary>
+    private bool IsActiveRow(DependencyObject? focused) => focused is ListViewItem or ListViewBase && Helpers.Ui.IsInside(focused, ActivePanelView);
+
+    /// <summary>Timer ticks spent waiting for the panel to settle; held keys are dropped after too many.</summary>
+    private int _heldKeyTicks;
+
+    /// <summary>
+    /// Keys held while focus was astray (or while a dialog closed) go out one at a time, each once the active panel's row
+    /// has the keyboard and its listing is loaded, so Enter, Backspace, Enter… walk folders as they were typed. Keys that
+    /// cannot be delivered within about a second (three while a folder loads) are dropped rather than sent elsewhere.
+    /// </summary>
+    private void ReplayStrayKeys(bool tick)
+    {
+        if (!_dialogs.HeldKeys.Any || _dialogs.IsOpen)
+        {
+            _strayKeyTimer.Stop();
+            _heldKeyTicks = 0;
+            return; // a dialog replays them itself when it settles
+        }
+
+        if (tick)
+        {
+            _heldKeyTicks++;
+        }
+
+        var focused = FocusManager.GetFocusedElement(Content.XamlRoot) as DependencyObject;
+        var loading = ViewModel.ActivePanel.IsLoading;
+        if (_isForeground && !loading && IsActiveRow(focused))
+        {
+            _heldKeyTicks = 0;
+            _dialogs.HeldKeys.ReplayNext();
+            if (_dialogs.HeldKeys.Any)
+            {
+                _strayKeyTimer.Start(); // the next after this one has acted (its focus change usually comes first)
+            }
+
+            return;
+        }
+
+        if (_heldKeyTicks > (loading ? 20 : 6) || !_isForeground)
+        {
+            Serilog.Log.Warning("Focus did not come back to the active panel ({Focused}, loading: {Loading}); held keys dropped", focused?.GetType().Name ?? "nothing", loading);
+            _dialogs.HeldKeys.Clear();
+            _heldKeyTicks = 0;
+            return;
+        }
+
+        if (!loading && !IsActiveRow(focused))
+        {
+            ActivePanelView.FocusList();
+        }
+
+        _strayKeyTimer.Start();
+    }
+
+    /// <summary>
+    /// Keys typed while the last dialog closed: into a text box that has the keyboard again, else to the active panel the
+    /// same way as stray keys (WinUI may have parked focus elsewhere when the list changed meanwhile).
+    /// </summary>
+    private void ReplayKeysAfterDialog()
+    {
+        if (!_dialogs.HeldKeys.Any || _dialogs.IsOpen || !_isForeground)
+        {
+            return;
+        }
+
+        if (FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox)
+        {
+            _dialogs.HeldKeys.Replay();
+            return;
+        }
+
+        ReplayStrayKeys(tick: false);
+    }
+
+    private bool _closeConfirmed;
+    private bool _askingToClose;
+    private bool _saved;
+
+    /// <summary>
+    /// Alt+F4 or the close button. With operations running or queued the window stays and asks: keep working, or cancel
+    /// them (cleanly, waiting until they stopped) and close. Closing abruptly would leave a copy or a move half done.
+    /// </summary>
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (!_closeConfirmed && ViewModel.Operations.IsBusy)
+        {
+            args.Cancel = true;
+            AskToCloseDuringOperations();
+            return;
+        }
+
+        SaveOnce();
+    }
+
+    private void SaveOnce()
+    {
+        if (!_saved)
+        {
+            _saved = true;
+            ViewModel.Save(CapturePlacement(), CurrentSplit());
+        }
+    }
+
+    private async void AskToCloseDuringOperations()
+    {
+        if (_askingToClose)
+        {
+            return;
+        }
+
+        _askingToClose = true;
+        try
+        {
+            Helpers.WindowFront.Bring(this);
+            var running = ViewModel.Operations.Current?.Title ?? string.Empty;
+            if (!await _dialogs.ConfirmCloseDuringOperationsAsync(running, ViewModel.Operations.PendingCount))
+            {
+                Serilog.Log.Information("Close declined: operations keep running");
+                ViewModel.Operations.Current?.SendToBackground();
+                ActivePanelView.FocusList();
+                return;
+            }
+
+            Serilog.Log.Information("Closing: cancelling the running and queued operations");
+            await ViewModel.Operations.CancelAllAsync();
+            Serilog.Log.Information("Operations stopped; closing");
+            _closeConfirmed = true;
+            SaveOnce();
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Closing during operations failed");
+        }
+        finally
+        {
+            _askingToClose = false;
+        }
+    }
 
     private VirtualKeyModifiers SyncModifiers()
     {
@@ -324,6 +547,47 @@ public sealed partial class MainWindow : Window
     {
         var scale = AppTitleBar.XamlRoot?.RasterizationScale ?? 1.0;
         CaptionPadding.Width = AppWindow.TitleBar.RightInset / scale;
+        FitTitleBar();
+    }
+
+    /// <summary>Width the app name and version badge take when shown (measured once while visible).</summary>
+    private double _appNameWidth;
+
+    /// <summary>
+    /// The title bar's columns are Auto, so a window narrower than their sum pushed the menu and the settings button under
+    /// the caption buttons. The name and version go first when room is short; a strip to drag the window by stays.
+    /// </summary>
+    private void FitTitleBar()
+    {
+        if (AppName.Visibility == Visibility.Visible && AppName.ActualWidth > 0)
+        {
+            _appNameWidth = AppName.ActualWidth + AppName.Margin.Left + AppName.Margin.Right + AppTitleBar.ColumnSpacing;
+        }
+
+        const double DragRoom = 48;
+        var needed = AppTitleBar.Padding.Left + AppLogo.Width + TopMenu.ActualWidth + TopMenu.Margin.Left + SettingsButton.Width
+            + CaptionPadding.Width + (4 * AppTitleBar.ColumnSpacing) + DragRoom;
+        var show = needed + _appNameWidth <= AppTitleBar.ActualWidth;
+        var visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (AppName.Visibility != visibility)
+        {
+            AppName.Visibility = visibility;
+        }
+    }
+
+    /// <summary>Both panels at their minimum width (400 each) with the splitter, padding and some room; below that the layout breaks.</summary>
+    private const double MinWindowWidth = 900;
+
+    private const double MinWindowHeight = 480;
+
+    /// <summary>The presenter's minimum is in physical pixels, so it follows the monitor's scale.</summary>
+    private void ApplyMinimumSize()
+    {
+        if (AppWindow.Presenter is OverlappedPresenter presenter && AppTitleBar.XamlRoot is { } root)
+        {
+            presenter.PreferredMinimumWidth = (int)Math.Ceiling(MinWindowWidth * root.RasterizationScale);
+            presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinWindowHeight * root.RasterizationScale);
+        }
     }
 
     /// <summary>Explorer's context menu. Errors from shell extensions are logged, never shown: the menu is theirs.</summary>
@@ -597,7 +861,7 @@ public sealed partial class MainWindow : Window
             if (await ViewModel.CompareFilesAsync() is { } diff)
             {
                 var name = System.IO.Path.GetFileName(diff.LeftPath) + " ↔ " + System.IO.Path.GetFileName(diff.RightPath);
-                var window = new DiffWindow(ViewModel.Theme, diff, name);
+                var window = new DiffWindow(diff, name);
                 window.Closed += (_, _) => ActivePanelView.FocusList();
                 Helpers.WindowFront.Bring(window);
                 return;
@@ -730,6 +994,7 @@ public sealed partial class MainWindow : Window
             : Root.IsLoaded ? Root.ActualTheme
             : Application.Current.RequestedTheme == ApplicationTheme.Dark ? ElementTheme.Dark : ElementTheme.Light;
         Helpers.Ui.Theme = actual;
+        _dialogs.ApplyTheme(actual);
 
         Helpers.Ui.StyleCaptionButtons(this, actual);
     }

@@ -31,7 +31,22 @@ public sealed record RemoteLocation(RemoteProtocol Protocol, string User, string
     /// <summary>Last name of the path; the host for the server root.</summary>
     public string Name => IsRoot ? Host : Inner[(Inner.LastIndexOf('/') + 1)..];
 
-    public RemoteLocation Child(string name) => this with { Inner = RemotePath.JoinInner(Inner, name) };
+    /// <summary>
+    /// One entry of this folder, taken literally: a listed name is a single segment even when it holds "\" or "..",
+    /// which a Unix server allows. For a path the user typed use <see cref="Resolve"/>.
+    /// </summary>
+    public RemoteLocation Child(string name)
+    {
+        if (!RemotePath.IsSingleName(name))
+        {
+            throw new ArgumentException($"Not a single name: {name}", nameof(name));
+        }
+
+        return this with { Inner = Inner.TrimEnd('/') + "/" + name };
+    }
+
+    /// <summary>A relative path typed by the user ("a/b", "../c"), resolved against this folder.</summary>
+    public RemoteLocation Resolve(string relative) => this with { Inner = RemotePath.JoinInner(Inner, relative.Replace('\\', '/')) };
 
     public RemoteLocation? Parent => IsRoot ? null : this with { Inner = RemotePath.ParentInner(Inner) };
 }
@@ -69,7 +84,8 @@ public static class RemotePath
 
     /// <summary>
     /// "sftp://user@host:2222/dir", "ftp://host/dir" (default port), "sftp://user@host" (server root). Null when the
-    /// text is not a remote path or has no host. Backslashes in the server part count as "/", "." and ".." are resolved.
+    /// text is not a remote path or has no host. "." and ".." are resolved; a backslash is part of a name, as on the
+    /// server, so a listed name like "..\x" round-trips through <see cref="RemoteLocation.FullPath"/>.
     /// </summary>
     public static RemoteLocation? Parse(string? path)
     {
@@ -86,7 +102,7 @@ public static class RemotePath
             "s3" => RemoteProtocol.S3,
             _ => RemoteProtocol.Ftp,
         };
-        var rest = path[(schemeEnd + 3)..].Replace('\\', '/');
+        var rest = path[(schemeEnd + 3)..];
         var slash = rest.IndexOf('/', StringComparison.Ordinal);
         var authority = slash < 0 ? rest : rest[..slash];
         var inner = slash < 0 ? "/" : rest[slash..];
@@ -116,6 +132,10 @@ public static class RemotePath
                 return null;
             }
         }
+        else if (authority.IndexOf(':', StringComparison.Ordinal) != authority.LastIndexOf(':'))
+        {
+            host = authority; // an IPv6 literal without brackets has no room for a port
+        }
         else
         {
             var colon = authority.LastIndexOf(':');
@@ -129,11 +149,14 @@ public static class RemotePath
         return host.Length == 0 ? null : new RemoteLocation(protocol, user, host.ToLowerInvariant(), port, NormalizeInner(inner));
     }
 
+    /// <summary>An address the user typed (Ctrl+L, cd, F5 target): "\" counts as "/" there, as in any Windows path box.</summary>
+    public static RemoteLocation? ParseTyped(string? text) => Parse(text?.Replace('\\', '/'));
+
     /// <summary>"/a/./b/../c/" → "/a/c"; never climbs above "/".</summary>
     public static string NormalizeInner(string inner)
     {
         var parts = new List<string>();
-        foreach (var part in inner.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var part in inner.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             if (part == ".")
             {
@@ -156,8 +179,30 @@ public static class RemotePath
         return "/" + string.Join('/', parts);
     }
 
+    /// <summary>A name that <see cref="RemoteLocation.Child"/> takes: not empty, ".", ".." and without "/".</summary>
+    public static bool IsSingleName(string? name) =>
+        !string.IsNullOrEmpty(name) && name is not ("." or "..") && !name.Contains('/', StringComparison.Ordinal);
+
+    /// <summary>
+    /// A server name as a local file name: characters the local disk cannot have (on Windows "\", ":", "*" …)
+    /// become "_", so a name like "..\x" stays one file inside the download folder.
+    /// </summary>
+    public static string LocalName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        var invalid = Path.GetInvalidFileNameChars();
+        var local = string.Create(name.Length, name, (span, source) =>
+        {
+            for (var i = 0; i < source.Length; i++)
+            {
+                span[i] = Array.IndexOf(invalid, source[i]) >= 0 ? '_' : source[i];
+            }
+        });
+        return local is "." or ".." || local.Length == 0 ? "_" : local;
+    }
+
     public static string JoinInner(string folder, string name) =>
-        NormalizeInner(folder.TrimEnd('/') + "/" + name.Replace('\\', '/'));
+        NormalizeInner(folder.TrimEnd('/') + "/" + name);
 
     public static string ParentInner(string inner)
     {

@@ -17,7 +17,7 @@ public static class TextFold
             return text.ToLowerInvariant();
         }
 
-        var decomposed = text.Normalize(NormalizationForm.FormD);
+        var decomposed = Normalize(text, NormalizationForm.FormD);
         var builder = new StringBuilder(decomposed.Length);
         foreach (var c in decomposed)
         {
@@ -53,6 +53,35 @@ public static class TextFold
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// <see cref="string.Normalize(NormalizationForm)"/> that keeps unpaired surrogates (NTFS allows them in names)
+    /// instead of throwing: the text between them is normalized, the halves stay as they are.
+    /// </summary>
+    internal static string Normalize(string text, NormalizationForm form)
+    {
+        StringBuilder? builder = null;
+        var start = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (!char.IsSurrogate(text[i]))
+            {
+                continue;
+            }
+
+            if (char.IsSurrogatePair(text, i))
+            {
+                i++;
+                continue;
+            }
+
+            builder ??= new StringBuilder(text.Length);
+            builder.Append(text[start..i].Normalize(form)).Append(text[i]);
+            start = i + 1;
+        }
+
+        return builder is null ? text.Normalize(form) : builder.Append(text[start..].Normalize(form)).ToString();
     }
 
     private static bool IsPlainAscii(string text)

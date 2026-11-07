@@ -29,8 +29,7 @@ public sealed partial class SyncWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Ui.ApplyIcon(this);
-        Root.RequestedTheme = Ui.ThemeOf(main.Theme);
-        Ui.StyleCaptionButtons(this, Root.RequestedTheme);
+        Ui.FollowAppTheme(this, Root);
         TitleRow.Loaded += (_, _) => UpdateCaptionPadding();
         TitleRow.SizeChanged += (_, _) => UpdateCaptionPadding();
         var work = DisplayArea.Primary.WorkArea;
@@ -88,7 +87,7 @@ public sealed partial class SyncWindow : Window
             return;
         }
 
-        var window = new DiffWindow(_main.Theme, _main.CreateDiff(row), row.Relative);
+        var window = new DiffWindow(_main.CreateDiff(row), row.Relative);
         WindowFront.Bring(window);
     }
 

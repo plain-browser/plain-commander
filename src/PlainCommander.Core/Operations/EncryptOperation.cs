@@ -162,13 +162,14 @@ public sealed class EncryptOperation : IOperation, Undo.IUndoable
             }
 
             tracker.StartItem(source, bytes);
-            var temp = target + ".part";
             var ok = await runner.Run(source, () =>
             {
                 tracker.RestartItem();
                 long reported = 0;
+                string? temp = null;
                 try
                 {
+                    temp = TempNames.ReserveFile(target);
                     PceFile.Encrypt(source, temp, _password, _options, _compression, total =>
                     {
                         tracker.AddBytes(total - reported);
@@ -188,7 +189,7 @@ public sealed class EncryptOperation : IOperation, Undo.IUndoable
                 }
                 finally
                 {
-                    if (File.Exists(temp))
+                    if (temp is not null && File.Exists(temp))
                     {
                         try
                         {

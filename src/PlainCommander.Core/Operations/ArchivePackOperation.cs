@@ -141,7 +141,7 @@ public sealed class ArchivePackOperation : IOperation, Undo.IUndoable
         tracker.Report(force: true);
 
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
-        var temp = finalPath + ".part";
+        var temp = TempNames.ReserveFile(finalPath);
         try
         {
             if (SevenZipFormatFor(finalPath, _password) is { } sevenZipFormat)

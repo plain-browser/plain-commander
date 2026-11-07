@@ -35,7 +35,7 @@ public static class ExactPath
 
         var trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var name = Path.GetFileName(trimmed);
-        if (!NeedsExactName(name))
+        if (!NeedsPrefix(name))
         {
             return Path.GetFullPath(path);
         }
@@ -53,7 +53,7 @@ public static class ExactPath
             return path;
         }
 
-        if (!path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(NeedsExactName))
+        if (!path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(NeedsPrefix))
         {
             return path;
         }
@@ -93,6 +93,26 @@ public static class ExactPath
     public static string DisplayText(string text) =>
         string.IsNullOrEmpty(text) ? text : text.Replace(UncPrefix, @"\\", StringComparison.Ordinal).Replace(Prefix, string.Empty, StringComparison.Ordinal);
 
+    /// <summary>
+    /// A name Windows reinterprets without \\?\: a trailing dot or space is dropped, and a device name ("NUL",
+    /// "COM1", on older Windows also "nul.txt") turns the whole path into the device (\\.\NUL).
+    /// </summary>
+    public static bool NeedsPrefix(string name) => NeedsExactName(name) || IsDeviceName(name);
+
     private static bool NeedsExactName(string name) =>
         name.Length > 0 && name is not ("." or "..") && (name[^1] == '.' || name[^1] == ' ');
+
+    private static bool IsDeviceName(string name)
+    {
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
+        var stem = (dot < 0 ? name : name[..dot]).TrimEnd(' ');
+        if (stem.Length == 3)
+        {
+            return stem.ToUpperInvariant() is "CON" or "PRN" or "AUX" or "NUL";
+        }
+
+        return stem.Length == 4
+            && stem[..3].ToUpperInvariant() is "COM" or "LPT"
+            && (stem[3] is >= '1' and <= '9' or '\u00B9' or '\u00B2' or '\u00B3');
+    }
 }

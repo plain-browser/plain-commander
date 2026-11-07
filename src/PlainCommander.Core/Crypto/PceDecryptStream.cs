@@ -40,12 +40,25 @@ public sealed class PceDecryptStream : Stream
         Header = PceFormat.ReadHeader(_header);
         _plain = new byte[Header.ChunkSize];
         _cipherBlock = new byte[Header.ChunkSize + PceFormat.TagSize];
-        _key = PasswordKdf.Derive(password, Header);
-        _cipher = new PceCipher(Header.Cipher, _key);
-        if (!ReadBlock(out var metaLength))
+        if (!ReadSealed(out var metaLength))
         {
             throw new PceFormatException("The metadata block is missing.");
         }
+
+        // Block 0 decides the password; an older file may need another Unicode spelling of it (PasswordKdf).
+        _key = PasswordKdf.DeriveMatching(password, Header, key =>
+        {
+            var cipher = new PceCipher(Header.Cipher, key);
+            _cipher = cipher;
+            if (Open(metaLength))
+            {
+                return true;
+            }
+
+            _cipher = null;
+            cipher.Dispose();
+            return false;
+        }) ?? throw new PceWrongPasswordException(_file);
 
         Metadata = PceFormat.DecodeMetadata(_plain.AsSpan(0, metaLength));
         _available = 0;
@@ -104,6 +117,17 @@ public sealed class PceDecryptStream : Stream
     /// <summary>Reads and authenticates the next block into <see cref="_plain"/>; false at a clean end of input.</summary>
     private bool ReadBlock(out int length)
     {
+        if (!ReadSealed(out length))
+        {
+            return false;
+        }
+
+        return Open(length) ? true : throw new PceFormatException($"{_file}: block {_counter} is damaged or was tampered with.");
+    }
+
+    /// <summary>Reads the next sealed block into <see cref="_cipherBlock"/>; false at a clean end of input.</summary>
+    private bool ReadSealed(out int length)
+    {
         length = 0;
         Span<byte> lengthBytes = stackalloc byte[4];
         if (!ReadFully(lengthBytes))
@@ -123,17 +147,18 @@ public sealed class PceDecryptStream : Stream
             throw new PceFormatException($"{_file} is cut short inside block {_counter}.");
         }
 
+        return true;
+    }
+
+    /// <summary>Authenticates the sealed block into <see cref="_plain"/> and moves to the next counter; false when the tag fails.</summary>
+    private bool Open(int length)
+    {
         // Try the counter as a middle block first, then as the last one; the tag decides which it was.
         if (!TryOpen(_counter, length))
         {
             if (!TryOpen(_counter | PceFormat.LastBlockFlag, length))
             {
-                if (_counter == 0)
-                {
-                    throw new PceWrongPasswordException(_file);
-                }
-
-                throw new PceFormatException($"{_file}: block {_counter} is damaged or was tampered with.");
+                return false;
             }
 
             _sawLast = true;

@@ -120,10 +120,26 @@ internal sealed class FakeDialogs : IDialogService
         return Task.FromResult(UnpackAnswer);
     }
 
+    /// <summary>Answers for the next prompts, before <see cref="NameAnswer"/>.</summary>
+    public Queue<string?> NameAnswers { get; } = new();
+
+    public List<string> NameInitials { get; } = [];
+
+    private string? _lastNameGiven;
+
     public Task<string?> AskNameAsync(NamePrompt prompt, string initial)
     {
         LastNameInitial = initial;
-        return Task.FromResult(NameAnswer);
+        NameInitials.Add(initial);
+        if (NameAnswers.Count > 0)
+        {
+            return Task.FromResult(_lastNameGiven = NameAnswers.Dequeue());
+        }
+
+        // Asked again with the name just given (it failed): the user gives up rather than retrying it forever.
+        var answer = initial.Length > 0 && string.Equals(initial, _lastNameGiven, StringComparison.Ordinal) ? null : NameAnswer;
+        _lastNameGiven = answer;
+        return Task.FromResult(answer);
     }
 
     public Task<bool> ConfirmDeleteAsync(int files, int directories, string firstName, bool permanent)

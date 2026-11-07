@@ -11,7 +11,7 @@ public sealed class RemotePathTests
     [InlineData("ftp://host/pub/", RemoteProtocol.Ftp, "", "host", 21, "/pub")]
     [InlineData("ftps://jan%40firma.pl@ftp.firma.pl", RemoteProtocol.Ftps, "jan@firma.pl", "ftp.firma.pl", 21, "/")]
     [InlineData("SFTP://u@h/a/./b/../c", RemoteProtocol.Sftp, "u", "h", 22, "/a/c")]
-    [InlineData(@"sftp://u@h/a\b", RemoteProtocol.Sftp, "u", "h", 22, "/a/b")]
+    [InlineData(@"sftp://u@h/a\b", RemoteProtocol.Sftp, "u", "h", 22, @"/a\b")]
     [InlineData("sftp://u@[::1]:2022/x", RemoteProtocol.Sftp, "u", "::1", 2022, "/x")]
     public void Parses_addresses(string text, RemoteProtocol protocol, string user, string host, int port, string inner)
     {
@@ -19,6 +19,10 @@ public sealed class RemotePathTests
 
         location.Should().Be(new RemoteLocation(protocol, user, host, port, inner));
     }
+
+    [Fact]
+    public void Typed_addresses_take_backslashes_for_slashes() =>
+        RemotePath.ParseTyped(@"sftp://u@h\a\b")!.Inner.Should().Be("/a/b");
 
     [Theory]
     [InlineData(@"C:\work")]

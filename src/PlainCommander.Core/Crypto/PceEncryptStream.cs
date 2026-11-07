@@ -6,7 +6,8 @@ namespace PlainCommander.Core.Crypto;
 /// <summary>
 /// Write-only stream: what is written comes out of <c>output</c> as the .pce block chain. The header and the
 /// metadata block go out in the constructor; every full chunk is sealed as a block, and <see cref="Complete"/>
-/// (or Dispose) seals the rest as the last block, which may be empty. Memory use is two chunks.
+/// (or Dispose) seals the rest as the last block, which may be empty. After <see cref="Abort"/> nothing more is
+/// sealed, so an interrupted file stays incomplete and is rejected. Memory use is two chunks.
 /// </summary>
 public sealed class PceEncryptStream : Stream
 {
@@ -21,6 +22,7 @@ public sealed class PceEncryptStream : Stream
     private int _filled;
     private uint _counter;
     private bool _completed;
+    private bool _aborted;
 
     public PceEncryptStream(Stream output, string password, PceMetadata metadata, PceOptions? options = null, PceLayout flags = PceLayout.None)
     {
@@ -59,7 +61,7 @@ public sealed class PceEncryptStream : Stream
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
-        ObjectDisposedException.ThrowIf(_completed, this);
+        ObjectDisposedException.ThrowIf(_completed || _aborted, this);
         while (buffer.Length > 0)
         {
             var take = Math.Min(buffer.Length, _plain.Length - _filled);
@@ -92,9 +94,17 @@ public sealed class PceEncryptStream : Stream
             return;
         }
 
+        ObjectDisposedException.ThrowIf(_aborted, this);
         Seal(last: true);
         _completed = true;
         _output.Flush();
+        Wipe();
+    }
+
+    /// <summary>Writing failed: Dispose must not seal what was written so far as a complete file.</summary>
+    public void Abort()
+    {
+        _aborted = true;
         Wipe();
     }
 
@@ -128,7 +138,7 @@ public sealed class PceEncryptStream : Stream
         {
             try
             {
-                if (!_completed && _cipher is not null)
+                if (!_completed && !_aborted && _cipher is not null)
                 {
                     Complete();
                 }

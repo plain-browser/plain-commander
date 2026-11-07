@@ -8,6 +8,7 @@ public static class SimpleCommands
     public static string CreateDirectory(string baseDirectory, string name)
     {
         var clean = CleanName(name, allowSeparators: true);
+        RequireFolder(baseDirectory);
         var full = ExactPath.Native(ExactPath.Full(Path.Combine(baseDirectory, clean)));
         if (File.Exists(full))
         {
@@ -22,6 +23,7 @@ public static class SimpleCommands
     public static string CreateFile(string baseDirectory, string name)
     {
         var clean = CleanName(name, allowSeparators: false);
+        RequireFolder(baseDirectory);
         var full = ExactPath.Native(ExactPath.Full(Path.Combine(baseDirectory, clean)));
         if (Directory.Exists(full))
         {
@@ -70,7 +72,17 @@ public static class SimpleCommands
             // Case-insensitive file systems see source and destination as the same entry: hop via a temporary name.
             var hop = source + ".pc-rename-" + Guid.NewGuid().ToString("N")[..8];
             MoveRaw(source, hop);
-            MoveRaw(hop, destination);
+            try
+            {
+                MoveRaw(hop, destination);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // In a case-sensitive folder the other spelling can be a second file: put this one back.
+                MoveRaw(hop, source);
+                throw;
+            }
+
             return;
         }
 
@@ -94,22 +106,65 @@ public static class SimpleCommands
         }
     }
 
-    /// <summary>The typed name trimmed (and unquoted); throws <see cref="ArgumentException"/> when it is empty or has characters a name cannot have.</summary>
+    /// <summary>The longest name NTFS (and most Linux file systems) allow for one file or folder, in UTF-16 units.</summary>
+    public const int MaxNameLength = 255;
+
+    /// <summary>
+    /// The typed name trimmed (and unquoted), each level without trailing dots or spaces (Windows drops them, so a
+    /// name keeping them is one Explorer cannot open). Throws <see cref="InvalidNameException"/> when it is empty,
+    /// too long or has characters a name cannot have.
+    /// </summary>
     public static string CleanName(string name, bool allowSeparators)
     {
         ArgumentNullException.ThrowIfNull(name);
         var clean = name.Trim().Trim('"');
         if (clean.Length == 0 || clean is "." or "..")
         {
-            throw new ArgumentException("The name is empty.", nameof(name));
+            throw new InvalidNameException(NameProblem.Empty, clean);
         }
 
         var invalid = Path.GetInvalidFileNameChars().Where(c => !allowSeparators || (c != '\\' && c != '/'));
         if (clean.IndexOfAny(invalid.ToArray()) >= 0 || (OperatingSystem.IsWindows() && clean.IndexOfAny([':', '*', '?', '"', '<', '>', '|']) >= 0))
         {
-            throw new ArgumentException($"'{clean}' contains characters that are not allowed in a name.", nameof(name));
+            throw new InvalidNameException(NameProblem.BadCharacters, clean);
         }
 
-        return clean;
+        var levels = allowSeparators ? clean.Split('\\', '/') : [clean];
+        var separators = allowSeparators ? clean.Where(static c => c is '\\' or '/').ToArray() : [];
+        var result = new System.Text.StringBuilder(clean.Length);
+        for (var i = 0; i < levels.Length; i++)
+        {
+            var level = levels[i];
+            if (level is not ("." or ".."))
+            {
+                level = level.TrimEnd('.', ' ');
+                if (level.Length == 0 && levels[i].Length > 0)
+                {
+                    throw new InvalidNameException(NameProblem.Empty, levels[i]);
+                }
+
+                if (level.Length > MaxNameLength)
+                {
+                    throw new InvalidNameException(NameProblem.TooLong, level);
+                }
+            }
+
+            result.Append(level);
+            if (i < separators.Length)
+            {
+                result.Append(separators[i]);
+            }
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>The panel's folder must still be there: creating into a deleted folder would quietly bring it back.</summary>
+    private static void RequireFolder(string baseDirectory)
+    {
+        if (!Directory.Exists(ExactPath.Native(ExactPath.Full(baseDirectory))))
+        {
+            throw new OperationRuleException(RuleViolation.FolderGone, ExactPath.Display(Path.TrimEndingDirectorySeparator(baseDirectory)));
+        }
     }
 }

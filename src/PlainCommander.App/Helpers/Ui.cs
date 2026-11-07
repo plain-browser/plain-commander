@@ -204,17 +204,102 @@ public static class Ui
     /// The theme the main window is drawn in (set by the window: the setting can differ from the system theme).
     /// Brushes handed out from code come from this theme's dictionary; the app-wide lookup would give the system one.
     /// </summary>
-    public static ElementTheme Theme { get; set; } = ElementTheme.Dark;
+    public static ElementTheme Theme
+    {
+        get => _theme;
+        set
+        {
+            if (_theme == value)
+            {
+                return;
+            }
+
+            _theme = value;
+
+            // Bindings like {x:Bind ui:Ui.TabBackground(IsActive)} are not evaluated again when the theme changes, so
+            // the solid brushes handed out are shared copies that take the new theme's colour here, and every element
+            // holding one repaints by itself.
+            foreach (var (key, brush) in SharedBrushes)
+            {
+                if (Lookup(key) is SolidColorBrush source)
+                {
+                    brush.Color = source.Color;
+                    brush.Opacity = source.Opacity;
+                }
+            }
+        }
+    }
+
+    private static ElementTheme _theme = ElementTheme.Dark;
+
+    private static readonly Dictionary<string, SolidColorBrush> SharedBrushes = new(StringComparer.Ordinal);
 
     internal static T Resource<T>(string key)
+    {
+        var value = Lookup(key);
+        if (value is SolidColorBrush solid && typeof(T).IsAssignableFrom(typeof(SolidColorBrush)))
+        {
+            if (!SharedBrushes.TryGetValue(key, out var shared))
+            {
+                shared = new SolidColorBrush(solid.Color) { Opacity = solid.Opacity };
+                SharedBrushes[key] = shared;
+            }
+
+            return (T)(object)shared;
+        }
+
+        return (T)value;
+    }
+
+    private static object Lookup(string key)
     {
         var resources = Application.Current.Resources;
         if (resources.ThemeDictionaries.TryGetValue(Theme == ElementTheme.Light ? "Light" : "Dark", out var d)
             && d is ResourceDictionary themed && themed.TryGetValue(key, out var value))
         {
-            return (T)value;
+            return value;
         }
 
-        return (T)resources[key];
+        return resources[key];
+    }
+
+    /// <summary>The element is <paramref name="ancestor"/> or lies inside it in the visual tree (popups do not).</summary>
+    public static bool IsInside(DependencyObject? element, DependencyObject ancestor)
+    {
+        for (var e = element; e is not null; e = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(e))
+        {
+            if (ReferenceEquals(e, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A secondary window takes the app's theme setting and follows it while open (the setting can change in the
+    /// settings window); its caption buttons are restyled with it.
+    /// </summary>
+    public static void FollowAppTheme(Microsoft.UI.Xaml.Window window, FrameworkElement root)
+    {
+        var main = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<PlainCommander.Presentation.MainViewModel>(App.Current.Services);
+        void Apply()
+        {
+            root.RequestedTheme = ThemeOf(main.Theme);
+            StyleCaptionButtons(window, root.RequestedTheme);
+        }
+
+        void OnChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(PlainCommander.Presentation.MainViewModel.Theme))
+            {
+                Apply();
+            }
+        }
+
+        Apply();
+        main.PropertyChanged += OnChanged;
+        window.Closed += (_, _) => main.PropertyChanged -= OnChanged;
     }
 }

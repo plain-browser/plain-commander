@@ -202,16 +202,26 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <!-- Tab strip: the tabs and "+" on the left, one pill per drive on the right -->
+    <!--
+      Tab strip: the tabs and "+" on the left, one pill per drive on the right. The tabs scroll on their own (the active
+      one is kept in view, see BringActiveTabIntoView); "+" stays next to them and never scrolls away. Its column is
+      Auto, so TabScroller gets a MaxWidth in code (the room left beside "+"), else it would grow past the strip.
+    -->
     <Grid Grid.Row="0" Padding="6,5,8,0" ColumnSpacing="8" Background="{ThemeResource PcStripBrush}"
           BorderThickness="0,0,0,1" BorderBrush="{ThemeResource PcStrokeBrush}">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-      <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
-        <StackPanel Orientation="Horizontal" Spacing="2">
-          <ItemsRepeater ItemsSource="{x:Bind ViewModel.Tabs, Mode=OneWay}">
+      <Grid x:Name="TabStrip" SizeChanged="OnTabStripSizeChanged">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <ScrollViewer x:Name="TabScroller" HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
+                      ViewChanged="OnTabScrollerViewChanged">
+          <ItemsRepeater x:Name="TabsRepeater" ItemsSource="{x:Bind ViewModel.Tabs, Mode=OneWay}">
             <ItemsRepeater.Layout>
               <StackLayout Orientation="Horizontal" Spacing="2" />
             </ItemsRepeater.Layout>
@@ -236,12 +246,19 @@
               </DataTemplate>
             </ItemsRepeater.ItemTemplate>
           </ItemsRepeater>
-          <Button Width="26" Height="24" Padding="0" Margin="2,0,0,2" VerticalAlignment="Center" IsTabStop="False"
-                  Background="Transparent" BorderThickness="0" x:Uid="Panel_NewTab" Click="OnNewTab">
-            <FontIcon Glyph="&#xE710;" FontSize="11" Foreground="{ThemeResource PcTextMutedBrush}" />
-          </Button>
-        </StackPanel>
-      </ScrollViewer>
+        </ScrollViewer>
+        <!-- Edge marks: there are more tabs that side (the strip scrolls with the wheel, the active tab is kept in view) -->
+        <Border x:Name="TabsMoreLeft" Width="14" Margin="0,0,0,1" HorizontalAlignment="Left" IsHitTestVisible="False" Visibility="Collapsed" Background="{ThemeResource PcStripBrush}">
+          <FontIcon Glyph="&#xE76B;" FontSize="9" Foreground="{ThemeResource PcTextBrush}" />
+        </Border>
+        <Border x:Name="TabsMoreRight" Width="14" Margin="0,0,0,1" HorizontalAlignment="Right" IsHitTestVisible="False" Visibility="Collapsed" Background="{ThemeResource PcStripBrush}">
+          <FontIcon Glyph="&#xE76C;" FontSize="9" Foreground="{ThemeResource PcTextBrush}" />
+        </Border>
+        <Button x:Name="NewTabButton" Grid.Column="1" Width="26" Height="24" Padding="0" Margin="2,0,0,2" VerticalAlignment="Center" IsTabStop="False"
+                Background="Transparent" BorderThickness="0" x:Uid="Panel_NewTab" Click="OnNewTab">
+          <FontIcon Glyph="&#xE710;" FontSize="11" Foreground="{ThemeResource PcTextMutedBrush}" />
+        </Button>
+      </Grid>
       <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind ViewModel.Drives, Mode=OneWay}" VerticalAlignment="Center" Margin="0,0,0,4">
         <ItemsRepeater.Layout>
           <StackLayout Orientation="Horizontal" Spacing="4" />

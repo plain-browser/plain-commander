@@ -121,9 +121,9 @@ public sealed class LocalFileSystem : IFileSystem
 
     public string? GetParent(string path)
     {
-        var full = ExactPath.Full(path);
-        var parent = Path.GetDirectoryName(full);
-        return parent;
+        // "C:\src\" is the folder src, whose parent is C:\ (GetDirectoryName alone would give C:\src)
+        var full = Path.TrimEndingDirectorySeparator(ExactPath.Full(path));
+        return Path.GetDirectoryName(full);
     }
 
     private static DriveEntry ToDrive(DriveInfo d)

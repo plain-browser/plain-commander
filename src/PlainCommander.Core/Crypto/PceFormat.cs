@@ -134,6 +134,7 @@ public static class PceFormat
 
     internal static PceHeader NewHeader(PceOptions options, PceLayout flags)
     {
+        flags = options.LegacyPasswordForm ? flags & ~PceLayout.NfcPassword : flags | PceLayout.NfcPassword;
         var cipher = options.Cipher ?? (AesGcm.IsSupported ? PceCipherKind.AesGcm : PceCipherKind.ChaCha20Poly1305);
         return new PceHeader(
             flags,
@@ -161,6 +162,13 @@ public enum PceLayout : byte
 
     /// <summary>The content is zstd-compressed before encryption.</summary>
     Zstd = 4,
+
+    /// <summary>
+    /// The key comes from the password in Unicode NFC, so the same visible password typed on Windows or pasted
+    /// from macOS (NFD) opens the file. Files without it (1.13.x) used the typed text as it was: see
+    /// <see cref="PasswordKdf.DeriveMatching"/>.
+    /// </summary>
+    NfcPassword = 8,
 }
 
 /// <summary>Whether to compress before encrypting.</summary>
@@ -243,6 +251,9 @@ public sealed record PceOptions
 
     /// <summary>Null picks AES-GCM where the CPU accelerates it, ChaCha20-Poly1305 otherwise.</summary>
     public PceCipherKind? Cipher { get; init; }
+
+    /// <summary>Tests only: write as 1.13.x did, the password bytes as typed and no <see cref="PceLayout.NfcPassword"/> flag.</summary>
+    internal bool LegacyPasswordForm { get; init; }
 }
 
 /// <summary>The file is not a .pce file, or it was damaged, cut short, extended or tampered with.</summary>

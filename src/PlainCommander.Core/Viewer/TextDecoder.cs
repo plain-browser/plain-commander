@@ -82,6 +82,12 @@ public static class TextDecoder
             return false;
         }
 
+        // A UTF-16 BOM decides even when the text has few ASCII letters (Cyrillic, CJK); only NUL characters make it binary.
+        if (sample.Length >= 2 && ((sample[0] == 0xFF && sample[1] == 0xFE) || (sample[0] == 0xFE && sample[1] == 0xFF)))
+        {
+            return HasNulUnit(sample[2..]);
+        }
+
         var zeros = 0;
         foreach (var b in sample)
         {
@@ -92,6 +98,19 @@ public static class TextDecoder
         }
 
         return zeros > 0;
+    }
+
+    private static bool HasNulUnit(ReadOnlySpan<byte> units)
+    {
+        for (var i = 0; i + 1 < units.Length; i += 2)
+        {
+            if (units[i] == 0 && units[i + 1] == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Strict UTF-8 check on the sample; a multi-byte sequence cut at the end is allowed.</summary>

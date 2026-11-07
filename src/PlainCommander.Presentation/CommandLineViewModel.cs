@@ -22,6 +22,9 @@ public sealed partial class CommandLineViewModel : ObservableObject
 {
     public const int HistoryLimit = 50;
 
+    // The characters "cmd /?" lists as needing quotes in a file name, plus the redirection and pipe signs.
+    private static readonly System.Buffers.SearchValues<char> CmdSpecial = System.Buffers.SearchValues.Create(" \t&()[]{}^=;!'+,`~%|<>");
+
     private readonly List<string> _history = [];
     private int _historyIndex = -1;
     private string _draft = string.Empty;
@@ -39,10 +42,11 @@ public sealed partial class CommandLineViewModel : ObservableObject
         _historyIndex = -1;
     }
 
-    /// <summary>Appends text at the caret end, separated by a space; quotes it when it has spaces.</summary>
+    /// <summary>Appends text at the caret end, separated by a space; quotes it when cmd would split or interpret it.</summary>
     public void Insert(string value)
     {
-        var quoted = value.Contains(' ') ? $"\"{value}\"" : value;
+        ArgumentNullException.ThrowIfNull(value);
+        var quoted = value.AsSpan().IndexOfAny(CmdSpecial) >= 0 ? $"\"{value}\"" : value;
         Text = Text.Length == 0 || Text.EndsWith(' ') ? Text + quoted : Text + " " + quoted;
         _historyIndex = -1;
     }

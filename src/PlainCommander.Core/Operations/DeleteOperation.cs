@@ -47,7 +47,7 @@ public sealed class DeleteOperation : IOperation, IElevatable
             {
                 var item = items[i];
                 tracker.StartItem(item.Source, 1);
-                if (keep.Contains(item.Source))
+                if (keep.Contains(ExactPath.Display(item.Source)))
                 {
                     tracker.FinishItem();
                     continue; // something inside could not be deleted; the folder stays without a second error
@@ -80,7 +80,7 @@ public sealed class DeleteOperation : IOperation, IElevatable
                 {
                     for (var p = Path.GetDirectoryName(item.Source); p is not null && PathRules.IsInside(p, root); p = Path.GetDirectoryName(p))
                     {
-                        keep.Add(p);
+                        keep.Add(ExactPath.Display(p)); // children may carry \\?\ where their folder does not
                     }
                 }
 

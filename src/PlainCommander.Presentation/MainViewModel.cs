@@ -103,7 +103,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task<bool> ConnectAsync(string address)
     {
         var panel = ActivePanel;
-        if (RemotePath.Parse(address?.Trim()) is not { } location)
+        if (RemotePath.ParseTyped(address?.Trim()) is not { } location)
         {
             await _dialogs.ShowErrorAsync(UserMessages.Describe(new ArgumentException(address)));
             return false;
@@ -684,7 +684,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 Right.ClearMarks();
             }
 
-            await Task.WhenAll(Left.RefreshAsync(), Right.RefreshAsync());
+            await Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
         });
     }
 
@@ -963,9 +963,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (RemotePath.Parse(ActivePanel.Path) is { } here && !Path.IsPathRooted(argument))
+        // on a server panel "/x" is the server's folder, not the local disk
+        if (RemotePath.Parse(ActivePanel.Path) is { } here && (argument.StartsWith('/') || !Path.IsPathRooted(argument)))
         {
-            await ActivePanel.NavigateAsync(here.Child(argument).FullPath);
+            var remote = argument.StartsWith('/') ? here with { Inner = RemotePath.NormalizeInner(argument) } : here.Resolve(argument);
+            await ActivePanel.NavigateAsync(remote.FullPath);
             return;
         }
 
@@ -1438,21 +1440,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task NewFileAsync()
     {
         var panel = ActivePanel;
-        if (await RefuseRemoteAsync(panel) || await RefuseInsideArchiveAsync(panel))
+        if (await RefuseRemoteAsync(panel) || await RefuseInsideArchiveAsync(panel) || await RefuseGoneFolderAsync(panel))
         {
             return;
         }
 
-        var name = await _dialogs.AskNameAsync(NamePrompt.NewFile, string.Empty);
-        if (string.IsNullOrWhiteSpace(name))
+        string? full = null;
+        var name = string.Empty;
+        while (full is null)
         {
-            return;
-        }
+            name = await _dialogs.AskNameAsync(NamePrompt.NewFile, name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
 
-        var full = await RunCommandAsync(() => SimpleCommands.CreateFile(panel.Path, name), ElevatedJob.CreateFile(panel.Path, name));
-        if (full is null)
-        {
-            return;
+            var typed = name;
+            (full, var askAgain) = await RunNameCommandAsync(panel, () => SimpleCommands.CreateFile(panel.Path, typed), ElevatedJob.CreateFile(panel.Path, typed));
+            if (full is null && !askAgain)
+            {
+                return;
+            }
         }
 
         RememberUndo(Texts.NewFileStep(Path.GetFileName(full)), [new Core.Undo.UndoAction(Core.Undo.UndoKind.Created, full)]);
@@ -1478,7 +1486,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task MakeDirectoryAsync()
     {
         var panel = ActivePanel;
-        if (await RefuseNetworkListAsync(panel))
+        if (await RefuseNetworkListAsync(panel) || await RefuseGoneFolderAsync(panel))
         {
             return;
         }
@@ -1520,13 +1528,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // "a\b" creates both levels: the first one that did not exist is what undo takes away
-        var levels = name.Trim().Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-        var firstNew = Enumerable.Range(1, levels.Length).Select(n => Path.Combine([panel.Path, .. levels[..n]])).FirstOrDefault(p => !Directory.Exists(p));
-        if (await RunCommandAsync(() => SimpleCommands.CreateDirectory(panel.Path, name), ElevatedJob.CreateDirectory(panel.Path, name)) is null)
+        // "a\b" creates both levels: the topmost one that did not exist is what undo takes away. Measured on the
+        // resolved path, so "x\..\y" names "y", not "x".
+        var firstNew = FirstMissingLevel(panel.Path, name);
+        while (await RunNameCommandAsync(panel, () => SimpleCommands.CreateDirectory(panel.Path, name), ElevatedJob.CreateDirectory(panel.Path, name)) is (null, var askAgain))
         {
-            return;
+            if (!askAgain || string.IsNullOrWhiteSpace(name = await _dialogs.AskNameAsync(NamePrompt.NewDirectory, name)))
+            {
+                return;
+            }
+
+            firstNew = FirstMissingLevel(panel.Path, name);
         }
+
+        var levels = name.Trim().Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
 
         if (firstNew is not null)
         {
@@ -1535,6 +1550,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var first = levels[0];
         await RefreshPanelsShowingAsync(panel.Path, panel, first);
+    }
+
+    private static string? FirstMissingLevel(string baseDirectory, string name)
+    {
+        string full;
+        try
+        {
+            full = ExactPath.Display(ExactPath.Full(Path.Combine(baseDirectory, SimpleCommands.CleanName(name, allowSeparators: true))));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
+        {
+            return null; // creating it fails as well and reports why
+        }
+
+        string? missing = null;
+        for (var dir = full; !string.IsNullOrEmpty(dir) && !Directory.Exists(ExactPath.Native(dir)); dir = Path.GetDirectoryName(dir))
+        {
+            missing = dir;
+        }
+
+        return missing;
     }
 
     /// <summary>F7 on a server: "a/b" creates both levels; an existing last level is an error.</summary>
@@ -1558,6 +1594,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var at = here;
                 for (var i = 0; i < parts.Length; i++)
                 {
+                    if (parts[i] is "." or "..")
+                    {
+                        at = parts[i] == ".." ? at.Parent ?? at : at;
+                        continue;
+                    }
+
                     at = at.Child(parts[i]);
                     var existing = await client.StatAsync(at.Inner, CancellationToken.None);
                     if (existing is null)
@@ -1610,14 +1652,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             await Remote.UseAsync(source.Root, async client =>
             {
-                // a change of case only is allowed: the server sees two different names anyway
-                if (!string.Equals(newName, item.Name, StringComparison.OrdinalIgnoreCase)
-                    && await client.StatAsync(target.Inner, CancellationToken.None) is not null)
+                if (!string.Equals(newName, item.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (await client.StatAsync(target.Inner, CancellationToken.None) is not null)
+                    {
+                        throw new OperationRuleException(RuleViolation.AlreadyExists, newName);
+                    }
+
+                    await client.RenameAsync(source.Inner, target.Inner, CancellationToken.None);
+                    return true;
+                }
+
+                // A change of case only. On a case-sensitive server "A.txt" may be another file, which FTP and S3
+                // renames replace: only the exact name in the listing tells. A case-insensitive server may see source
+                // and target as one entry, so hop via a temporary name.
+                var siblings = await client.ListAsync(source.Parent!.Inner, CancellationToken.None);
+                if (siblings.Any(s => string.Equals(s.Name, newName, StringComparison.Ordinal)))
                 {
                     throw new OperationRuleException(RuleViolation.AlreadyExists, newName);
                 }
 
-                await client.RenameAsync(source.Inner, target.Inner, CancellationToken.None);
+                var hop = source.Parent!.Child(newName + ".pc-rename-" + Guid.NewGuid().ToString("N")[..8]);
+                await client.RenameAsync(source.Inner, hop.Inner, CancellationToken.None);
+                try
+                {
+                    await client.RenameAsync(hop.Inner, target.Inner, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    await client.RenameAsync(hop.Inner, source.Inner, CancellationToken.None);
+                    throw;
+                }
+
                 return true;
             }, CancellationToken.None);
         }
@@ -1634,7 +1700,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task RenameCurrentAsync()
     {
         var panel = ActivePanel;
-        if (panel.CurrentItem is not { Entry.IsParentLink: false } item || await RefuseNetworkListAsync(panel))
+        if (panel.CurrentItem is not { Entry.IsParentLink: false } item || await RefuseNetworkListAsync(panel) || await RefuseGoneFolderAsync(panel))
         {
             return;
         }
@@ -1658,16 +1724,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // In search results the row shows a relative path; the dialog offers the file name only.
         var current = Path.GetFileName(item.Entry.FullPath);
-        var name = await _dialogs.AskNameAsync(NamePrompt.Rename, current);
-        if (string.IsNullOrWhiteSpace(name) || string.Equals(name, current, StringComparison.Ordinal))
+        string? renamed = null;
+        var name = current;
+        while (renamed is null)
         {
-            return;
+            name = await _dialogs.AskNameAsync(NamePrompt.Rename, name);
+            if (string.IsNullOrWhiteSpace(name) || string.Equals(name, current, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var typed = name;
+            (renamed, var askAgain) = await RunNameCommandAsync(panel, () => SimpleCommands.Rename(item.Entry.FullPath, typed), ElevatedJob.Rename(item.Entry.FullPath, typed));
+            if (renamed is null && !askAgain)
+            {
+                return;
+            }
         }
 
-        var renamed = await RunCommandAsync(() => SimpleCommands.Rename(item.Entry.FullPath, name), ElevatedJob.Rename(item.Entry.FullPath, name));
-        if (renamed is null)
+        if (string.Equals(Path.GetFileName(renamed), current, StringComparison.Ordinal))
         {
-            return;
+            return; // " a.txt " is cleaned back to the same name: nothing changed, nothing to undo
         }
 
         RememberUndo(Texts.RenameStep(current, Path.GetFileName(renamed)), [new Core.Undo.UndoAction(Core.Undo.UndoKind.Moved, renamed, item.Entry.FullPath, item.IsDirectory)]);
@@ -1943,7 +2020,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var move = kind == TransferKind.Move;
         var paths = items.Select(static i => i.Entry.FullPath).ToArray();
         var from = source is null ? null : RemotePath.Parse(source.Path);
-        var to = RemotePath.Parse(input) ?? (from is not null && !Path.IsPathRooted(input) ? from.Child(input) : null);
+        var to = RemotePath.ParseTyped(input) ?? (from is not null && !Path.IsPathRooted(input) ? from.Resolve(input) : null);
 
         if (to is null)
         {
@@ -2059,7 +2136,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             await _dialogs.ShowErrorAsync(UserMessages.Describe(ex));
         }
 
-        await Task.WhenAll(Left.RefreshAsync(), Right.RefreshAsync());
+        await Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
     }
 
     /// <summary>
@@ -2120,7 +2197,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         Left.RenameResults(outcome.Done);
         Right.RenameResults(outcome.Done);
-        return Task.WhenAll(Left.RefreshAsync(), Right.RefreshAsync());
+        return Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
     }
 
     /// <summary>Alt+F7 "to panel": the active panel lists what the search found.</summary>
@@ -2131,15 +2208,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// F7 / Shift+F4 / Shift+F6 on disk. On "access denied" offers to try again as administrator, in the
-    /// helper process. Returns the resulting path, or null after an error was shown or the user declined.
+    /// Runs a command on a typed name. On failure AskAgain tells whether the name was the problem (bad, too long,
+    /// taken), so the prompt comes back with the typed text; a panel whose folder is gone moves up.
     /// </summary>
-    private async Task<string?> RunCommandAsync(Func<string> command, ElevatedJob elevated)
+    private async Task<(string? Path, bool AskAgain)> RunNameCommandAsync(PanelViewModel panel, Func<string> command, ElevatedJob elevated)
+    {
+        var (path, error) = await RunCommandAsync(command, elevated);
+        if (path is null && panel.IsFolderGone)
+        {
+            await panel.RefreshAsync();
+            return (null, false);
+        }
+
+        return (path, error is not null && UserMessages.IsAboutName(error));
+    }
+
+    private async Task<bool> RefuseGoneFolderAsync(PanelViewModel panel)
+    {
+        if (!panel.IsFolderGone)
+        {
+            return false;
+        }
+
+        await _dialogs.ShowErrorAsync(UserMessages.FolderGone(panel.Path));
+        await panel.RefreshAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// F7 / Shift+F4 / Shift+F6 on disk. On "access denied" offers to try again as administrator, in the
+    /// helper process. Returns the resulting path, or null and the error that was shown (none when the user declined).
+    /// </summary>
+    private async Task<(string? Path, Exception? Error)> RunCommandAsync(Func<string> command, ElevatedJob elevated)
     {
         Exception error;
         try
         {
-            return command();
+            return (command(), null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -2149,30 +2254,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_elevation is null || !ElevationRules.IsAccessDenied(error))
         {
             await _dialogs.ShowErrorAsync(UserMessages.Describe(error));
-            return null;
+            return (null, error);
         }
 
         if (!await _dialogs.ConfirmElevateAsync(UserMessages.Describe(error)))
         {
-            return null;
+            return (null, null);
         }
 
         try
         {
             var helper = await _elevation.ConnectAsync(CancellationToken.None);
-            return await helper.RunCommandAsync(elevated);
+            return (await helper.RunCommandAsync(elevated), null);
         }
         catch (OperationCanceledException)
         {
             await _dialogs.ShowErrorAsync(Texts.ElevationRefused);
+            return (null, null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
             Log.Warning(ex, "Elevated {Kind} failed", elevated.Kind);
             await _dialogs.ShowErrorAsync(UserMessages.Describe(ex));
+            return (null, ex);
         }
-
-        return null;
     }
 
     private async Task AfterOperationAsync(PanelViewModel? source, OperationResult result)
@@ -2182,7 +2287,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             source?.ClearMarks();
         }
 
-        await Task.WhenAll(Left.RefreshAsync(), Right.RefreshAsync());
+        await Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
     }
 
     private async Task RefreshPanelsShowingAsync(string path, PanelViewModel focusPanel, string focusName)
@@ -2191,7 +2296,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var other = ReferenceEquals(focusPanel, Left) ? Right : Left;
         if (string.Equals(other.Path, path, StringComparison.OrdinalIgnoreCase))
         {
-            await other.RefreshAsync();
+            await other.RefreshAfterChangeAsync();
         }
     }
 

@@ -132,12 +132,17 @@ public sealed partial class SearchViewModel : ObservableObject, IDisposable
         IsRunning = true;
         Status = Texts.SearchProgress(0, 0, criteria.Root);
         var finished = false;
+        var statusLock = new object();
         var progress = new Progress<SearchProgress>(p =>
         {
-            // A late progress report must not overwrite the final "done" line.
-            if (ReferenceEquals(_running, cts) && !Volatile.Read(ref finished))
+            // A late progress report must not overwrite the final "done" line. Without a UI context the report
+            // runs on the thread pool, so the check and the write share a lock with the final line.
+            lock (statusLock)
             {
-                Status = Texts.SearchProgress(p.Folders, p.Matches, p.CurrentFolder);
+                if (ReferenceEquals(_running, cts) && !finished)
+                {
+                    Status = Texts.SearchProgress(p.Folders, p.Matches, p.CurrentFolder);
+                }
             }
         });
         var folders = 0;
@@ -148,13 +153,19 @@ public sealed partial class SearchViewModel : ObservableObject, IDisposable
                 Results.Add(new FileItem(entry, _icons));
             }
 
-            Volatile.Write(ref finished, true);
-            Status = Texts.SearchDone(Results.Count, cancelled: false);
+            lock (statusLock)
+            {
+                finished = true;
+                Status = Texts.SearchDone(Results.Count, cancelled: false);
+            }
         }
         catch (OperationCanceledException)
         {
-            Volatile.Write(ref finished, true);
-            Status = Texts.SearchDone(Results.Count, cancelled: true);
+            lock (statusLock)
+            {
+                finished = true;
+                Status = Texts.SearchDone(Results.Count, cancelled: true);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

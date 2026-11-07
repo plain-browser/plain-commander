@@ -16,7 +16,7 @@ namespace PlainCommander.App.Views;
 /// </summary>
 public sealed partial class DiffWindow : Window
 {
-    public DiffWindow(AppTheme theme, DiffViewModel viewModel, string name)
+    public DiffWindow(DiffViewModel viewModel, string name)
     {
         ViewModel = viewModel;
         InitializeComponent();
@@ -25,8 +25,7 @@ public sealed partial class DiffWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Ui.ApplyIcon(this);
-        Root.RequestedTheme = Ui.ThemeOf(theme);
-        Ui.StyleCaptionButtons(this, Root.RequestedTheme);
+        Ui.FollowAppTheme(this, Root);
         TitleRow.Loaded += (_, _) => UpdateCaptionPadding();
         TitleRow.SizeChanged += (_, _) => UpdateCaptionPadding();
         var work = DisplayArea.Primary.WorkArea;

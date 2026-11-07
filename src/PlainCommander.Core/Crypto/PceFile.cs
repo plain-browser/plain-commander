@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using SharpCompress.Common;
 using SharpCompress.Compressors.ZStandard;
 using SharpCompress.Writers.Tar;
+using PlainCommander.Core.Operations;
 
 namespace PlainCommander.Core.Crypto;
 
@@ -36,6 +37,9 @@ public static class PceFile
 {
     private const int BufferSize = 1 << 20;
 
+    /// <summary>A GNU long name is a path; anything near this size is a crafted header, not a name.</summary>
+    private const int MaxLongNameBytes = 256 * 1024;
+
     /// <summary>A random 16-character name for "hide the file name": the real name is inside the container.</summary>
     public static string RandomName()
     {
@@ -50,13 +54,17 @@ public static class PceFile
         }) + PceFormat.Extension;
     }
 
-    /// <summary>Encrypts a file or a folder (TAR inside) to <paramref name="target"/>, which is created or truncated.</summary>
+    /// <summary>
+    /// Encrypts a file or a folder (TAR inside) to <paramref name="target"/>, which is created or truncated. When it
+    /// fails or is cancelled, the unfinished target is deleted; it is never sealed as a complete container.
+    /// </summary>
     /// <param name="compression">zstd before encrypting: never, when a sample says it pays, or always.</param>
     /// <param name="progress">Called with the plain bytes consumed so far.</param>
     public static void Encrypt(string source, string target, string password, PceOptions? options, PceCompression compression, Action<long>? progress, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
         ArgumentException.ThrowIfNullOrEmpty(target);
+        ArgumentException.ThrowIfNullOrEmpty(password);
         options ??= PceOptions.Default;
         var isFolder = Directory.Exists(source);
         var compress = compression switch
@@ -70,31 +78,65 @@ public static class PceFile
         FileSystemInfo info = isFolder ? new DirectoryInfo(source) : new FileInfo(source);
         var metadata = new PceMetadata(name, info is FileInfo f ? f.Length : -1, info.LastWriteTimeUtc, info.Attributes & ~FileAttributes.Directory);
 
-        using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan);
-        using var pce = new PceEncryptStream(output, password, metadata, options, layout);
-        Stream sink = compress ? new CompressionStream(pce, options.ZstdLevel, leaveOpen: true) : pce;
+        var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan);
+        var done = false;
         try
         {
-            var counter = new Counter(progress);
-            if (isFolder)
+            using var pce = new PceEncryptStream(output, password, metadata, options, layout);
+            try
             {
-                WriteTar(source, sink, counter, token);
+                Stream sink = compress ? new CompressionStream(pce, options.ZstdLevel, leaveOpen: true) : pce;
+                try
+                {
+                    var counter = new Counter(progress);
+                    if (isFolder)
+                    {
+                        WriteTar(source, sink, counter, token);
+                    }
+                    else
+                    {
+                        using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, BufferSize, FileOptions.SequentialScan);
+                        Pump(input, sink, counter, token);
+                    }
+                }
+                finally
+                {
+                    if (compress)
+                    {
+                        sink.Dispose(); // flushes the compressor's tail into the container
+                    }
+                }
+
+                pce.Complete();
             }
-            else
+            catch
             {
-                using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, BufferSize, FileOptions.SequentialScan);
-                Pump(input, sink, counter, token);
+                pce.Abort();
+                throw;
             }
+
+            done = true;
         }
         finally
         {
-            if (compress)
+            output.Dispose();
+            if (!done)
             {
-                sink.Dispose(); // flushes the compressor's tail into the container
+                TryDelete(target);
             }
         }
+    }
 
-        pce.Complete();
+    private static void TryDelete(string file)
+    {
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // the original error matters more; an unsealed container is rejected anyway
+        }
     }
 
     /// <summary>
@@ -171,8 +213,8 @@ public static class PceFile
             throw;
         }
 
-        Stream content = (pce.Header.Flags & PceLayout.Zstd) != 0 ? new DecompressionStream(pce, leaveOpen: true)
-            : (pce.Header.Flags & PceLayout.Deflate) != 0 ? new DeflateStream(pce, CompressionMode.Decompress, leaveOpen: true)
+        Stream content = (pce.Header.Flags & PceLayout.Zstd) != 0 ? new CorruptAsFormatStream(new DecompressionStream(pce, leaveOpen: true))
+            : (pce.Header.Flags & PceLayout.Deflate) != 0 ? new CorruptAsFormatStream(new DeflateStream(pce, CompressionMode.Decompress, leaveOpen: true))
             : pce;
         return new PceContent(pce, content);
     }
@@ -186,7 +228,9 @@ public static class PceFile
 
     /// <summary>
     /// Writes the content back: a file to <paramref name="target"/> (created or truncated), a folder into the
-    /// directory <paramref name="target"/> (created when missing; entries inside are overwritten).
+    /// directory <paramref name="target"/> (created when missing; entries inside are overwritten). A folder is
+    /// first written to a new folder next to the target and moved into place only when all of it authenticated,
+    /// so damage leaves nothing behind and never touches files already in the target.
     /// </summary>
     /// <param name="progress">Called with the plain bytes written so far.</param>
     public static void Decrypt(string file, string password, string target, Action<long>? progress, CancellationToken token)
@@ -195,8 +239,45 @@ public static class PceFile
         var counter = new Counter(progress);
         if (content.Header.IsFolder)
         {
-            Directory.CreateDirectory(target);
-            ReadTar(content.Content, target, counter, token);
+            if (File.Exists(target))
+            {
+                throw new IOException($"\"{target}\" is a file, not a folder.");
+            }
+
+            var parent = Path.GetDirectoryName(Path.GetFullPath(target));
+            if (parent is not null)
+            {
+                Directory.CreateDirectory(parent);
+            }
+
+            var temp = TempNames.ReserveFolder(target);
+            try
+            {
+                ReadTar(content.Content, temp, counter, token);
+                if (Directory.Exists(target))
+                {
+                    MergeInto(temp, target);
+                }
+                else
+                {
+                    Directory.Move(temp, target);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(temp))
+                {
+                    try
+                    {
+                        Directory.Delete(temp, recursive: true);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // a leftover temporary folder is better than hiding the original error
+                    }
+                }
+            }
+
             return;
         }
 
@@ -210,6 +291,36 @@ public static class PceFile
         if (attributes != 0 && OperatingSystem.IsWindows())
         {
             File.SetAttributes(target, File.GetAttributes(target) | attributes);
+        }
+    }
+
+    /// <summary>A fully decrypted folder over an existing one: files moved in (replacing same names), folders merged.</summary>
+    private static void MergeInto(string from, string into)
+    {
+        Directory.CreateDirectory(into);
+        foreach (var child in new DirectoryInfo(from).EnumerateFileSystemInfos("*", new EnumerationOptions { AttributesToSkip = 0 }))
+        {
+            var destination = Path.Combine(into, child.Name);
+            if (child is DirectoryInfo sub)
+            {
+                if (File.Exists(destination))
+                {
+                    throw new IOException($"\"{destination}\" is a file, not a folder.");
+                }
+
+                if (Directory.Exists(destination))
+                {
+                    MergeInto(sub.FullName, destination);
+                }
+                else
+                {
+                    Directory.Move(sub.FullName, destination);
+                }
+            }
+            else
+            {
+                File.Move(child.FullName, destination, overwrite: true);
+            }
         }
     }
 
@@ -324,6 +435,11 @@ public static class PceFile
             switch (type)
             {
                 case 'L':
+                    if (size > MaxLongNameBytes)
+                    {
+                        throw new PceFormatException("Damaged folder content (long name too large).");
+                    }
+
                     var nameBytes = new byte[size];
                     if (!ReadExactly(content, nameBytes))
                     {
@@ -448,6 +564,51 @@ public static class PceFile
             }
 
             bytes -= n;
+        }
+    }
+
+    /// <summary>
+    /// Content that authenticated but does not decompress (zstd's own exception, Deflate's InvalidDataException) is
+    /// damage like any other: reported as <see cref="PceFormatException"/>, which the operations treat per file.
+    /// </summary>
+    private sealed class CorruptAsFormatStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            try
+            {
+                return inner.Read(buffer);
+            }
+            catch (Exception ex) when (ex is not (IOException or OperationCanceledException or ObjectDisposedException))
+            {
+                throw new PceFormatException("Damaged compressed content.", ex);
+            }
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
         }
     }
 

@@ -88,9 +88,10 @@ public sealed class DecryptOperation : IOperation, Undo.IUndoable
                     return;
                 }
 
-                var temp = target + ".part";
+                string? temp = null;
                 try
                 {
+                    temp = TempNames.ReserveFile(target);
                     PceFile.Decrypt(file, _password, temp, Progress, runner.Token);
                     var replaces = File.Exists(target);
                     File.Move(temp, target, overwrite: true);
@@ -107,7 +108,7 @@ public sealed class DecryptOperation : IOperation, Undo.IUndoable
                 }
                 finally
                 {
-                    if (File.Exists(temp))
+                    if (temp is not null && File.Exists(temp))
                     {
                         try
                         {

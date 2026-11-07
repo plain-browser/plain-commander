@@ -28,6 +28,7 @@ zaznaczy „kompresuj”.
 nagłówek (jawny, uwierzytelniony jako AAD)
   "PCE1"                      4 B   magia + wersja
   flags                       1 B   bit0: nazwa pliku w środku, bit1: TAR, bit2: deflate
+                                    (wdrożone: bit0 TAR, bit1 deflate, bit2 zstd, bit3 hasło w NFC)
   kdf                         1 B   0 = Argon2id
   argon2: m (KiB) u32, t u8, p u8
   salt                       16 B   losowa
@@ -78,8 +79,23 @@ Granicą jest dysk, nie szyfr.
 - **Błędne hasło** wykrywane już na bloku 0 (tag GCM), bez czytania całego pliku.
 - **Ctrl+Z**: operacja dopisuje do `UndoJournal` (katalog `Undo/` z bieżącej gałęzi) utworzony `.pce` i
   ewentualnie skasowane oryginały (te z kosza).
+- **Normalizacja hasła (od 1.14.0).** To samo widoczne hasło bywa różnymi bajtami: wpisane na Windows jest
+  w Unicode NFC („ż” = U+017C), wklejone z macOS bywa w NFD („z” + U+0307). Dlatego:
+  - nowe pliki mają w nagłówku **bit 3 flag (`NfcPassword`)** i klucz liczony z hasła w NFC; przy odczycie
+    takiego pliku wpisane hasło zawsze jest najpierw sprowadzane do NFC (jedno wyprowadzenie klucza);
+  - pliki bez tej flagi (zapisane przez 1.13.x, klucz z bajtów hasła takich, jak było wpisane) próbują po kolei:
+    hasło dokładnie jak wpisane, jego NFC, jego NFD — każdą formę tylko wtedy, gdy daje inne bajty UTF‑8 niż
+    poprzednie (hasło ASCII = jedna próba, typowe hasło z Windows = dwie). Dopiero gdy blok 0 nie przejdzie
+    uwierzytelnienia z żadną formą, zgłaszane jest złe hasło;
+  - tekstu z samotnym surogatem nie da się znormalizować — wtedy dana forma to hasło jak wpisane (bez wyjątku);
+  - flaga leży w nagłówku, a cały nagłówek jest AAD każdego bloku, więc jej przestawienie kończy się błędem
+    uwierzytelnienia bloku 0 (zgłaszanym jako złe hasło), jak przy każdej innej zmianie nagłówka;
+  - **starsze wersje (1.13.x) a nowy plik:** czytnik nie sprawdza nieznanych bitów flag, więc bit 3 pomija
+    i liczy klucz z hasła jak wpisane. Hasło wpisane na Windows jest już w NFC, więc taki plik zwykle się
+    otworzy; hasło w NFD da w starej wersji „złe hasło” (bez szkody dla pliku).
 - **Hasło w pamięci** jako `char[]`/`SecureString` zerowany po użyciu; klucz 32 B zerowany
-  `CryptographicOperations.ZeroMemory`. Logi nigdy nie zawierają hasła ani salta.
+  `CryptographicOperations.ZeroMemory`; dotyczy to też bajtów i bufora `char[]` każdej formy znormalizowanej
+  oraz kluczy z form, które nie pasowały. Logi nigdy nie zawierają hasła ani salta.
 - **Anulowanie** usuwa niedokończony `.pce.part` (zapis pod nazwą tymczasową, rename po ostatnim bloku).
 
 ## Warstwy kodu

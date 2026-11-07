@@ -44,14 +44,7 @@ public sealed class NaturalStringComparer : IComparer<string>
                 while (i < x.Length && char.IsDigit(x[i])) { i++; }
                 while (j < y.Length && char.IsDigit(y[j])) { j++; }
 
-                var xn = x.AsSpan(xs, i - xs).TrimStart('0');
-                var yn = y.AsSpan(ys, j - ys).TrimStart('0');
-                if (xn.Length != yn.Length)
-                {
-                    return xn.Length.CompareTo(yn.Length);
-                }
-
-                var c = xn.SequenceCompareTo(yn);
+                var c = CompareNumbers(x.AsSpan(xs, i - xs), y.AsSpan(ys, j - ys));
                 if (c != 0)
                 {
                     return c;
@@ -76,5 +69,41 @@ public sealed class NaturalStringComparer : IComparer<string>
         }
 
         return (x.Length - i).CompareTo(y.Length - j);
+    }
+
+    /// <summary>
+    /// Digit runs by value, digit by digit: char.IsDigit also accepts Arabic-Indic, fullwidth and other decimal digits,
+    /// so "１" (fullwidth one) is compared as 1, not by its code unit.
+    /// </summary>
+    private static int CompareNumbers(ReadOnlySpan<char> x, ReadOnlySpan<char> y)
+    {
+        x = TrimZeros(x);
+        y = TrimZeros(y);
+        if (x.Length != y.Length)
+        {
+            return x.Length.CompareTo(y.Length);
+        }
+
+        for (var k = 0; k < x.Length; k++)
+        {
+            var c = CharUnicodeInfo.GetDecimalDigitValue(x[k]).CompareTo(CharUnicodeInfo.GetDecimalDigitValue(y[k]));
+            if (c != 0)
+            {
+                return c;
+            }
+        }
+
+        return 0;
+    }
+
+    private static ReadOnlySpan<char> TrimZeros(ReadOnlySpan<char> digits)
+    {
+        var k = 0;
+        while (k < digits.Length && CharUnicodeInfo.GetDecimalDigitValue(digits[k]) == 0)
+        {
+            k++;
+        }
+
+        return digits[k..];
     }
 }

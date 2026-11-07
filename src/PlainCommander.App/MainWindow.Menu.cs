@@ -201,7 +201,9 @@ public sealed partial class MainWindow
         TopMenu.Items.Clear();
         foreach (var (key, items) in MenuTable())
         {
-            var top = new MenuBarItem { Title = Loc.TryGet(key + "/Text") ?? Loc.Get(key) };
+            // Not a tab stop: when a dialog closes after the list was replaced, WinUI parks focus on the first tab stop of the
+            // window, and a key typed then (Down, Enter) opened this menu instead of reaching the panel. Clicks and F2 still open it.
+            var top = new MenuBarItem { Title = Loc.TryGet(key + "/Text") ?? Loc.Get(key), IsTabStop = false };
             Fill(top.Items, items);
             TopMenu.Items.Add(top);
         }

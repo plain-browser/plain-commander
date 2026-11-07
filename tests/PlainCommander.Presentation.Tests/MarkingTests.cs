@@ -47,7 +47,7 @@ public sealed class MarkingTests : IDisposable
         Item("dir").IsMarked.Should().BeTrue();
         Item("dir").DirectorySize.Should().Be(1024);
         Item("dir").SizeText.Should().NotBe("<DIR>");
-        _panel.Status.Should().ContainAny("Selected 0 of 0 files (1.0 KB of 1.0 KB), 1 of 1 folders", "Zaznaczono 0 z 0 plików (1,0 KB z 1,0 KB), 1 z 1 katalogu");
+        _panel.Status.Should().ContainAny("Selected 0 of 0 files (1.0 KB of 1.0 KB), 1 of 1 folder", "Zaznaczono 0 z 0 plików (1,0 KB z 1,0 KB), 1 z 1 katalogu");
     }
 
     [Fact]

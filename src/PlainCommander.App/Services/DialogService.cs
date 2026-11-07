@@ -18,6 +18,10 @@ namespace PlainCommander.App.Services;
 /// </summary>
 internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCommander.Core.Remote.IRemotePrompts, PlainCommander.Core.Archives.IArchivePasswordPrompt, IDisposable
 {
+    /// <summary>"1 byte" / "2,048 bytes" (Polish "N B") for the conflict dialog.</summary>
+    private static string Bytes(long size, CultureInfo culture) =>
+        size.ToString("N0", culture) + " " + Loc.Get(size == 1 ? "Cf_Byte" : "Cf_Bytes");
+
     private readonly DispatcherQueue _ui;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -300,7 +304,7 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
             CloseButtonText = Loc.Get("Dlg_Cancel"),
             DefaultButton = ContentDialogButton.Primary,
         };
-        return await ShowAsync(dialog) == ContentDialogResult.Primary ? box.Password : null;
+        return await ShowAsync(dialog, cancellationToken) == ContentDialogResult.Primary ? box.Password : null;
     });
 
     public Task<string?> AskNameAsync(NamePrompt prompt, string initial) => prompt switch
@@ -477,12 +481,12 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         body.Children.Add(new TextBlock { Text = conflict.TargetPath, TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         body.Children.Add(new TextBlock
         {
-            Text = Loc.Format("Cf_Source", conflict.SourceSize.ToString("N0", culture), conflict.SourceModified.ToLocalTime().ToString("G", culture))
+            Text = Loc.Format("Cf_Source", Bytes(conflict.SourceSize, culture), conflict.SourceModified.ToLocalTime().ToString("G", culture))
                 + (newer ? " " + Loc.Get("Cf_Newer") : string.Empty),
         });
         body.Children.Add(new TextBlock
         {
-            Text = Loc.Format("Cf_Target", conflict.TargetSize.ToString("N0", culture), conflict.TargetModified.ToLocalTime().ToString("G", culture))
+            Text = Loc.Format("Cf_Target", Bytes(conflict.TargetSize, culture), conflict.TargetModified.ToLocalTime().ToString("G", culture))
                 + (!newer && conflict.SourceModified != conflict.TargetModified ? " " + Loc.Get("Cf_Newer") : string.Empty),
         });
 
@@ -525,7 +529,7 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         }
 
         body.Children.Add(grid);
-        await ShowAsync(dialog);
+        await ShowAsync(dialog, cancellationToken);
         return choice;
     });
 
@@ -566,7 +570,12 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         };
         body.Children.Add(skipAll);
 
-        var result = await ShowAsync(dialog);
+        var result = await ShowAsync(dialog, cancellationToken);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ErrorChoice.Abort;
+        }
+
         return choice is ErrorChoice.SkipAll or ErrorChoice.Elevate ? choice : result switch
         {
             ContentDialogResult.Primary => ErrorChoice.Retry,
@@ -1014,7 +1023,7 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
             DefaultButton = ContentDialogButton.Primary,
         };
         box.Loaded += (_, _) => box.Focus(FocusState.Programmatic); // as in the other text dialogs: Opened is too early
-        return await ShowAsync(dialog) == ContentDialogResult.Primary
+        return await ShowAsync(dialog, cancellationToken) == ContentDialogResult.Primary
             ? new PlainCommander.Core.Remote.CredentialAnswer(box.Password, remember.IsChecked == true)
             : null;
     });
@@ -1055,7 +1064,7 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
             // a changed key should not be accepted with a reflexive Enter
             DefaultButton = known is null ? ContentDialogButton.Primary : ContentDialogButton.Close,
         };
-        return await ShowAsync(dialog) switch
+        return await ShowAsync(dialog, cancellationToken) switch
         {
             ContentDialogResult.Primary => PlainCommander.Core.Remote.TrustChoice.Always,
             ContentDialogResult.Secondary => PlainCommander.Core.Remote.TrustChoice.Once,
@@ -1063,18 +1072,51 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         };
     });
 
-    private async Task<ContentDialogResult> ShowAsync(ContentDialog dialog)
+    /// <summary>Keys typed while a dialog opens or closes; the main window holds them here too.</summary>
+    public HeldKeys HeldKeys { get; } = new();
+
+    /// <summary>Set by the main window: held keys may be typed again only while it is in front.</summary>
+    public Func<bool>? CanReplayKeys { get; set; }
+
+    /// <summary>The last dialog is gone and focus is back in the window (keys held meanwhile can go out).</summary>
+    public event EventHandler? AllClosed;
+
+    /// <summary>The dialog closes (a button, Esc, Hide): from here on keys belong to the window again.</summary>
+    public bool IsClosing { get; private set; }
+
+    private int _openCount;
+    private ContentDialog? _shown;
+    private ElementTheme _theme = ElementTheme.Default;
+
+    /// <summary>A question that had to come first (closing the app) took the screen from this dialog; it comes back after.</summary>
+    private ContentDialog? _interrupted;
+    private TaskCompletionSource? _interruptionDone;
+    private TaskCompletionSource? _interruptedHidden;
+
+    /// <summary>Dialogs take the window's theme (light or dark as set in the app), also when it changes while one is open.</summary>
+    public void ApplyTheme(ElementTheme theme)
     {
-        await _gate.WaitAsync();
+        _theme = theme;
+        if (_shown is { } dialog)
+        {
+            dialog.RequestedTheme = theme;
+        }
+    }
+
+    private Task<ContentDialogResult> ShowAsync(ContentDialog dialog) => ShowAsync(dialog, CancellationToken.None);
+
+    /// <param name="cancellationToken">Closes the dialog (with no answer) when the operation that asked is cancelled.</param>
+    private async Task<ContentDialogResult> ShowAsync(ContentDialog dialog, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken); // an operation cancelled while its question waited asks nothing
         try
         {
-            dialog.XamlRoot = Owner?.Content.XamlRoot;
-            var before = dialog.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) as Control : null;
-            IsOpen = true;
-            var result = await dialog.ShowAsync();
+            var root = Owner?.Content.XamlRoot;
+            var before = root is not null ? FocusManager.GetFocusedElement(root) as Control : null;
+            var result = await ShowCoreAsync(dialog, cancellationToken);
 
             // Closing a ContentDialog leaves focus on the first control of the window, not where it was.
-            if (before is { XamlRoot: not null })
+            if (before is { XamlRoot: not null } && _openCount == 0)
             {
                 before.Focus(FocusState.Programmatic);
             }
@@ -1083,9 +1125,185 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         }
         finally
         {
-            IsOpen = false;
             _gate.Release();
+            if (_openCount == 0)
+            {
+                // keys typed during the closing animation go where the keyboard is now, once the focus above settled;
+                // the window decides (focus may have been parked on the menu bar when the list was replaced meanwhile)
+                _ui.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                {
+                    if (_openCount == 0)
+                    {
+                        AllClosed?.Invoke(this, EventArgs.Empty);
+                    }
+                });
+            }
         }
+    }
+
+    private async Task<ContentDialogResult> ShowCoreAsync(ContentDialog dialog, CancellationToken cancellationToken)
+    {
+        dialog.XamlRoot = Owner?.Content.XamlRoot;
+        dialog.RequestedTheme = _theme;
+        var cancelled = false;
+        dialog.Closing += (_, args) =>
+        {
+            if (!args.Cancel && ReferenceEquals(_shown, dialog))
+            {
+                IsClosing = true;
+            }
+        };
+        dialog.PreviewKeyDown += (_, e) =>
+        {
+            // after the answer the dialog is still on screen for its animation; a key typed then is meant for the window
+            if (IsClosing && ReferenceEquals(_shown, dialog) && !HeldKeys.IsExempt(e.Key, Modifiers()))
+            {
+                HeldKeys.Hold(e.Key, Modifiers());
+                e.Handled = true;
+            }
+        };
+        dialog.PreviewKeyUp += (_, e) =>
+        {
+            if (HeldKeys.SwallowRelease(e.Key))
+            {
+                e.Handled = true;
+            }
+        };
+        dialog.Opened += (_, _) => _ui.TryEnqueue(DispatcherQueuePriority.Low, ReplayHeldKeysIfSettled);
+        using var registration = cancellationToken.CanBeCanceled
+            ? cancellationToken.Register(() => _ui.TryEnqueue(() =>
+            {
+                cancelled = true;
+                if (ReferenceEquals(_shown, dialog))
+                {
+                    dialog.Hide();
+                }
+            }))
+            : default;
+
+        _openCount++;
+        IsOpen = true;
+        try
+        {
+            while (true)
+            {
+                IsClosing = false;
+                _shown = dialog;
+                var result = await dialog.ShowAsync();
+                _shown = null;
+                IsClosing = false;
+                if (ReferenceEquals(_interrupted, dialog) && _interruptionDone is { } done)
+                {
+                    _interruptedHidden?.TrySetResult();
+                    await done.Task;
+                    _interrupted = null;
+                    if (!cancelled)
+                    {
+                        continue; // the question that interrupted it is answered: show this one again
+                    }
+                }
+
+                return cancelled ? ContentDialogResult.None : result;
+            }
+        }
+        finally
+        {
+            _openCount--;
+            IsOpen = _openCount > 0;
+        }
+    }
+
+    /// <summary>
+    /// A dialog that must be answered now, even while another one is open (an operation's conflict question): that one
+    /// steps aside and comes back unchanged afterwards.
+    /// </summary>
+    private async Task<ContentDialogResult> ShowUrgentAsync(ContentDialog dialog)
+    {
+        if (_shown is not { } open || IsClosing || _interrupted is not null)
+        {
+            return await ShowAsync(dialog);
+        }
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hidden = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _interrupted = open;
+        _interruptionDone = done;
+        _interruptedHidden = hidden;
+        open.Hide();
+        await hidden.Task;
+        try
+        {
+            return await ShowCoreAsync(dialog, CancellationToken.None);
+        }
+        finally
+        {
+            _interruptionDone = null;
+            _interruptedHidden = null;
+            done.TrySetResult();
+        }
+    }
+
+    /// <summary>Keys held while a dialog was opening go out once it has taken focus.</summary>
+    private void ReplayHeldKeysIfSettled()
+    {
+        if (!HeldKeys.Any || CanReplayKeys?.Invoke() == false || Owner?.Content is not FrameworkElement content || content.XamlRoot is null)
+        {
+            return;
+        }
+
+        var focused = FocusManager.GetFocusedElement(content.XamlRoot) as DependencyObject;
+        if (IsOpen && _shown is not null && !IsClosing && focused is not null && !Ui.IsInside(focused, content))
+        {
+            HeldKeys.Replay();
+        }
+    }
+
+    private static Windows.System.VirtualKeyModifiers Modifiers()
+    {
+        static bool Down(Windows.System.VirtualKey key) =>
+            Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var modifiers = Windows.System.VirtualKeyModifiers.None;
+        if (Down(Windows.System.VirtualKey.Control))
+        {
+            modifiers |= Windows.System.VirtualKeyModifiers.Control;
+        }
+
+        if (Down(Windows.System.VirtualKey.Menu))
+        {
+            modifiers |= Windows.System.VirtualKeyModifiers.Menu;
+        }
+
+        if (Down(Windows.System.VirtualKey.Shift))
+        {
+            modifiers |= Windows.System.VirtualKeyModifiers.Shift;
+        }
+
+        return modifiers;
+    }
+
+    /// <summary>
+    /// Closing the window while operations run or wait: true = cancel them and close, false = keep working.
+    /// Shown even over an operation's own question (a conflict), which comes back if the user keeps working.
+    /// </summary>
+    public async Task<bool> ConfirmCloseDuringOperationsAsync(string running, int queued)
+    {
+        var body = new StackPanel { Spacing = 8, MaxWidth = 480 };
+        body.Children.Add(new TextBlock { Text = Loc.Format("Exit_Running", running), TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        if (queued > 0)
+        {
+            body.Children.Add(new TextBlock { Text = Loc.Format("Exit_Queued", queued), TextWrapping = TextWrapping.Wrap });
+        }
+
+        body.Children.Add(new TextBlock { Text = Loc.Get("Exit_Question"), TextWrapping = TextWrapping.Wrap });
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("Exit_Title"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("Exit_CancelAndClose"),
+            CloseButtonText = Loc.Get("Exit_KeepWorking"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await ShowUrgentAsync(dialog) == ContentDialogResult.Primary;
     }
 
     /// <summary>Runs on the UI thread; operation prompts arrive from worker threads.</summary>

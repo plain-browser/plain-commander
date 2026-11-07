@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using PlainCommander.Core.Navigation;
 
 namespace PlainCommander.Core.Rename;
 
@@ -35,7 +36,7 @@ public static class Transliteration
         ArgumentNullException.ThrowIfNull(text);
 
         // Letter by letter on the composed text: й, ё, ї are letters of their own, not и, е, і with a mark.
-        var composed = text.Normalize(NormalizationForm.FormC);
+        var composed = TextFold.Normalize(text, NormalizationForm.FormC);
         var builder = new StringBuilder(composed.Length);
         for (var i = 0; i < composed.Length; i++)
         {
@@ -54,6 +55,21 @@ public static class Transliteration
                 else
                 {
                     builder.Append(char.ToUpperInvariant(latin[0])).Append(latin[1..]);
+                }
+
+                continue;
+            }
+
+            // Surrogates go through whole: a pair as one character, a lone half as it is (Normalize throws on it).
+            if (char.IsSurrogate(c))
+            {
+                if (char.IsSurrogatePair(composed, i))
+                {
+                    builder.Append(composed, i++, 2);
+                }
+                else
+                {
+                    builder.Append(c);
                 }
 
                 continue;

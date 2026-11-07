@@ -41,7 +41,8 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
             stem = stem[..^4];
         }
 
-        return stem.Length == 0 ? name : stem;
+        // "...zip" has the stem "..": a folder of dots (or spaces) would be the parent, so the full name is used.
+        return stem.TrimEnd('.', ' ').Length == 0 ? name : stem;
     }
 
     public OperationKind Kind => OperationKind.Copy;
@@ -62,6 +63,7 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
     {
         var plans = new List<Plan>();
         var folders = new List<string>();
+        var outside = new List<(string Source, string Inner, bool IsDirectory)>();
         foreach (var source in _sources)
         {
             var location = ArchiveFileSystem.Locate(source) ?? throw new FileNotFoundException(null, source);
@@ -74,23 +76,54 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
             var catalog = opened!;
             var isFolder = catalog.DirectoryExists(location.Inner);
             var topName = _target.NewName ?? (location.IsRoot ? (_ownFolders ? FolderNameFor(location.ArchiveFile) : string.Empty) : location.Name);
+            var cut = location.Inner.Length == 0 ? 0 : location.Inner.Length + 1;
+
+            // Every destination is checked here, whichever reader (managed or 7z.dll) later supplies the bytes.
+            string? Destination(ArchiveNode node, bool folder) =>
+                ContainedPath.Join(_target.Directory, isFolder ? topName + "/" + node.Inner[cut..] : topName, allowRoot: folder);
+
             if (isFolder)
             {
                 // Folders first, by hand: an archive may hold empty folders, and the file loop never visits those.
-                var top = Path.Combine(_target.Directory, topName);
-                folders.Add(top);
-                var cut = location.Inner.Length == 0 ? 0 : location.Inner.Length + 1;
-                folders.AddRange(catalog.FoldersUnder(location.Inner).Select(n => Path.Combine(top, n.Inner[cut..].Replace('/', Path.DirectorySeparatorChar))));
+                if (ContainedPath.Join(_target.Directory, topName, allowRoot: true) is { } top)
+                {
+                    folders.Add(top);
+                }
+                else
+                {
+                    outside.Add((source, location.Inner, true));
+                }
+
+                foreach (var node in catalog.FoldersUnder(location.Inner))
+                {
+                    if (Destination(node, folder: true) is { } folder)
+                    {
+                        folders.Add(folder);
+                    }
+                    else
+                    {
+                        outside.Add((ArchivePath.Join(location.ArchiveFile, node.Inner), node.Inner, true));
+                    }
+                }
             }
 
             foreach (var node in catalog.FilesUnder(location.Inner))
             {
-                var relative = isFolder
-                    ? node.Inner[(location.Inner.Length == 0 ? 0 : location.Inner.Length + 1)..].Replace('/', Path.DirectorySeparatorChar)
-                    : string.Empty;
-                var destination = isFolder ? Path.Combine(_target.Directory, topName, relative) : Path.Combine(_target.Directory, topName);
-                plans.Add(new Plan(location.ArchiveFile, node, destination));
+                if (Destination(node, folder: false) is { } destination)
+                {
+                    plans.Add(new Plan(location.ArchiveFile, node, destination));
+                }
+                else
+                {
+                    outside.Add((ArchivePath.Join(location.ArchiveFile, node.Inner), node.Inner, false));
+                }
             }
+        }
+
+        // A folder that only leads to a reported entry below it ("..", "../..") is not reported again.
+        foreach (var (source, inner, _) in outside.Where(o => !o.IsDirectory || !outside.Any(other => other.Inner.StartsWith(o.Inner + "/", StringComparison.OrdinalIgnoreCase))))
+        {
+            await runner.Run(source, () => throw new ArchiveEntryOutsideException(inner)).ConfigureAwait(false);
         }
 
         var tracker = new ProgressTracker(context.Progress, plans.Sum(p => p.Node.Size), plans.Count + folders.Count);
@@ -138,6 +171,7 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
 
         // One pass in archive order: a solid archive is decompressed once, whatever was chosen.
         using var reader = opened!;
+        var met = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (reader.MoveNext())
         {
             runner.Token.ThrowIfCancellationRequested();
@@ -146,7 +180,14 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
                 continue;
             }
 
+            met.Add(reader.Key);
             await ExtractOneAsync(context, runner, tracker, plan, reader.OpenEntryStream).ConfigureAwait(false);
+        }
+
+        // An entry the listing showed but the reader never gave (names read differently) is an error, not a success.
+        foreach (var missed in plans.Where(p => !met.Contains(p.Node.Inner)))
+        {
+            await runner.Run(missed.Source, () => throw new FileNotFoundException(null, missed.Source)).ConfigureAwait(false);
         }
     }
 
@@ -286,7 +327,7 @@ public sealed class ArchiveExtractOperation : IOperation, Undo.IUndoable
         var location = ArchiveFileSystem.Locate(virtualPath) ?? throw new FileNotFoundException(null, virtualPath);
         var dir = Path.Combine(Path.GetTempPath(), "PlainCommander", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        var destination = Path.Combine(dir, location.Name);
+        var destination = ContainedPath.Join(dir, location.Name) ?? throw new ArchiveEntryOutsideException(location.Inner);
         using var reader = ArchiveReaders.Open(location.ArchiveFile, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { location.Inner });
         while (reader.MoveNext())
         {

@@ -27,6 +27,9 @@ public sealed partial class PanelTab : ObservableObject
     /// <summary>Name under the cursor when the tab was left, so coming back lands on the same row.</summary>
     public string? CursorName { get; set; }
 
+    /// <summary>Names marked when the tab was left; coming back marks those still there.</summary>
+    public IReadOnlySet<string> MarkedNames { get; set; } = new HashSet<string>();
+
     /// <summary>"work" for C:\work, "C:" for a drive root, the archive name inside an archive.</summary>
     public static string TitleOf(string path)
     {

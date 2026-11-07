@@ -25,16 +25,7 @@ public sealed partial class SettingsWindow : Window
         Ui.ApplyIcon(this);
         TitleRow.Loaded += (_, _) => UpdateCaptionPadding();
         TitleRow.SizeChanged += (_, _) => UpdateCaptionPadding();
-        Root.RequestedTheme = Ui.ThemeOf(main.Theme);
-        Ui.StyleCaptionButtons(this, Root.RequestedTheme);
-        main.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(MainViewModel.Theme))
-            {
-                Root.RequestedTheme = Ui.ThemeOf(main.Theme);
-                Ui.StyleCaptionButtons(this, Root.RequestedTheme);
-            }
-        };
+        Ui.FollowAppTheme(this, Root);
 
         // Initial values go in by hand once the templates are applied: a TwoWay x:Bind on an editable
         // ComboBox or a NumberBox pushes the control's empty default back into the view model, and values

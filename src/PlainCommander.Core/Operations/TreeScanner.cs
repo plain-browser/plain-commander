@@ -1,3 +1,5 @@
+using PlainCommander.Core.FileSystem;
+
 namespace PlainCommander.Core.Operations;
 
 /// <summary>One file or folder found under an operation's source, in pre-order (folders before content).</summary>
@@ -33,7 +35,7 @@ internal static class TreeScanner
         var info = new DirectoryInfo(source);
         if (info.Exists)
         {
-            Walk(info, name, followLinks, new HashSet<string>(PathComparer), items, cancellationToken);
+            Walk(info, name, followLinks, RealPath(info), new HashSet<string>(PathComparer), items, cancellationToken);
         }
         else
         {
@@ -96,11 +98,14 @@ internal static class TreeScanner
 
     public static bool IsLink(FileSystemInfo info) => info.Attributes.HasFlag(FileAttributes.ReparsePoint);
 
+    /// <param name="real">Where this folder really is, links resolved; it identifies the folder for loop detection.</param>
+    /// <param name="ancestors">The real folders from the root down to this one's parent.</param>
     private static void Walk(
         DirectoryInfo dir,
         string relative,
         bool followLinks,
-        HashSet<string> visited,
+        string real,
+        HashSet<string> ancestors,
         List<PlannedItem> items,
         CancellationToken cancellationToken)
     {
@@ -112,50 +117,75 @@ internal static class TreeScanner
             return;
         }
 
-        if (!visited.Add(RealPath(dir)))
+        // Only a link back to a folder above stops the walk (that is a loop); a second way into a sibling
+        // folder is copied again, so the folder itself never comes out empty.
+        if (!ancestors.Add(real))
         {
-            return; // a link back into a folder we are already copying: stop the loop here
-        }
-
-        List<FileSystemInfo> children;
-        try
-        {
-            children = dir.EnumerateFileSystemInfos("*", Options).ToList();
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-        {
-            items[^1] = items[^1] with { ScanError = ex };
             return;
         }
 
-        foreach (var child in children)
+        try
         {
-            var childRelative = Path.Combine(relative, child.Name);
-            if (child is DirectoryInfo d)
+            List<FileSystemInfo> children;
+            try
             {
-                Walk(d, childRelative, followLinks, visited, items, cancellationToken);
+                children = dir.EnumerateFileSystemInfos("*", Options).ToList();
             }
-            else
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
-                items.Add(new PlannedItem(child.FullName, childRelative, false, ((FileInfo)child).Length, IsLink(child), child.Attributes));
+                items[^1] = items[^1] with { ScanError = ex };
+                return;
+            }
+
+            foreach (var child in children)
+            {
+                var childRelative = Path.Combine(relative, child.Name);
+                if (child is DirectoryInfo d)
+                {
+                    var exact = Exact(d);
+                    var childReal = IsLink(exact) ? RealPath(exact) : Path.Combine(real, child.Name);
+                    Walk(exact, childRelative, followLinks, childReal, ancestors, items, cancellationToken);
+                }
+                else
+                {
+                    items.Add(new PlannedItem(Exact(child.FullName, child.Name), childRelative, false, ((FileInfo)child).Length, IsLink(child), child.Attributes));
+                }
             }
         }
+        finally
+        {
+            ancestors.Remove(real);
+        }
+    }
+
+    /// <summary>
+    /// The parent's form is fine for most children; a child named "a." or "NUL" needs \\?\ itself, or Windows
+    /// would reach "a" or the NUL device instead (ExactPath).
+    /// </summary>
+    private static string Exact(string fullName, string name) =>
+        ExactPath.NeedsPrefix(name) ? ExactPath.Prefixed(fullName) : fullName;
+
+    private static DirectoryInfo Exact(DirectoryInfo dir)
+    {
+        var path = Exact(dir.FullName, dir.Name);
+        return ReferenceEquals(path, dir.FullName) ? dir : new DirectoryInfo(path);
     }
 
     private static string RealPath(DirectoryInfo dir)
     {
-        if (!IsLink(dir))
+        var path = dir.FullName;
+        if (IsLink(dir))
         {
-            return dir.FullName;
+            try
+            {
+                path = dir.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? path;
+            }
+            catch (IOException)
+            {
+                // an unreadable link is identified by its own path
+            }
         }
 
-        try
-        {
-            return dir.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? dir.FullName;
-        }
-        catch (IOException)
-        {
-            return dir.FullName;
-        }
+        return Path.TrimEndingDirectorySeparator(ExactPath.Display(path));
     }
 }

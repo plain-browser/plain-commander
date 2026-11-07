@@ -63,6 +63,9 @@ public enum RuleViolation
 
     /// <summary>File and folder with the same name collide.</summary>
     TypeMismatch,
+
+    /// <summary>The folder to create in (the panel's folder) no longer exists.</summary>
+    FolderGone,
 }
 
 /// <summary>An operation refused to touch an item to protect data. Reported through the error prompt.</summary>

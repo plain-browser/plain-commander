@@ -20,8 +20,7 @@ public sealed partial class ViewerWindow : Window
         ViewModel = new ViewerViewModel(path);
         InitializeComponent();
         Title = $"{ViewModel.FileName} - Plain Commander";
-        Root.RequestedTheme = Ui.ThemeOf(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<MainViewModel>(App.Current.Services).Theme);
-        Ui.StyleCaptionButtons(this, Root.RequestedTheme);
+        Ui.FollowAppTheme(this, Root);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Ui.ApplyIcon(this);

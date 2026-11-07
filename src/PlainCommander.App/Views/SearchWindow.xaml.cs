@@ -23,8 +23,7 @@ public sealed partial class SearchWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Ui.ApplyIcon(this);
-        Root.RequestedTheme = Ui.ThemeOf(main.Theme);
-        Ui.StyleCaptionButtons(this, Root.RequestedTheme);
+        Ui.FollowAppTheme(this, Root);
         TitleRow.Loaded += (_, _) => UpdateCaptionPadding();
         TitleRow.SizeChanged += (_, _) => UpdateCaptionPadding();
         var work = DisplayArea.Primary.WorkArea;

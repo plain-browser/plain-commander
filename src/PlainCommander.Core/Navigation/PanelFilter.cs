@@ -81,12 +81,20 @@ public sealed record PanelFilter
         }
 
         var numbers = parts.Select(p => double.Parse(p.Replace(',', '.'), CultureInfo.InvariantCulture)).ToArray();
-        return numbers.Length switch
+        var seconds = numbers.Length switch
         {
-            1 => TimeSpan.FromMinutes(numbers[0]),
-            2 => TimeSpan.FromMinutes(numbers[0]) + TimeSpan.FromSeconds(numbers[1]),
-            _ => TimeSpan.FromHours(numbers[0]) + TimeSpan.FromMinutes(numbers[1]) + TimeSpan.FromSeconds(numbers[2]),
+            1 => numbers[0] * 60,
+            2 => (numbers[0] * 60) + numbers[1],
+            _ => (numbers[0] * 3600) + (numbers[1] * 60) + numbers[2],
         };
+
+        // NaN, Infinity and "1e300" would throw ArgumentException or OverflowException; the dialog expects FormatException.
+        if (!double.IsFinite(seconds) || seconds >= TimeSpan.MaxValue.TotalSeconds)
+        {
+            throw new FormatException(text);
+        }
+
+        return TimeSpan.FromSeconds(seconds);
     }
 
     /// <summary>The plain Ctrl+S text of earlier versions: a name part or masks.</summary>
@@ -124,7 +132,8 @@ public sealed record PanelFilter
             throw new FormatException(text);
         }
 
-        if (value < 0)
+        // NaN would become 0 bytes; a huge finite size saturates at long.MaxValue.
+        if (value < 0 || !double.IsFinite(value))
         {
             throw new FormatException(text);
         }
@@ -165,7 +174,9 @@ public sealed record PanelFilter
         var extensions = Extensions.Count == 0 ? null : new HashSet<string>(Extensions, StringComparer.OrdinalIgnoreCase);
         var days = DaysAt(nowLocal);
         var firstUtc = days?.First is { } first ? first.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
-        var endUtc = days?.Last is { } last ? last.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        // The last day of 9999 has no next midnight: the range is open at the end.
+        var endUtc = days?.Last is { } last && last != DateOnly.MaxValue ? last.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        var hasDays = days is not null;
         var field = DateField;
         var minSize = MinSize;
         var maxSize = MaxSize;
@@ -201,7 +212,7 @@ public sealed record PanelFilter
                 return false;
             }
 
-            if (firstUtc is not null || endUtc is not null)
+            if (hasDays)
             {
                 // A server or an archive knows no creation date: such files do not pass a creation-date test.
                 DateTimeOffset? date = field switch

@@ -104,7 +104,10 @@ public static class ArchivePath
     public static string Join(string archiveFile, string inner) =>
         inner.Length == 0 ? archiveFile : archiveFile + Path.DirectorySeparatorChar + inner.Replace('/', Path.DirectorySeparatorChar);
 
-    /// <summary>Entry keys normalized: forward slashes, no leading "./" or "/", no trailing slash.</summary>
+    /// <summary>
+    /// Entry keys normalized: forward slashes, no empty or "." segments ("a\\b", "./a", "/a/" and "a/./b" all name
+    /// one entry, as on disk), so no folder without a name shows up. ".." stays: extraction refuses it.
+    /// </summary>
     public static string NormalizeKey(string? key)
     {
         if (string.IsNullOrEmpty(key))
@@ -112,13 +115,7 @@ public static class ArchivePath
             return string.Empty;
         }
 
-        var k = key.Replace('\\', '/');
-        while (k.StartsWith("./", StringComparison.Ordinal))
-        {
-            k = k[2..];
-        }
-
-        return k.Trim('/');
+        return string.Join('/', key.Split('/', '\\').Where(static s => s.Length > 0 && s != "."));
     }
 
     public static string ParentOf(string inner)

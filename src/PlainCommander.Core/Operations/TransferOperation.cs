@@ -83,6 +83,11 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
 
     private async Task RunCoreAsync(OperationContext context, StepRunner runner)
     {
+        if (!await EnsureTargetDirectoryAsync(runner).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var scanWatch = System.Diagnostics.Stopwatch.StartNew();
         var plans = new List<(string Source, string Destination, List<PlannedItem> Items)>();
         foreach (var source in _sources)
@@ -121,6 +126,34 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         }
 
         tracker.Report(force: true);
+    }
+
+    /// <summary>A target folder that is not there yet is created, as TargetResolver promises for several sources.</summary>
+    private async Task<bool> EnsureTargetDirectoryAsync(StepRunner runner)
+    {
+        var directory = ExactPath.Native(ExactPath.Full(_target.Directory));
+        if (Directory.Exists(directory))
+        {
+            return true;
+        }
+
+        return await runner.Run(directory, () =>
+        {
+            if (File.Exists(directory))
+            {
+                throw new OperationRuleException(RuleViolation.TypeMismatch, directory);
+            }
+
+            // Journal the topmost folder created, so undo takes away all of it.
+            var topmost = directory;
+            for (var parent = Path.GetDirectoryName(topmost); parent is not null && !Directory.Exists(parent); parent = Path.GetDirectoryName(parent))
+            {
+                topmost = parent;
+            }
+
+            Directory.CreateDirectory(directory);
+            Journal.Created(topmost, isDirectory: true);
+        }).ConfigureAwait(false);
     }
 
     private async Task<bool> TryFastMoveAsync(StepRunner runner, string source, string destination)
@@ -182,7 +215,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
     {
         var sameVolume = PathRules.SameVolume(sourceRoot, destinationRoot);
         var createdDirectories = new List<(PlannedItem Item, string Destination)>();
-        var failedUnder = new HashSet<string>(TreeScanner.PathComparer);
+        var failedUnder = new HashSet<string>(TreeScanner.PathComparer); // display forms: children may carry \\?\ where the root does not
         var rootName = Path.GetFileName(sourceRoot);
 
         void MarkFailedSafe(string path)
@@ -211,9 +244,10 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
 
         foreach (var item in items)
         {
+            // Plain text, not Path.GetRelativePath: that resolves against the current directory, where "aux" is a device.
             var destination = item.Relative == rootName
                 ? destinationRoot
-                : Path.Combine(destinationRoot, Path.GetRelativePath(rootName, item.Relative));
+                : ExactPath.Native(Path.Combine(destinationRoot, rootName.Length == 0 ? item.Relative : item.Relative[(rootName.Length + 1)..]));
 
             if (!item.IsDirectory && _parallelism > 1 && (item.Size < SmallFileLimit || (_kind == TransferKind.Move && sameVolume)))
             {
@@ -223,7 +257,11 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
 
             tracker.StartItem(item.Source, item.Size);
             bool ok;
-            if (item.IsDirectory)
+            if (item.IsDirectory && item.IsLink && _kind == TransferKind.Move)
+            {
+                ok = await MoveLinkAsync(runner, item, destination, sameVolume).ConfigureAwait(false);
+            }
+            else if (item.IsDirectory)
             {
                 ok = await runner.Run(item.Source, () =>
                 {
@@ -274,16 +312,46 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         {
             foreach (var (item, _) in Enumerable.Reverse(createdDirectories))
             {
-                if (!failedUnder.Contains(item.Source))
+                if (!failedUnder.Contains(ExactPath.Display(item.Source)))
                 {
                     await runner.Run(item.Source, () =>
                     {
+                        PathRules.ClearReadOnly(item.Source); // a read-only folder cannot be removed on Windows
                         PathRules.RemoveDirectory(item.Source);
                         Journal.RemovedDirectory(item.Source);
                     }).ConfigureAwait(false);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// A link to a folder inside a merged move goes as the link itself: copying it would mean a folder
+    /// with nothing in it (links are not entered on a move), and the link would be gone.
+    /// </summary>
+    private async Task<bool> MoveLinkAsync(StepRunner runner, PlannedItem item, string destination, bool sameVolume)
+    {
+        var ok = await runner.Run(item.Source, () =>
+        {
+            if (!sameVolume)
+            {
+                throw new OperationRuleException(RuleViolation.LinkAcrossVolumes, item.Source);
+            }
+
+            if (PathRules.Exists(destination))
+            {
+                throw new OperationRuleException(RuleViolation.AlreadyExists, destination);
+            }
+
+            SimpleCommands.MoveEntry(item.Source, destination);
+            Journal.Moved(item.Source, destination, isDirectory: true);
+        }).ConfigureAwait(false);
+        if (ok)
+        {
+            runner.AddDone();
+        }
+
+        return ok;
     }
 
     private async Task<bool> TransferFileAsync(
@@ -303,9 +371,13 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
                 throw new OperationRuleException(RuleViolation.TypeMismatch, destination);
             }
 
+            var replaces = false;
+            string? placeholder = null;
             if (File.Exists(destination))
             {
-                if (PathRules.Same(item.Source, destination))
+                // Also the same file under another spelling (link, junction, 8.3 name, hard link): "overwriting"
+                // it would destroy the only copy, and a skipIdentical move would delete it.
+                if (PathRules.SameFile(item.Source, destination))
                 {
                     throw new OperationRuleException(RuleViolation.SameFile, item.Source);
                 }
@@ -329,18 +401,29 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
                     return;
                 }
 
+                // "Overwrite" kept this name; "keep both" reserved a free one with an empty placeholder.
+                replaces = string.Equals(resolved, destination, StringComparison.Ordinal);
+                placeholder = replaces ? null : resolved;
                 destination = resolved;
             }
 
-            var replaces = File.Exists(destination); // "keep both" gave a free name, "overwrite" kept this one
-            if (_kind == TransferKind.Move && sameVolume)
+            try
             {
-                File.Move(item.Source, destination, overwrite: true);
-                Record(item.Source, destination, replaces);
-                return;
+                if (_kind == TransferKind.Move && sameVolume)
+                {
+                    File.Move(item.Source, destination, overwrite: true);
+                    Record(item.Source, destination, replaces);
+                    return;
+                }
+
+                await CopyFileAsync(runner, tracker, item, destination).ConfigureAwait(false);
+            }
+            catch when (placeholder is not null)
+            {
+                TryDelete(placeholder); // an empty "f (2).txt" would look like a copy that worked
+                throw;
             }
 
-            await CopyFileAsync(runner, tracker, item, destination).ConfigureAwait(false);
             if (_kind == TransferKind.Move)
             {
                 PathRules.ClearReadOnly(item.Source);
@@ -423,7 +506,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         switch (choice)
         {
             case ConflictChoice.Overwrite or ConflictChoice.OverwriteAll:
-                PathRules.ClearReadOnly(destination);
+                PathRules.ClearForOverwrite(destination);
                 return destination;
             case ConflictChoice.OverwriteAllOlder:
                 if (target.LastWriteTimeUtc >= File.GetLastWriteTimeUtc(item.Source))
@@ -431,7 +514,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
                     return null;
                 }
 
-                PathRules.ClearReadOnly(destination);
+                PathRules.ClearForOverwrite(destination);
                 return destination;
             case ConflictChoice.KeepBoth or ConflictChoice.KeepBothAll:
                 return PathRules.ReserveFreeName(destination);
@@ -466,12 +549,14 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
 
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         var completed = false;
+        var written = false; // until the target is opened for writing, whatever is there is not ours to delete
         var reported = 0L;
         try
         {
             await using (var input = new FileStream(item.Source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.Asynchronous | FileOptions.SequentialScan))
             await using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 1, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
+                written = true;
                 if (input.Length > 0)
                 {
                     output.SetLength(input.Length); // one allocation instead of growing; also fails fast when the disk is full
@@ -495,6 +580,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
                 output.SetLength(output.Position); // the source may have shrunk while we read it
             }
 
+            NativeFile.CopyStreams(item.Source, destination); // CopyFileEx does this for small files; Zone.Identifier matters
             TryCopyTimes(item.Source, destination, directory: false);
             File.SetAttributes(destination, item.Attributes & ~(FileAttributes.ReparsePoint | FileAttributes.Compressed | FileAttributes.Encrypted | FileAttributes.SparseFile));
             completed = true;
@@ -504,18 +590,25 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
             ArrayPool<byte>.Shared.Return(buffer);
             if (!completed)
             {
-                // Never leave a half-written file that looks like a good copy.
-                try
+                if (written)
                 {
-                    File.Delete(destination);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    // the original error is what matters
+                    TryDelete(destination); // never leave a half-written file that looks like a good copy
                 }
 
                 tracker.AddBytes(-reported);
             }
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // the original error is what matters
         }
     }
 
@@ -545,7 +638,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         // Every folder above a failed item keeps its source on a move.
         for (var p = path; p is not null && PathRules.IsInside(p, root); p = Path.GetDirectoryName(p))
         {
-            failedUnder.Add(p);
+            failedUnder.Add(ExactPath.Display(p));
         }
     }
 }

@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Serilog;
 
 namespace PlainCommander.Core.Settings;
@@ -28,7 +30,9 @@ public sealed class SettingsStore
         try
         {
             using var stream = File.OpenRead(FilePath);
-            return JsonSerializer.Deserialize(stream, SettingsJsonContext.Default.AppSettings) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize(stream, SettingsJsonContext.Default.AppSettings) ?? new AppSettings();
+            Sanitize(settings, SettingsJsonContext.Default.AppSettings);
+            return settings;
         }
         catch (JsonException ex)
         {
@@ -36,10 +40,79 @@ public sealed class SettingsStore
             TryMoveAside();
             return new AppSettings();
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Not corrupt, only unreadable now: keep the file where it is.
             Log.Warning(ex, "Cannot read settings {Path}", FilePath);
             return new AppSettings();
+        }
+    }
+
+    /// <summary>
+    /// A JSON null replaces a section or list with null; put the default back in its place and drop null list items,
+    /// so the rest of the app never sees a null where the settings classes promise a value.
+    /// </summary>
+    private static void Sanitize(object value, JsonTypeInfo info)
+    {
+        switch (info.Kind)
+        {
+            case JsonTypeInfoKind.Object:
+                var fresh = info.CreateObject?.Invoke();
+                foreach (var property in info.Properties)
+                {
+                    if (property.Get is null || property.Set is null)
+                    {
+                        continue;
+                    }
+
+                    var current = property.Get(value);
+                    if (current is null)
+                    {
+                        // Defaults come from a new instance; a property that defaults to null (Window) stays null.
+                        if (fresh is not null && property.Get(fresh) is { } fallback)
+                        {
+                            property.Set(value, fallback);
+                        }
+                    }
+                    else if (SettingsJsonContext.Default.GetTypeInfo(property.PropertyType) is { } inner)
+                    {
+                        Sanitize(current, inner);
+                    }
+                }
+
+                break;
+            case JsonTypeInfoKind.Enumerable when value is IList list:
+                for (var i = list.Count - 1; i >= 0; i--)
+                {
+                    if (list[i] is null)
+                    {
+                        list.RemoveAt(i);
+                    }
+                }
+
+                SanitizeItems(list, info.ElementType);
+                break;
+            case JsonTypeInfoKind.Dictionary when value is IDictionary dictionary:
+                foreach (var key in dictionary.Keys.Cast<object>().Where(k => dictionary[k] is null).ToList())
+                {
+                    dictionary.Remove(key);
+                }
+
+                SanitizeItems(dictionary.Values, info.ElementType);
+                break;
+        }
+    }
+
+    private static void SanitizeItems(IEnumerable items, Type? elementType)
+    {
+        if (elementType is null || SettingsJsonContext.Default.GetTypeInfo(elementType) is not { } info)
+        {
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            Sanitize(item, info);
         }
     }
 
@@ -68,7 +141,7 @@ public sealed class SettingsStore
         {
             File.Move(FilePath, FilePath + ".bad", overwrite: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // best effort; defaults are used either way
         }

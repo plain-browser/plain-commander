@@ -224,7 +224,7 @@ public sealed class RemoteDownloadOperation : IOperation
         var location = RemotePath.Parse(virtualPath) ?? throw new ArgumentException($"Not a remote path: {virtualPath}", nameof(virtualPath));
         var dir = Path.Combine(Path.GetTempPath(), "PlainCommander", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        var destination = Path.Combine(dir, location.Name);
+        var destination = Path.Combine(dir, RemotePath.LocalName(location.Name));
         var client = await connections.OpenAsync(location.Root, cancellationToken).ConfigureAwait(false);
         await using (client.ConfigureAwait(false))
         {
@@ -337,7 +337,7 @@ public sealed class RemoteDownloadOperation : IOperation
     private async Task PlanAsync(IRemoteClient client, RemoteLocation location, List<Item> items, CancellationToken token)
     {
         var stat = await client.StatAsync(location.Inner, token).ConfigureAwait(false) ?? throw new FileNotFoundException(null, location.FullPath);
-        var top = Path.Combine(_target.Directory, _target.NewName ?? location.Name);
+        var top = Path.Combine(_target.Directory, _target.NewName ?? RemotePath.LocalName(location.Name));
         if (!stat.IsDirectory)
         {
             items.Add(new Item(location, top, false, stat.Size, stat.Modified));
@@ -353,8 +353,13 @@ public sealed class RemoteDownloadOperation : IOperation
             var (folder, local) = pending.Dequeue();
             foreach (var child in await client.ListAsync(folder.Inner, token).ConfigureAwait(false))
             {
+                if (!RemotePath.IsSingleName(child.Name))
+                {
+                    continue;
+                }
+
                 var childLocation = folder.Child(child.Name);
-                var childLocal = Path.Combine(local, child.Name);
+                var childLocal = Path.Combine(local, RemotePath.LocalName(child.Name));
                 items.Add(new Item(childLocation, childLocal, child.IsDirectory, child.Size, child.Modified));
                 if (child.IsDirectory && !child.IsLink)
                 {
@@ -871,7 +876,7 @@ public sealed class RemoteModeOperation : IOperation
         foreach (var child in await client.ListAsync(folder.Inner, token).ConfigureAwait(false))
         {
             token.ThrowIfCancellationRequested();
-            if (child.IsLink)
+            if (child.IsLink || !RemotePath.IsSingleName(child.Name))
             {
                 continue; // chmod on a link changes its target, which may be anywhere
             }
@@ -967,6 +972,10 @@ public sealed class RemoteDeleteOperation : IOperation
             foreach (var child in await client.ListAsync(location.Inner, token).ConfigureAwait(false))
             {
                 token.ThrowIfCancellationRequested();
+                if (!RemotePath.IsSingleName(child.Name))
+                {
+                    continue; // left in place, so removing the folder fails and says so
+                }
 
                 // a link to a folder is removed as a link, never entered
                 await CollectAsync(client, location.Child(child.Name), child.IsDirectory && !child.IsLink, plan, token).ConfigureAwait(false);

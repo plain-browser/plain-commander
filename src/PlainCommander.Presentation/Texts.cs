@@ -123,7 +123,7 @@ internal static class Texts
 
     public static string Comparing(CompareProgress p) => Polish
         ? string.Create(Culture, $"Porównywanie… {(p.Folder.Length == 0 ? "." : p.Folder)}  ({p.Folders} kat., różnic: {p.Differences}) — Esc przerywa")
-        : string.Create(Culture, $"Comparing… {(p.Folder.Length == 0 ? "." : p.Folder)}  ({p.Folders} folders, {p.Differences} differences) — Esc stops");
+        : string.Create(Culture, $"Comparing… {(p.Folder.Length == 0 ? "." : p.Folder)}  ({p.Folders} {(p.Folders == 1 ? "folder" : "folders")}, {p.Differences} {(p.Differences == 1 ? "difference" : "differences")}) — Esc stops");
 
     public static string FilterSuffix(string filter) => Polish ? $" · filtr: {filter}" : $" · filter: {filter}";
 
@@ -218,23 +218,24 @@ internal static class Texts
             ? string.Create(Culture, $"{n} {Plural.Polish(n, "element", "elementy", "elementów")}")
             : string.Create(Culture, $"{n} {(n == 1 ? "item" : "items")}");
         string Pl(int n, string one, string few, string many) => Plural.Polish(n, one, few, many);
+        static string En(int n, string one, string many) => n == 1 ? one : many;
         if (entry.Count(Core.Undo.UndoKind.Created) is > 0 and var created)
         {
             lines.Add(Polish
                 ? $"• {Items(created)} {Pl(created, "utworzony", "utworzone", "utworzonych")} przez tę operację {Pl(created, "trafi", "trafią", "trafi")} do kosza (pusty katalog zostanie po prostu usunięty)."
-                : $"• {Items(created)} it created go to the Recycle Bin (an empty folder is simply removed).");
+                : $"• {Items(created)} it created {En(created, "goes", "go")} to the Recycle Bin (an empty folder is simply removed).");
         }
 
         if (entry.Count(Core.Undo.UndoKind.Moved) is > 0 and var moved)
         {
             lines.Add(Polish
                 ? $"• {Items(moved)} {Pl(moved, "wróci", "wrócą", "wróci")} na poprzednie miejsce i pod poprzednią nazwę."
-                : $"• {Items(moved)} go back to where they were, under their old names.");
+                : $"• {Items(moved)} {En(moved, "goes back to where it was, under its old name", "go back to where they were, under their old names")}.");
         }
 
         if (entry.Count(Core.Undo.UndoKind.Recycled) is > 0 and var recycled)
         {
-            lines.Add(Polish ? $"• {Items(recycled)} {Pl(recycled, "wróci", "wrócą", "wróci")} z kosza." : $"• {Items(recycled)} come back from the Recycle Bin.");
+            lines.Add(Polish ? $"• {Items(recycled)} {Pl(recycled, "wróci", "wrócą", "wróci")} z kosza." : $"• {Items(recycled)} {En(recycled, "comes", "come")} back from the Recycle Bin.");
         }
 
         if (entry.Count(Core.Undo.UndoKind.AttributesChanged) is > 0 and var attributes)
@@ -246,7 +247,7 @@ internal static class Texts
         {
             lines.Add(Polish
                 ? $"• Uwaga: {Items(overwritten)} {Pl(overwritten, "został nadpisany", "zostały nadpisane", "zostało nadpisanych")}; poprzedniej treści nie da się przywrócić."
-                : $"• Note: {Items(overwritten)} were overwritten; their old content cannot be restored.");
+                : $"• Note: {Items(overwritten)} {En(overwritten, "was overwritten; its", "were overwritten; their")} old content cannot be restored.");
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -505,13 +506,18 @@ internal static class Texts
     public static string CannotLaunch(string name, Exception ex) =>
         Polish ? $"Nie można otworzyć {name}: {ex.Message}" : $"Cannot open {name}: {ex.Message}";
 
+    /// <summary>An exact size: "1 byte", "2,048 bytes" ("2 048 B" in Polish).</summary>
+    public static string ByteCount(long bytes) => Polish
+        ? bytes.ToString("N0", Culture) + " B"
+        : bytes.ToString("N0", Culture) + (bytes == 1 ? " byte" : " bytes");
+
     public static string Selection(int markedFiles, int totalFiles, long markedBytes, long totalBytes, int markedDirs, int totalDirs)
     {
         var marked = EntryFormatter.HumanSize(markedBytes, Culture);
         var total = EntryFormatter.HumanSize(totalBytes, Culture);
         return Polish
             ? string.Create(Culture, $"Zaznaczono {markedFiles} z {totalFiles} {Plural.Polish(totalFiles, "pliku", "plików", "plików")} ({marked} z {total}), {markedDirs} z {totalDirs} {Plural.Polish(totalDirs, "katalogu", "katalogów", "katalogów")}")
-            : string.Create(Culture, $"Selected {markedFiles} of {totalFiles} files ({marked} of {total}), {markedDirs} of {totalDirs} folders");
+            : string.Create(Culture, $"Selected {markedFiles} of {totalFiles} {(totalFiles == 1 ? "file" : "files")} ({marked} of {total}), {markedDirs} of {totalDirs} {(totalDirs == 1 ? "folder" : "folders")}");
     }
 
     public static string OperationTitle(OperationKind kind, int count)
@@ -562,6 +568,7 @@ internal static class Texts
     {
         Core.Rename.RenameProblem.Empty => Polish ? "pusta nazwa" : "empty name",
         Core.Rename.RenameProblem.InvalidName => Polish ? "niedozwolone znaki" : "characters not allowed",
+        Core.Rename.RenameProblem.TooLong => Polish ? "nazwa dłuższa niż 255 znaków" : "name longer than 255 characters",
         Core.Rename.RenameProblem.DuplicateInBatch => Polish ? "ta sama nazwa dwa razy" : "same name twice",
         Core.Rename.RenameProblem.ExistsOnDisk => Polish ? "taki plik już istnieje" : "already exists",
         Core.Rename.RenameProblem.BadMask => Polish ? "nieznany znacznik w masce" : "unknown placeholder in the mask",
