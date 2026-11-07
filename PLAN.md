@@ -768,6 +768,15 @@ domyślny i nie wymaga 7-Zip.
   zmieniają się od razu z motywem, minimalny rozmiar okna, Esc czyści wiersz poleceń.
 - `.pce`: hasło normalizowane do NFC (bit 3 flag nagłówka); pliki z 1.13.x próbują hasła jak wpisane, potem NFC i NFD.
 
+### 1.14.1 — testy tłumaczeń, systemów plików, fuzzing, losowe sekwencje
+- Nowe testy: spójność tłumaczeń (`tests/PlainCommander.Presentation.Tests/Resources`), macierz systemów plików
+  FAT16/FAT32/exFAT/ReFS/pełny NTFS (`tests/PlainCommander.Core.Tests/Volumes`, dyski z `build/test-volumes.ps1`),
+  fuzzing Core (`Fuzz/`) i losowe sekwencje poleceń na ViewModelach (`Monkey/`). Opis: docs/testy-dziwne-kombinacje.md, runda 2.
+- Poprawki: flaga UTF-8 w nazwach zip, tolerancja 2 s FAT przy wznawianiu kopiowania, pytanie o utratę strumieni ADS
+  przy kopiowaniu i przenoszeniu na FAT/exFAT (duże pliki z ADS wcześniej w ogóle się nie kopiowały), nazwa z `.pce` jako
+  zwykła nazwa pliku, uszkodzone archiwa zgłaszane jako uszkodzone, ucieczka z folderu przez `dir/C:x`, Ctrl+Z/Ctrl+B/anulowanie
+  w nietypowych stanach, zmiana na dysku w trakcie wczytywania panelu, F3 na pliku z serwera o nazwie `CON`/`report.`.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
