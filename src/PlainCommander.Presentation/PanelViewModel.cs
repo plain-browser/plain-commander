@@ -27,6 +27,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private readonly Dictionary<string, string> _lastPathPerDrive = new(StringComparer.OrdinalIgnoreCase);
     private readonly SynchronizationContext? _ui;
     private CancellationTokenSource? _listing;
+
+    /// <summary>Counts navigations started, so a cancelled one can tell it was replaced by a newer one.</summary>
+    private int _navigationSerial;
     private List<FileEntry>? _results;
     private string _resultsWhat = string.Empty;
     private CancellationTokenSource? _debounce;
@@ -490,6 +493,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         _listing?.Cancel();
         _sizing?.Cancel();
+        _navigationSerial++;
         var cts = new CancellationTokenSource();
         _listing = cts;
         var token = cts.Token;
@@ -603,8 +607,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         for (var p = preferred; !string.IsNullOrEmpty(p); p = _fs.GetParent(p))
         {
-            if (_fs.DirectoryExists(p) && await NavigateAsync(p))
+            if (!_fs.DirectoryExists(p))
             {
+                continue;
+            }
+
+            var mine = _navigationSerial + 1;
+            if (await NavigateAsync(p))
+            {
+                return;
+            }
+
+            if (_navigationSerial != mine)
+            {
+                // Another navigation started meanwhile and cancelled this one (two refreshes after the folder was
+                // moved away). It decides where the panel goes; walking further up from here ended in the home folder.
                 return;
             }
         }

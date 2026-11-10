@@ -44,7 +44,7 @@ public static class DetailFormatter
         return column switch
         {
             DetailColumn.Dimensions when details.Width is { } w && details.Height is { } h => string.Create(culture, $"{w} × {h}"),
-            DetailColumn.Taken when details.Taken is { } t => t.ToLocalTime().ToString(culture.DateTimeFormat.ShortDatePattern + " " + culture.DateTimeFormat.ShortTimePattern, culture),
+            DetailColumn.Taken when details.Taken is { } t => t.ToLocalTime().ToString(Formatting.EntryFormatter.ColumnDateTimePattern(culture), culture),
             DetailColumn.Duration when details.Duration is { } d => Duration(d),
             DetailColumn.Version when details.Version is { Length: > 0 } v => v,
             _ => string.Empty,

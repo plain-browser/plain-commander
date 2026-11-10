@@ -221,7 +221,13 @@ public sealed partial class FilePanel : UserControl
         {
             var state = (e.OriginalSource as Control)?.FocusState;
             Log.Verbose("{Panel} got focus ({State}) on {Source}, active: {Active}", Name, state, e.OriginalSource?.GetType().Name, ViewModel?.IsActive);
-            if (ViewModel?.IsActive == false && CanTakeFocus?.Invoke() != false)
+            if (ViewModel?.IsActive == false && (IsDown(VirtualKey.LeftButton) || IsDown(VirtualKey.RightButton)))
+            {
+                // A row takes focus while the click is still on its way up to the panel's PointerPressed handler, so
+                // the panel is not active yet; with a button down this is the user, not WinUI parking focus.
+                ActivatedByUser?.Invoke(this, EventArgs.Empty);
+            }
+            else if (ViewModel?.IsActive == false && CanTakeFocus?.Invoke() != false)
             {
                 Log.Debug("Focus strayed into the inactive {Panel} ({Source}); returning it", Name, e.OriginalSource?.GetType().Name);
                 FocusStrayed?.Invoke(this, EventArgs.Empty);
@@ -1243,10 +1249,29 @@ public sealed partial class FilePanel : UserControl
                 e.Handled = true;
                 _ = vm.EnterCurrentDirectoryAsync();
                 break;
+            case VirtualKey.Space when ctrl && !alt:
+                e.Handled = true; // the list would take the selection off the row: no cursor, and the next command jumps to the top
+                break;
             case VirtualKey.Home or VirtualKey.End or VirtualKey.PageUp or VirtualKey.PageDown or VirtualKey.Left or VirtualKey.Right
                 when searching:
                 vm.ClearQuickSearch(); // leave the key to the list
                 break;
+        }
+
+        if (!e.Handled && ctrl && !alt && e.Key is VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)
+        {
+            // With Ctrl the list moves only the focus frame and leaves the selection (our cursor) behind: the frame
+            // showed one row while Enter, F5 or F8 acted on another. The cursor follows the frame.
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, SelectFocusedRow);
+        }
+    }
+
+    private void SelectFocusedRow()
+    {
+        if (XamlRoot is not null && FocusManager.GetFocusedElement(XamlRoot) is ListViewItem row
+            && List.IndexFromContainer(row) is var index && index >= 0 && List.SelectedIndex != index)
+        {
+            List.SelectedIndex = index;
         }
     }
 

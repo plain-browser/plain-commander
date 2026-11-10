@@ -74,7 +74,7 @@ public sealed partial class SyncRow : ObservableObject
         {
             null => "—",
             { IsDirectory: true } => EntryFormatter.DirectoryMarker,
-            _ => $"{entry.Size.ToString("N0", culture)}  {entry.Modified.LocalDateTime.ToString("g", culture)}",
+            _ => $"{entry.Size.ToString("N0", culture)}  {entry.Modified.LocalDateTime.ToString(EntryFormatter.ColumnDateTimePattern(culture), culture)}",
         };
     }
 }

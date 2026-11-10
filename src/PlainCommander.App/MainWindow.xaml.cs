@@ -228,8 +228,8 @@ public sealed partial class MainWindow : Window
             [(VirtualKeyModifiers.Control, VirtualKey.L)] = new(() => ActivePanelView.BeginPathEdit()),
             [(VirtualKeyModifiers.Control, VirtualKey.D)] = new(ShowFavorites),
             [(VirtualKeyModifiers.Control, VirtualKey.U)] = new(() => Run(ViewModel.SwapPanelsAsync)),
-            [(VirtualKeyModifiers.Control, VirtualKey.Right)] = new(() => Run(() => ViewModel.MirrorAsync(PanelSide.Right))),
-            [(VirtualKeyModifiers.Control, VirtualKey.Left)] = new(() => Run(() => ViewModel.MirrorAsync(PanelSide.Left))),
+            [(VirtualKeyModifiers.Control, VirtualKey.Right)] = new(() => Run(() => ViewModel.MirrorAsync(PanelSide.Right)), Typing: true), // in a text box Ctrl+arrow jumps a word
+            [(VirtualKeyModifiers.Control, VirtualKey.Left)] = new(() => Run(() => ViewModel.MirrorAsync(PanelSide.Left)), Typing: true),
             [(VirtualKeyModifiers.Menu, VirtualKey.F1)] = new(() => ShowDriveMenu(ViewModel.Left, LeftPanel)),
             [(VirtualKeyModifiers.Menu, VirtualKey.F2)] = new(() => ShowDriveMenu(ViewModel.Right, RightPanel)),
             [(VirtualKeyModifiers.Control, VirtualKey.F1)] = new(() => SetBrief(true)),
