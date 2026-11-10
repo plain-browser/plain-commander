@@ -777,6 +777,16 @@ domyślny i nie wymaga 7-Zip.
   zwykła nazwa pliku, uszkodzone archiwa zgłaszane jako uszkodzone, ucieczka z folderu przez `dir/C:x`, Ctrl+Z/Ctrl+B/anulowanie
   w nietypowych stanach, zmiana na dysku w trakcie wczytywania panelu, F3 na pliku z serwera o nazwie `CON`/`report.`.
 
+### 1.14.2 — przegląd funkcjonalny i klawiatura
+- Klawiatura: Ctrl+↑/↓/Home/End przesuwało tylko ramkę fokusu, a kursor zostawał (Enter, F5, F8 działały na innym
+  wierszu) — kursor idzie teraz za ramką; Ctrl+Spacja nie zdejmuje kursora z wiersza; Ctrl+←/→ w polu tekstowym
+  (linia poleceń, filtr, ścieżka) przeskakuje o słowo zamiast otwierać ten sam folder w drugim panelu.
+- Klik w nieaktywny panel aktywuje go (wiersz dostawał fokus przed PointerPressed panelu i fokus wracał).
+- Daty w kolumnach mają stałą szerokość (`05.10.2026`, także gdy wzorzec systemu to `d.MM.yyyy`).
+- Panel, którego folder zniknął, nie trafia do katalogu domowego, gdy pierwszą nawigację anulowała nowsza
+  (niestabilny test losowy, seed 17).
+- Znane: menu F2 otwarte w chwili, gdy kończy się poprzednie polecenie, zamyka się samo.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
