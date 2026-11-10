@@ -38,7 +38,7 @@
             <FontIcon Glyph="&#xE73E;" FontSize="7" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
           </Grid>
         </Grid>
-        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" Typography.NumeralAlignment="Tabular" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{x:Bind Extension}" Foreground="{x:Bind ui:Ui.MarkForeground(IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="{x:Bind SizeText, Mode=OneWay}" Foreground="{x:Bind ui:Ui.SizeForeground(IsDirectory, IsMarked), Mode=OneWay}" TextAlignment="Right" VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{x:Bind DateText}" Foreground="{ThemeResource PcTextMutedBrush}" VerticalAlignment="Center" />
@@ -67,7 +67,7 @@
             <FontIcon Glyph="&#xE73E;" FontSize="7" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
           </Grid>
         </Grid>
-        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" Typography.NumeralAlignment="Tabular" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{x:Bind Extension}" Foreground="{x:Bind ui:Ui.MarkForeground(IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="{x:Bind SizeText, Mode=OneWay}" Foreground="{x:Bind ui:Ui.SizeForeground(IsDirectory, IsMarked), Mode=OneWay}" TextAlignment="Right" VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{x:Bind DateText}" Foreground="{ThemeResource PcTextMutedBrush}" VerticalAlignment="Center" />
@@ -95,7 +95,7 @@
             <FontIcon Glyph="&#xE73E;" FontSize="7" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
           </Grid>
         </Grid>
-        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" Typography.NumeralAlignment="Tabular" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{x:Bind SizeText, Mode=OneWay}" Foreground="{x:Bind ui:Ui.SizeForeground(IsDirectory, IsMarked), Mode=OneWay}" TextAlignment="Right" VerticalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="{x:Bind ShortDateText}" Foreground="{ThemeResource PcTextMutedBrush}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{x:Bind DetailText, Mode=OneWay}" Foreground="{ThemeResource PcTextMutedBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -122,7 +122,7 @@
             <FontIcon Glyph="&#xE73E;" FontSize="7" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
           </Grid>
         </Grid>
-        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" Typography.NumeralAlignment="Tabular" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{x:Bind SizeText, Mode=OneWay}" Foreground="{x:Bind ui:Ui.SizeForeground(IsDirectory, IsMarked), Mode=OneWay}" TextAlignment="Right" VerticalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="{x:Bind ShortDateText}" Foreground="{ThemeResource PcTextMutedBrush}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{x:Bind DetailText, Mode=OneWay}" Foreground="{ThemeResource PcTextMutedBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -144,7 +144,7 @@
             <FontIcon Glyph="&#xE73E;" FontSize="7" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
           </Grid>
         </Grid>
-        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Foreground="{x:Bind ui:Ui.NameForeground(IsDirectory, IsMarked, IsEncrypted), Mode=OneWay}" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked), Mode=OneWay}" Typography.NumeralAlignment="Tabular" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
       </Grid>
     </DataTemplate>
 

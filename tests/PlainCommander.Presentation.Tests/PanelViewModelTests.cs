@@ -390,8 +390,22 @@ public sealed class PanelViewModelTests : IDisposable
         (await _panel.ChangeDriveAsync(root)).Should().BeTrue();
         _panel.Path.Should().Be(theirs);
 
-        // already on the drive: its button still goes to the root
+        // already in that folder: the button goes to the root
         await _panel.ChangeDriveAsync(root);
         _panel.Path.Should().Be(root);
+    }
+
+    [Fact]
+    public async Task ChangeDrive_on_the_same_drive_still_meets_the_other_panel()
+    {
+        var theirs = _tree.Dir("theirs");
+        var mine = _tree.Dir("mine");
+        var root = Path.GetPathRoot(_tree.Root)!;
+        _panel.OtherPanelPath = () => theirs;
+        await _panel.NavigateAsync(mine);
+
+        await _panel.ChangeDriveAsync(root);
+
+        _panel.Path.Should().Be(theirs, "both panels are on that drive: the button opens the other panel's folder");
     }
 }

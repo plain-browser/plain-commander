@@ -1068,8 +1068,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         Drives.FirstOrDefault(d => d.Letter.Length == 1 && char.ToUpperInvariant(d.Letter[0]) == char.ToUpperInvariant(letter));
 
     /// <summary>
-    /// Drive button / Alt+F1: the current drive goes to its root; another drive lands in the folder
-    /// the other panel shows on it, else in the folder this panel last showed there, else its root.
+    /// Drive button / Alt+F1: a drive the other panel is on lands in the folder that panel shows (also when this
+    /// panel is on the drive already, unless it is in that folder: then the root); the current drive otherwise goes to its root; another drive lands in
+    /// the folder this panel last showed there, else its root.
     /// </summary>
     public Task<bool> ChangeDriveAsync(string root)
     {
@@ -1078,17 +1079,18 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return NavigateAsync(root); // OneDrive: always its top folder (the drives remember where you were)
         }
 
-        if (string.Equals(CurrentRoot, root, StringComparison.OrdinalIgnoreCase))
-        {
-            return NavigateAsync(root);
-        }
-
         if (OtherPanelPath?.Invoke() is { Length: > 0 } other
             && !RemotePath.IsRemote(other) && !NetworkPath.IsVirtual(other) && ArchiveFileSystem.Locate(other) is null
             && string.Equals(RootKey(System.IO.Path.GetPathRoot(other) ?? string.Empty), RootKey(root), StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(other.TrimEnd('\\'), Path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) // already there: the next press goes to the root
             && _fs.DirectoryExists(other))
         {
             return NavigateAsync(other); // the other panel is on that drive: meet it in its folder
+        }
+
+        if (string.Equals(CurrentRoot, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return NavigateAsync(root);
         }
 
         return _lastPathPerDrive.TryGetValue(RootKey(root), out var last) && _fs.DirectoryExists(last)
