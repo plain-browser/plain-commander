@@ -787,6 +787,16 @@ domyślny i nie wymaga 7-Zip.
   (niestabilny test losowy, seed 17).
 - Znane: menu F2 otwarte w chwili, gdy kończy się poprzednie polecenie, zamyka się samo.
 
+### 1.14.3 — wyszukiwanie po fragmencie nazwy
+- Alt+F7: słowo bez gwiazdek jest fragmentem nazwy (`raport` znajduje `raport 2026.pdf`), jak w filtrze panelu;
+  wcześniej wymagało `*raport*` i bez gwiazdek nie znajdowało nic. Maski działają jak dotąd.
+- Alt+F7: strzałka w dół z pola tekstowego przenosi do listy wyników (Tab wymagał kilkunastu naciśnięć).
+- Pola tekstowe nie podkreślają nazw plików, ścieżek i masek jako błędów pisowni.
+- Sprawdzone w działającej aplikacji bez zarzutu: Ctrl+M, Ctrl+F, Ctrl+B, Ctrl+H, Ctrl+E, Shift+F2 z synchronizacją,
+  konflikt kopiowania, karta postępu, Alt+F4 w trakcie operacji, podgląd pliku 8 GB, archiwa, linia poleceń.
+- Znane: pierwszy znak wpisany tuż po pierwszym otwarciu okna wyszukiwania może zginąć; otwarty `.pce` pokazuje się
+  jako `nazwa.tar`; porównanie folderów liczy pliki ukryte; po powrocie z Ctrl+B kursor staje na `..`.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
