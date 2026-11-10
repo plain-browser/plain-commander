@@ -802,6 +802,13 @@ domyślny i nie wymaga 7-Zip.
 - Powrót z listy płaskiej (Ctrl+B) i z wyników wyszukiwania zostawia kursor na pliku albo na folderze, który do niego prowadzi.
 - Menu dysków: litery działają także po otwarciu myszą i nie głuchną po odświeżeniu listy.
 
+### 1.14.4 — klawisze wpisane przy otwieraniu okien
+- Okna zmiany nazw (Ctrl+M), połączeń (Ctrl+F), ustawień, podglądu (F3), synchronizacji i porównania treści otwierają
+  się jak okno wyszukiwania w 1.14.3: bez klawiatury do pierwszego układu treści, a klawisze wpisane w tym czasie
+  główne okno wstrzymuje i odtwarza (`MainWindow.ShowNewWindow`). Wcześniej znaki wpisane zaraz po skrócie ginęły.
+- Okna synchronizacji i porównania treści ustawiają klawiaturę na liście przy pierwszej aktywacji.
+- Okna otwierane z innych okien (F3 z wyników wyszukiwania, porównanie z okna synchronizacji) idą starą drogą.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
