@@ -142,7 +142,7 @@ public sealed partial class MainWindow : Window
         _openingTimer = DispatcherQueue.CreateTimer();
         _openingTimer.Interval = TimeSpan.FromSeconds(3);
         _openingTimer.IsRepeating = false;
-        _openingTimer.Tick += (_, _) => WindowOpened(replay: false);
+        _openingTimer.Tick += (_, _) => WindowOpened(null, replay: false);
         foreach (var (view, panel) in new[] { (LeftPanel, ViewModel.Left), (RightPanel, ViewModel.Right) })
         {
             // Esc in the list clears the command line once there is no quick search or filter left to take off
@@ -698,29 +698,55 @@ public sealed partial class MainWindow : Window
     /// <summary>A window of the app is being built and shown; keys typed meanwhile are held for it.</summary>
     private bool _openingWindow;
 
+    private Window? _windowBeingOpened;
+
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _openingTimer;
 
-    private void WindowOpened(bool replay)
+    /// <summary>
+    /// Shows a new window of the app so that nothing typed while it opens is lost. A window that is active before its
+    /// first layout swallows keys (about 0.3 s: a name typed straight after Alt+F7 or Ctrl+M vanished), so it is shown
+    /// without the keyboard first. Keys typed meanwhile still reach this window, wait here, and are typed again once the
+    /// new window has laid out, set its own focus and come to the front.
+    /// </summary>
+    private void ShowNewWindow(Window window)
     {
+        if (window.Content is not FrameworkElement { IsLoaded: false } root)
+        {
+            Helpers.WindowFront.Bring(window);
+            return;
+        }
+
+        _openingWindow = true;
+        _windowBeingOpened = window;
+        _openingTimer.Start();
+        root.Loaded += (_, _) => WindowOpened(window, replay: true); // after the window's own handler, which sets its focus
+        window.AppWindow.Show(activateWindow: false);
+    }
+
+    private void WindowOpened(Window? window, bool replay)
+    {
+        if (!_openingWindow || (window is not null && !ReferenceEquals(window, _windowBeingOpened)))
+        {
+            return;
+        }
+
         _openingTimer.Stop();
-        if (!_openingWindow)
-        {
-            return;
-        }
-
         _openingWindow = false;
-        if (!replay)
+        var opened = _windowBeingOpened;
+        _windowBeingOpened = null;
+        if (opened is not null)
         {
-            _dialogs.HeldKeys.Clear(); // it never said it was ready: better dropped than typed somewhere else
-            if (_search is not null)
-            {
-                Helpers.WindowFront.Bring(_search);
-            }
-
-            return;
+            Helpers.WindowFront.Bring(opened);
         }
 
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => _dialogs.HeldKeys.Replay());
+        if (replay)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => _dialogs.HeldKeys.Replay());
+        }
+        else
+        {
+            _dialogs.HeldKeys.Clear(); // it never finished its layout: better dropped than typed somewhere else
+        }
     }
 
     /// <summary>Alt+F7: one search window, starting in the active panel's folder.</summary>
@@ -728,21 +754,9 @@ public sealed partial class MainWindow : Window
     {
         if (_search is null)
         {
-            // Building the window takes a moment; a name typed straight after Alt+F7 arrived before its box had the
-            // keyboard and was lost. Such keys wait here and are typed again once the box is ready.
-            _openingWindow = true;
-            _openingTimer.Start();
-            var window = new SearchWindow(ViewModel, ViewModel.ActivePanel.Path);
-            _search = window;
-            window.Ready += (_, _) =>
-            {
-                Helpers.WindowFront.Bring(window);
-                WindowOpened(replay: true);
-            };
-            window.Closed += (_, _) => _search = null;
-            // Shown without the keyboard first: a window that is active before its content can take keys swallows
-            // them. This one stays behind the keyboard until its first layout is done, then comes to the front.
-            window.AppWindow.Show(activateWindow: false);
+            _search = new SearchWindow(ViewModel, ViewModel.ActivePanel.Path);
+            _search.Closed += (_, _) => _search = null;
+            ShowNewWindow(_search);
             return;
         }
 
@@ -756,7 +770,7 @@ public sealed partial class MainWindow : Window
         {
             var window = new MultiRenameWindow(ViewModel, session);
             window.Closed += (_, _) => ActivePanelView.FocusList();
-            Helpers.WindowFront.Bring(window);
+            ShowNewWindow(window);
         }
     }
 
@@ -774,6 +788,8 @@ public sealed partial class MainWindow : Window
                 BuildTopMenu(); // the Network menu lists the saved connections
                 ActivePanelView.FocusList();
             };
+            ShowNewWindow(_connections);
+            return;
         }
 
         Helpers.WindowFront.Bring(_connections);
@@ -786,6 +802,8 @@ public sealed partial class MainWindow : Window
         {
             _settings = new SettingsWindow(ViewModel);
             _settings.Closed += (_, _) => _settings = null;
+            ShowNewWindow(_settings);
+            return;
         }
 
         Helpers.WindowFront.Bring(_settings);
@@ -801,7 +819,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            Helpers.WindowFront.Bring(new ViewerWindow(await ViewModel.ViewPathAsync(item)));
+            ShowNewWindow(new ViewerWindow(await ViewModel.ViewPathAsync(item)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
         {
@@ -907,7 +925,7 @@ public sealed partial class MainWindow : Window
 
         var window = new SyncWindow(ViewModel, sync);
         window.Closed += (_, _) => ActivePanelView.FocusList();
-        Helpers.WindowFront.Bring(window);
+        ShowNewWindow(window);
     }
 
     /// <summary>Commands → Compare files: two marked files, or the file under the cursor in each panel.</summary>
@@ -920,7 +938,7 @@ public sealed partial class MainWindow : Window
                 var name = System.IO.Path.GetFileName(diff.LeftPath) + " ↔ " + System.IO.Path.GetFileName(diff.RightPath);
                 var window = new DiffWindow(diff, name);
                 window.Closed += (_, _) => ActivePanelView.FocusList();
-                Helpers.WindowFront.Bring(window);
+                ShowNewWindow(window);
                 return;
             }
         }

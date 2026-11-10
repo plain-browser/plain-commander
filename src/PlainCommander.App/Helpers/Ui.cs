@@ -278,6 +278,41 @@ public static class Ui
     }
 
     /// <summary>
+    /// Runs <paramref name="focus"/> once, when the window first becomes active. A window is shown without the keyboard
+    /// until its first layout is done (see MainWindow.ShowNewWindow); focus asked for a list before that does not
+    /// hold, and the first button of the window got the keyboard instead.
+    /// </summary>
+    public static void OnFirstActivation(Microsoft.UI.Xaml.Window window, Action focus)
+    {
+        void Handler(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs e)
+        {
+            if (e.WindowActivationState == Microsoft.UI.Xaml.WindowActivationState.Deactivated)
+            {
+                return;
+            }
+
+            window.Activated -= Handler;
+            window.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => focus());
+        }
+
+        window.Activated += Handler;
+    }
+
+    /// <summary>Keyboard focus on the selected row of a list (the first one when nothing is selected), else on the list.</summary>
+    public static void FocusRow(Microsoft.UI.Xaml.Controls.ListViewBase list)
+    {
+        var index = Math.Max(list.SelectedIndex, 0);
+        if (list.Items.Count > 0 && list.ContainerFromIndex(index) is Microsoft.UI.Xaml.Controls.Control row)
+        {
+            row.Focus(FocusState.Keyboard);
+        }
+        else
+        {
+            list.Focus(FocusState.Programmatic);
+        }
+    }
+
+    /// <summary>
     /// A secondary window takes the app's theme setting and follows it while open (the setting can change in the
     /// settings window); its caption buttons are restyled with it.
     /// </summary>

@@ -35,12 +35,8 @@ public sealed partial class SearchWindow : Window
         {
             MasksBox.Focus(FocusState.Programmatic);
             MasksBox.SelectAll();
-            Ready?.Invoke(this, EventArgs.Empty);
         };
     }
-
-    /// <summary>The name box has the keyboard: keys the main window held while this window opened can be typed again.</summary>
-    public event EventHandler? Ready;
 
     public SearchViewModel ViewModel { get; }
 

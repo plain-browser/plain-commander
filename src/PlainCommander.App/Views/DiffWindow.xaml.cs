@@ -33,6 +33,7 @@ public sealed partial class DiffWindow : Window
         var height = Math.Min(900, work.Height * 85 / 100);
         AppWindow.MoveAndResize(new RectInt32(work.X + ((work.Width - width) / 2), work.Y + ((work.Height - height) / 2), width, height));
         Root.Loaded += OnLoaded;
+        Ui.OnFirstActivation(this, () => Ui.FocusRow(List));
     }
 
     public DiffViewModel ViewModel { get; }

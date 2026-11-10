@@ -47,6 +47,7 @@ public sealed partial class SyncWindow : Window
             DiffButton.IsEnabled = Selected is { CanDiff: true };
             List.Focus(FocusState.Programmatic);
         };
+        Ui.OnFirstActivation(this, () => Ui.FocusRow(List));
     }
 
     public SyncViewModel ViewModel { get; }
