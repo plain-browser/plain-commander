@@ -456,20 +456,77 @@ public sealed partial class FilePanel : UserControl
     public async void ShowDriveMenu()
     {
         await ViewModel.RefreshDrivesAsync();
-        FillDriveFlyout();
+        _driveMenuIsFresh = true;
         DriveFlyout.ShowAt(DriveButton);
     }
+
+    /// <summary>The drive list was read just before the menu opens: no second read behind the open menu.</summary>
+    private bool _driveMenuIsFresh;
+
+    /// <summary>What the drive menu shows now; the open menu is rebuilt only when this changes.</summary>
+    private string _driveMenuContent = string.Empty;
+
+    private MenuFlyoutPresenter? _driveMenuPresenter;
 
     /// <summary>Opening by mouse: show what we know now, then refresh the drive list behind it.</summary>
     private async void OnDriveFlyoutOpening(object sender, object e)
     {
         FillDriveFlyout();
+        if (_driveMenuIsFresh)
+        {
+            _driveMenuIsFresh = false;
+            return;
+        }
+
         await ViewModel.RefreshDrivesAsync();
+        if (DriveMenuContent() == _driveMenuContent)
+        {
+            return;
+        }
+
+        // Replacing the items takes the keyboard away from the one that had it: focus left the menu, which stayed
+        // open and deaf to letters and arrows. The item in the same place gets it back.
+        var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as MenuFlyoutItemBase;
+        var index = focused is null ? -1 : DriveFlyout.Items.IndexOf(focused);
+        var state = (focused as Control)?.FocusState ?? FocusState.Unfocused;
         FillDriveFlyout();
+        if (index >= 0)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                if (DriveFlyout.IsOpen && DriveFlyout.Items.Count > 0)
+                {
+                    DriveFlyout.Items[Math.Min(index, DriveFlyout.Items.Count - 1)].Focus(state == FocusState.Unfocused ? FocusState.Programmatic : state);
+                }
+            });
+        }
     }
+
+    /// <summary>
+    /// Letters are heard on the menu itself, not on its items: a menu opened by mouse has no focused item, and neither
+    /// has one whose items were just replaced.
+    /// </summary>
+    private void OnDriveFlyoutOpened(object sender, object e)
+    {
+        DependencyObject? element = DriveFlyout.Items.FirstOrDefault();
+        while (element is not null and not MenuFlyoutPresenter)
+        {
+            element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+        }
+
+        if (element is MenuFlyoutPresenter presenter && !ReferenceEquals(presenter, _driveMenuPresenter))
+        {
+            _driveMenuPresenter = presenter;
+            presenter.PreviewKeyDown += OnDriveMenuKeyDown;
+        }
+    }
+
+    private string DriveMenuContent() =>
+        string.Join('\n', ViewModel.Drives.Select(d => $"{d.Root}|{d.MenuText}|{d.IsCurrent}").Concat(OpenServers?.Invoke() ?? []));
 
     private void FillDriveFlyout()
     {
+        _driveMenuContent = DriveMenuContent();
         DriveFlyout.Items.Clear();
         foreach (var drive in ViewModel.Drives)
         {
@@ -485,7 +542,6 @@ public sealed partial class FilePanel : UserControl
                 await ViewModel.ChangeDriveAsync(root);
                 FocusList();
             };
-            item.PreviewKeyDown += OnDriveMenuKeyDown;
             DriveFlyout.Items.Add(item);
         }
 
@@ -550,13 +606,13 @@ public sealed partial class FilePanel : UserControl
         return $"{who}{port}  ·  {PlainCommander.Core.Remote.RemotePath.Scheme(at.Protocol).ToUpperInvariant()}";
     }
 
-    /// <summary>In the drive menu a letter jumps straight to that drive: Alt+F1, D opens D:\.</summary>
     private async void OnCloseResults(object sender, RoutedEventArgs e)
     {
         await ViewModel.CloseResultsAsync();
         FocusList();
     }
 
+    /// <summary>In the drive menu a letter jumps straight to that drive: Alt+F1, D opens D:\.</summary>
     private async void OnDriveMenuKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key is < VirtualKey.A or > VirtualKey.Z || IsDown(VirtualKey.Control) || IsDown(VirtualKey.Menu)

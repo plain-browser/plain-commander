@@ -316,7 +316,7 @@
               <TextBlock Text="{x:Bind ViewModel.DriveLabel, Mode=OneWay}" FontFamily="Cascadia Mono, Consolas" Foreground="{ThemeResource PcTextBrush}" />
             </StackPanel>
             <DropDownButton.Flyout>
-              <MenuFlyout x:Name="DriveFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnDriveFlyoutOpening" />
+              <MenuFlyout x:Name="DriveFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnDriveFlyoutOpening" Opened="OnDriveFlyoutOpened" />
             </DropDownButton.Flyout>
           </DropDownButton>
           <!-- The path: breadcrumb normally; Ctrl+L or a click beside the crumbs swaps in an editable box with folder suggestions -->
