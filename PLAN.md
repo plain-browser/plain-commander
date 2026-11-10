@@ -809,6 +809,15 @@ domyślny i nie wymaga 7-Zip.
 - Okna synchronizacji i porównania treści ustawiają klawiaturę na liście przy pierwszej aktywacji.
 - Okna otwierane z innych okien (F3 z wyników wyszukiwania, porównanie z okna synchronizacji) idą starą drogą.
 
+### 1.14.5 — daty, nazwy, dyski i klik w prawy panel
+- Daty w kolumnach mają stałą szerokość (`05.10.2026 09:07`, nie `5.10.2026`): `EntryFormatter.ColumnDatePattern` dopisuje drugą
+  cyfrę pojedynczym polom wzorca kultury; ten sam format w kolumnie „Data wykonania” i w oknie synchronizacji.
+- Nazwy plików i folderów mają cyfry o stałej szerokości (`Typography.NumeralAlignment="Tabular"`), więc `01.2026`…`12.2026` się wyrównują.
+- Klik lewym przyciskiem w nieaktywny panel aktywuje go także po prawej stronie: fokus wiersza przychodził przed `PointerPressed`
+  panelu i był brany za fokus zabłąkany.
+- Wybór dysku, na którym stoi drugi panel, otwiera folder drugiego panelu także wtedy, gdy ten panel jest już na tym dysku
+  (kolejne naciśnięcie w tym samym folderze idzie do korzenia).
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
