@@ -33,7 +33,11 @@ public sealed record SearchCriteria(
     {
         if (!NameRegex)
         {
-            return FileMask.Parse(Masks);
+            // A word without wildcards is a part of the name ("report" finds "report 2026.pdf"), as in the panel
+            // filter; typed as an exact name it found nothing and the search looked broken.
+            var parts = Masks.Split([';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(static m => m.AsSpan().IndexOfAny('*', '?') < 0 ? $"*{m}*" : m);
+            return FileMask.Parse(string.Join(';', parts));
         }
 
         var regex = new Regex(Masks, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));

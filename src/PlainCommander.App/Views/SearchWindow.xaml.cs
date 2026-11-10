@@ -147,6 +147,18 @@ public sealed partial class SearchWindow : Window
                 e.Handled = true;
                 OnStart(sender, e);
                 break;
+            case VirtualKey.Down when FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox && ViewModel.Results.Count > 0:
+                // From a search field straight to the results: Tab alone needed some sixteen presses to get there.
+                e.Handled = true;
+                var index = Math.Max(ResultList.SelectedIndex, 0);
+                ResultList.SelectedIndex = index;
+                ResultList.UpdateLayout();
+                if (ResultList.ContainerFromIndex(index) is Control row)
+                {
+                    row.Focus(FocusState.Keyboard);
+                }
+
+                break;
         }
     }
 }

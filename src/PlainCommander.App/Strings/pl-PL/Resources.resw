@@ -284,7 +284,7 @@
   <data name="FKey_Alt_F7" xml:space="preserve"><value>Szukaj</value></data>
   <data name="Search_Title.Text" xml:space="preserve"><value>Szukaj plików</value></data>
   <data name="Search_Masks.Text" xml:space="preserve"><value>Nazwa:</value></data>
-  <data name="Search_MasksBox.PlaceholderText" xml:space="preserve"><value>np. *.txt;*.md</value></data>
+  <data name="Search_MasksBox.PlaceholderText" xml:space="preserve"><value>np. raport albo *.txt;*.md</value></data>
   <data name="Search_Subfolders.Content" xml:space="preserve"><value>Z podkatalogami</value></data>
   <data name="Search_Root.Text" xml:space="preserve"><value>W katalogu:</value></data>
   <data name="Search_Hidden.Content" xml:space="preserve"><value>Także ukryte</value></data>

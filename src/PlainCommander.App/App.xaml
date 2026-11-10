@@ -175,6 +175,11 @@
       <FontFamily x:Key="PanelFont">Segoe UI Variable Text, Segoe UI</FontFamily>
 
       <!-- Splitter between the panels: an 8 px transparent grab area with a short grip that lights up on hover -->
+      <!-- File names, paths, masks and commands are not prose: no red squiggles under them. -->
+      <Style TargetType="TextBox" BasedOn="{StaticResource DefaultTextBoxStyle}">
+        <Setter Property="IsSpellCheckEnabled" Value="False" />
+      </Style>
+
       <Style TargetType="controls:PanelSplitter">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Template">

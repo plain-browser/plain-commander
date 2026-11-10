@@ -35,6 +35,14 @@ public sealed class SearchExtrasTests : IDisposable
         writer.Write(text);
     }
 
+    [Fact]
+    public async Task A_word_without_wildcards_is_a_part_of_the_name()
+    {
+        (await Find(new SearchCriteria(_s.Root, Masks: "report"))).Should().Equal("report-2026.txt");
+        (await Find(new SearchCriteria(_s.Root, Masks: "READ port"))).Should().BeEquivalentTo("readme.txt", "report-2026.txt");
+        (await Find(new SearchCriteria(_s.Root, Masks: "r?port"))).Should().BeEmpty(); // a mask stays exact
+    }
+
     private async Task<List<string>> Find(SearchCriteria criteria)
     {
         var found = new List<string>();
