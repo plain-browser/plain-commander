@@ -288,8 +288,22 @@ public sealed class RemotePanelTests : IDisposable
         await File.WriteAllTextAsync(temp, "# edited", TestContext.Current.CancellationToken);
         File.SetLastWriteTimeUtc(temp, DateTime.UtcNow.AddSeconds(5));
 
+        // The upload may be writing the file at the very moment it is read here (a sharing violation on Windows): try again.
+        var uploaded = Path.Combine(_serverRoot, "home", "tester", "readme.md");
+        string? Content()
+        {
+            try
+            {
+                return File.ReadAllText(uploaded);
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        }
+
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (File.ReadAllText(Path.Combine(_serverRoot, "home", "tester", "readme.md")) != "# edited" && DateTime.UtcNow < deadline)
+        while (Content() != "# edited" && DateTime.UtcNow < deadline)
         {
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
