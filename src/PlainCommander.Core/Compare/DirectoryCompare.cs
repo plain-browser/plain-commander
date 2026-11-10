@@ -100,8 +100,8 @@ public interface ICompareSide
     Task<Stream> OpenReadAsync(string relative, CancellationToken cancellationToken);
 }
 
-/// <summary>A folder on disk.</summary>
-public sealed class DiskCompareSide(string root) : ICompareSide
+/// <summary>A folder on disk. Hidden files and folders take part only when asked for (the panels show them).</summary>
+public sealed class DiskCompareSide(string root, bool includeHidden = true) : ICompareSide
 {
     private readonly string _root = ExactPath.Native(root);
 
@@ -112,6 +112,11 @@ public sealed class DiskCompareSide(string root) : ICompareSide
         {
             foreach (var info in new DirectoryInfo(Full(relative)).EnumerateFileSystemInfos("*", new EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.None }))
             {
+                if (!includeHidden && info.Attributes.HasFlag(FileAttributes.Hidden))
+                {
+                    continue; // not shown in the panels: a difference the user cannot see would be marked nowhere
+                }
+
                 list.Add(new CompareEntry(
                     info.Name,
                     info is DirectoryInfo,

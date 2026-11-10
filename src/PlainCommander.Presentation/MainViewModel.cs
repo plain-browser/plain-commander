@@ -654,7 +654,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private ICompareSide CompareSide(string path) =>
-        RemotePath.IsRemote(path) ? new RemoteCompareSide(Remote, path) : new DiskCompareSide(path);
+        RemotePath.IsRemote(path) ? new RemoteCompareSide(Remote, path) : new DiskCompareSide(path, Left.ShowHidden);
 
     private static async Task DisposeSideAsync(ICompareSide side)
     {

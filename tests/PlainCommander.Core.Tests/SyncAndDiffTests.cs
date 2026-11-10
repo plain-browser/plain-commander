@@ -73,6 +73,24 @@ public sealed class SyncAndDiffTests : IDisposable
     }
 
     [Fact]
+    public async Task Hidden_files_take_part_only_when_the_panels_show_them()
+    {
+        _s.File("L/seen.txt", "x");
+        _s.File("R/seen.txt", "x");
+        var hidden = _s.File("L/.hidden.txt", "h"); // a dot file is hidden off Windows; on Windows the attribute says so
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetAttributes(hidden, File.GetAttributes(hidden) | FileAttributes.Hidden);
+        }
+
+        var all = await DirectoryCompare.RunAsync(new DiskCompareSide(_s.P("L")), new DiskCompareSide(_s.P("R")), new CompareOptions(), token: TestContext.Current.CancellationToken);
+        var shown = await DirectoryCompare.RunAsync(new DiskCompareSide(_s.P("L"), includeHidden: false), new DiskCompareSide(_s.P("R"), includeHidden: false), new CompareOptions(), token: TestContext.Current.CancellationToken);
+
+        all.Count.Should().Be(1);
+        shown.Count.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Synchronizing_copies_both_ways_and_overwrites_without_asking()
     {
         _s.File("L/only-left.txt", "L");

@@ -83,7 +83,9 @@ public sealed record PathSegment(string Name, string FullPath)
         foreach (var name in rest.Split(sep, StringSplitOptions.RemoveEmptyEntries))
         {
             current = current.Length == 0 || current[^1] == sep ? current + name : current + sep + name;
-            segments.Add(new PathSegment(name, current));
+            // a .pce file is browsed through a temporary TAR: the crumb, the tab and the prompt show the .pce's own name
+            var shown = PlainCommander.Core.Crypto.PceBrowse.OriginOf(current) is { } pce ? pce[(pce.LastIndexOfAny(['\\', '/']) + 1)..] : name;
+            segments.Add(new PathSegment(shown, current));
         }
 
         return segments;

@@ -15,6 +15,18 @@ public sealed class PathSegmentTests
     }
 
     [Fact]
+    public void The_temporary_archive_of_an_encrypted_file_shows_the_encrypted_files_name()
+    {
+        PlainCommander.Core.Crypto.PceBrowse.Register(@"C:\temp\pce-1\notes.txt.tar", @"D:\secret\notes.txt.pce");
+
+        var segments = PathSegment.Split(@"C:\temp\pce-1\notes.txt.tar\inner");
+
+        segments.Select(s => s.Name).Should().Equal("C:", "temp", "pce-1", "notes.txt.pce", "inner");
+        segments[3].FullPath.Should().Be(@"C:\temp\pce-1\notes.txt.tar", "the crumb still leads into the archive");
+        PanelTab.TitleOf(@"C:\temp\pce-1\notes.txt.tar").Should().Be("notes.txt.pce");
+    }
+
+    [Fact]
     public void Drive_root_is_a_single_segment()
     {
         var segments = PathSegment.Split(@"D:\");

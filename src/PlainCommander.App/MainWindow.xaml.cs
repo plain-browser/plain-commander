@@ -137,8 +137,12 @@ public sealed partial class MainWindow : Window
         };
         // ... and never while a dialog is open: a row focused behind a ContentDialog takes its keyboard
         // (the login dialog after Ctrl+F lost its password typing to the panel this way)
-        LeftPanel.CanTakeFocus = () => _isForeground && !_dialogs.IsOpen;
-        RightPanel.CanTakeFocus = () => _isForeground && !_dialogs.IsOpen;
+        LeftPanel.CanTakeFocus = () => _isForeground && !_dialogs.IsOpen && !_openingWindow;
+        RightPanel.CanTakeFocus = () => _isForeground && !_dialogs.IsOpen && !_openingWindow;
+        _openingTimer = DispatcherQueue.CreateTimer();
+        _openingTimer.Interval = TimeSpan.FromSeconds(3);
+        _openingTimer.IsRepeating = false;
+        _openingTimer.Tick += (_, _) => WindowOpened(replay: false);
         foreach (var (view, panel) in new[] { (LeftPanel, ViewModel.Left), (RightPanel, ViewModel.Right) })
         {
             // Esc in the list clears the command line once there is no quick search or filter left to take off
@@ -310,6 +314,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_openingWindow)
+        {
+            if (!HeldKeys.IsExempt(e.Key, CurrentModifiers()))
+            {
+                e.Handled = true;
+                _dialogs.HeldKeys.Hold(e.Key, CurrentModifiers());
+            }
+
+            return;
+        }
+
         var replayed = _dialogs.HeldKeys.IsReplayed(e.Key);
         if (!HeldKeys.IsExempt(e.Key, CurrentModifiers()) && (IsStray(focused) || (_dialogs.HeldKeys.Any && !replayed)))
         {
@@ -398,7 +413,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ReplayStrayKeys(bool tick)
     {
-        if (!_dialogs.HeldKeys.Any || _dialogs.IsOpen)
+        if (!_dialogs.HeldKeys.Any || _dialogs.IsOpen || _openingWindow)
         {
             _strayKeyTimer.Stop();
             _heldKeyTicks = 0;
@@ -680,13 +695,55 @@ public sealed partial class MainWindow : Window
     private SettingsWindow? _settings;
     private SearchWindow? _search;
 
+    /// <summary>A window of the app is being built and shown; keys typed meanwhile are held for it.</summary>
+    private bool _openingWindow;
+
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _openingTimer;
+
+    private void WindowOpened(bool replay)
+    {
+        _openingTimer.Stop();
+        if (!_openingWindow)
+        {
+            return;
+        }
+
+        _openingWindow = false;
+        if (!replay)
+        {
+            _dialogs.HeldKeys.Clear(); // it never said it was ready: better dropped than typed somewhere else
+            if (_search is not null)
+            {
+                Helpers.WindowFront.Bring(_search);
+            }
+
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => _dialogs.HeldKeys.Replay());
+    }
+
     /// <summary>Alt+F7: one search window, starting in the active panel's folder.</summary>
     private void OpenSearch()
     {
         if (_search is null)
         {
-            _search = new SearchWindow(ViewModel, ViewModel.ActivePanel.Path);
-            _search.Closed += (_, _) => _search = null;
+            // Building the window takes a moment; a name typed straight after Alt+F7 arrived before its box had the
+            // keyboard and was lost. Such keys wait here and are typed again once the box is ready.
+            _openingWindow = true;
+            _openingTimer.Start();
+            var window = new SearchWindow(ViewModel, ViewModel.ActivePanel.Path);
+            _search = window;
+            window.Ready += (_, _) =>
+            {
+                Helpers.WindowFront.Bring(window);
+                WindowOpened(replay: true);
+            };
+            window.Closed += (_, _) => _search = null;
+            // Shown without the keyboard first: a window that is active before its content can take keys swallows
+            // them. This one stays behind the keyboard until its first layout is done, then comes to the front.
+            window.AppWindow.Show(activateWindow: false);
+            return;
         }
 
         Helpers.WindowFront.Bring(_search);

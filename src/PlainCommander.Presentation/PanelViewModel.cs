@@ -780,7 +780,20 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Leaves the results and shows the searched folder again.</summary>
-    public Task<bool> CloseResultsAsync() => NavigateAsync(Path);
+    public Task<bool> CloseResultsAsync()
+    {
+        // The cursor stays on the file it was on, or on the folder that leads to it ("sub" for "sub\deep.txt").
+        string? focus = null;
+        if (CurrentItem is { Entry.IsParentLink: false } item && !string.IsNullOrEmpty(Path)
+            && item.Entry.FullPath.Length > Path.Length + 1
+            && item.Entry.FullPath.StartsWith(Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            && item.Entry.FullPath[Path.Length] is '\\' or '/')
+        {
+            focus = item.Entry.FullPath[(Path.Length + 1)..].Split('\\', '/')[0];
+        }
+
+        return NavigateAsync(Path, focus);
+    }
 
     /// <summary>Keeps the results in step with renames done by Shift+F6 or Ctrl+M.</summary>
     public void RenameResults(IEnumerable<(string From, string To)> renames)

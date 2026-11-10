@@ -105,6 +105,24 @@ public sealed class PanelToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task Leaving_the_flat_view_keeps_the_cursor_on_the_file_or_on_the_folder_leading_to_it()
+    {
+        await OpenAsync();
+        await _vm.ToggleFlatViewAsync();
+        _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == Path.Combine("docs", "deep", "b.txt"));
+
+        await _vm.ToggleFlatViewAsync();
+
+        _vm.Left.CurrentItem!.Name.Should().Be("docs");
+
+        await _vm.ToggleFlatViewAsync();
+        _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == "notes.txt");
+        await _vm.ToggleFlatViewAsync();
+
+        _vm.Left.CurrentItem!.Name.Should().Be("notes.txt");
+    }
+
+    [Fact]
     public async Task Flat_view_lists_every_file_below_with_relative_names_and_toggles_back()
     {
         await OpenAsync();

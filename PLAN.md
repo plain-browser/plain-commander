@@ -794,8 +794,13 @@ domyślny i nie wymaga 7-Zip.
 - Pola tekstowe nie podkreślają nazw plików, ścieżek i masek jako błędów pisowni.
 - Sprawdzone w działającej aplikacji bez zarzutu: Ctrl+M, Ctrl+F, Ctrl+B, Ctrl+H, Ctrl+E, Shift+F2 z synchronizacją,
   konflikt kopiowania, karta postępu, Alt+F4 w trakcie operacji, podgląd pliku 8 GB, archiwa, linia poleceń.
-- Znane: pierwszy znak wpisany tuż po pierwszym otwarciu okna wyszukiwania może zginąć; otwarty `.pce` pokazuje się
-  jako `nazwa.tar`; porównanie folderów liczy pliki ukryte; po powrocie z Ctrl+B kursor staje na `..`.
+- Alt+F7: nazwa wpisana od razu po skrócie nie ginie. Okno aktywne przed pierwszym układem treści gubiło klawisze
+  (wszystkie przez ok. 0,3 s); teraz pokazuje się bez klawiatury, a klawisze wpisane w tym czasie główne okno
+  wstrzymuje i odtwarza, gdy pole nazwy jest gotowe.
+- Otwarty plik `.pce` pokazuje na karcie, w ścieżce i w linii poleceń własną nazwę zamiast `nazwa.tar`.
+- Porównanie folderów (Shift+F2) pomija pliki ukryte, gdy panele ich nie pokazują.
+- Powrót z listy płaskiej (Ctrl+B) i z wyników wyszukiwania zostawia kursor na pliku albo na folderze, który do niego prowadzi.
+- Menu dysków: litery działają także po otwarciu myszą i nie głuchną po odświeżeniu listy.
 
 ## 5. Skróty klawiszowe
 
