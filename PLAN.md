@@ -818,6 +818,10 @@ domyślny i nie wymaga 7-Zip.
 - Wybór dysku, na którym stoi drugi panel, otwiera folder drugiego panelu także wtedy, gdy ten panel jest już na tym dysku
   (kolejne naciśnięcie w tym samym folderze idzie do korzenia).
 
+### 1.14.6 — cyfry tabelaryczne w kolumnach rozmiaru i daty
+- Kolumny rozmiaru i daty (wszystkie układy wierszy panelu oraz wyniki wyszukiwania) mają `Typography.NumeralAlignment="Tabular"`:
+  w 1.14.5 stałą szerokość miały tylko nazwy, więc cyfry dat (wąska jedynka) nie stały pionowo pod sobą.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |

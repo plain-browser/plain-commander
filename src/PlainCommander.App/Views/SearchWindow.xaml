@@ -96,8 +96,8 @@
               <Image Width="16" Height="16" Source="{x:Bind ui:Ui.Image(Icon), Mode=OneWay}" />
               <TextBlock Grid.Column="1" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="{x:Bind ui:Ui.RowWeight(IsDirectory, IsMarked)}" />
               <TextBlock Grid.Column="2" Text="{x:Bind ui:Ui.Folder(Entry.FullPath)}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-              <TextBlock Grid.Column="3" Text="{x:Bind SizeText}" TextAlignment="Right" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <TextBlock Grid.Column="3" Typography.NumeralAlignment="Tabular" Text="{x:Bind SizeText}" TextAlignment="Right" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="4" Typography.NumeralAlignment="Tabular" Text="{x:Bind DateText}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
           </DataTemplate>
         </ListView.ItemTemplate>
