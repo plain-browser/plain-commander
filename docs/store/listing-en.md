@@ -43,7 +43,7 @@ Plain Commander is open source (Mozilla Public License 2.0).
 
 ## What's new in this version [1 500 characters]
 
-First release in the Microsoft Store. OneDrive folders on the drive bar, a clearer cursor and selection, reliable pause of operations running as administrator.
+First release in the Microsoft Store. OneDrive folders on the drive bar, a clearer cursor and selection, reliable pause of operations running as administrator, a clear app description in English and Polish.
 
 ## Product features [up to 20, 200 characters each]
 

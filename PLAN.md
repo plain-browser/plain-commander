@@ -832,6 +832,11 @@ domyślny i nie wymaga 7-Zip.
 - Sprawdzone na VM: `cd \\10.255.255.1\x` — okno reaguje przez cały czas, po 10 s komunikat w pasku stanu. Testy: `DiskTimeoutTests`.
 - Nie objęte: synchroniczne `Directory.Exists` wewnątrz operacji (kopiowanie, usuwanie).
 
+### 1.14.8 — opis aplikacji w manifeście (odpowiedź na certyfikację Sklepu)
+- Certyfikacja 2026-11-12 odrzuciła zgłoszenie 1.13.6 (10.1.4.3 Description; 10.6.3 Capabilities czeka na usunięcie pierwszego punktu).
+- `Description` w `Package.appxmanifest` było na sztywno po polsku; teraz `ms-resource:AppDescription` z `Strings/en-US` i `Strings/pl-PL`.
+- Do zrobienia ręcznie: sprawdzić w Partner Center listingi każdego języka (opis, funkcje), zbudować `build\msix-store.ps1 -Wack`, wysłać nowe zgłoszenie.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
