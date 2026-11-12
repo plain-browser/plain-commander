@@ -487,6 +487,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     public string AttributesSortGlyph => Glyph(SortColumn.Attributes);
 
+    private bool _loadTimedOut;
+
     public Task<bool> NavigateAsync(string path, string? focusName = null) => NavigateAsync(path, focusName, keepState: false);
 
     private async Task<bool> NavigateAsync(string path, string? focusName, bool keepState)
@@ -499,6 +501,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var token = cts.Token;
 
         IsLoading = true;
+        _loadTimedOut = false;
         Status = Texts.Loading;
         var watch = Stopwatch.StartNew();
         try
@@ -508,7 +511,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             var showHidden = ShowHidden;
             var filter = keepState || string.Equals(full, Path, StringComparison.Ordinal) ? Filter : null;
             var detail = Detail;
-            var (items, drive) = await Task.Run(() => LoadAsync(full, sort, detail, filter, showHidden, token), token);
+            var (items, drive) = await Core.FileSystem.DiskTimeout.WithTimeoutAsync(Task.Run(() => LoadAsync(full, sort, detail, filter, showHidden, token), token), token);
             token.ThrowIfCancellationRequested();
             items = ApplyFilter(items, filter);
             Filter = filter;
@@ -577,6 +580,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         catch (RemoteException ex) when (ex.IsCancelled)
         {
             Status = Texts.LoginCancelled;
+            return false;
+        }
+        catch (TimeoutException ex)
+        {
+            _loadTimedOut = true;
+            Log.Warning(ex, "No answer listing {Path}", path);
+            Status = Texts.NoAnswer(path);
             return false;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or ArgumentException or NotSupportedException or System.Security.SecurityException)
@@ -662,7 +672,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     /// <summary>The local folder or archive folder shown no longer exists. Servers and the network list are never "gone".</summary>
     public bool IsFolderGone =>
-        _results is null && !string.IsNullOrEmpty(Path) && !IsRemote && !IsNetworkList && !_fs.DirectoryExists(Path);
+        !_loadTimedOut && _results is null && !string.IsNullOrEmpty(Path) && !IsRemote && !IsNetworkList && !_fs.DirectoryExists(Path);
 
     /// <summary>Re-reads the folder after a command or operation; see <see cref="RefreshAsync"/>.</summary>
     public Task<bool> RefreshAfterChangeAsync(string? focusName = null) => RefreshAsync(focusName);
@@ -1072,30 +1082,30 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// panel is on the drive already, unless it is in that folder: then the root); the current drive otherwise goes to its root; another drive lands in
     /// the folder this panel last showed there, else its root.
     /// </summary>
-    public Task<bool> ChangeDriveAsync(string root)
+    public async Task<bool> ChangeDriveAsync(string root)
     {
         if (Drives.Any(d => d.IsCloud && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase)))
         {
-            return NavigateAsync(root); // OneDrive: always its top folder (the drives remember where you were)
+            return await NavigateAsync(root); // OneDrive: always its top folder (the drives remember where you were)
         }
 
         if (OtherPanelPath?.Invoke() is { Length: > 0 } other
             && !RemotePath.IsRemote(other) && !NetworkPath.IsVirtual(other) && ArchiveFileSystem.Locate(other) is null
             && string.Equals(RootKey(System.IO.Path.GetPathRoot(other) ?? string.Empty), RootKey(root), StringComparison.OrdinalIgnoreCase)
             && !string.Equals(other.TrimEnd('\\'), Path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) // already there: the next press goes to the root
-            && _fs.DirectoryExists(other))
+            && await Task.Run(() => _fs.DirectoryExists(other)))
         {
-            return NavigateAsync(other); // the other panel is on that drive: meet it in its folder
+            return await NavigateAsync(other); // the other panel is on that drive: meet it in its folder
         }
 
         if (string.Equals(CurrentRoot, root, StringComparison.OrdinalIgnoreCase))
         {
-            return NavigateAsync(root);
+            return await NavigateAsync(root);
         }
 
-        return _lastPathPerDrive.TryGetValue(RootKey(root), out var last) && _fs.DirectoryExists(last)
-            ? NavigateAsync(last)
-            : NavigateAsync(root);
+        return _lastPathPerDrive.TryGetValue(RootKey(root), out var last) && await Task.Run(() => _fs.DirectoryExists(last))
+            ? await NavigateAsync(last)
+            : await NavigateAsync(root);
     }
 
     /// <summary>"C:\" stays; a UNC root is remembered without its trailing backslash ("\\wsl.localhost\Ubuntu").</summary>

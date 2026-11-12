@@ -822,6 +822,16 @@ domyślny i nie wymaga 7-Zip.
 - Kolumny rozmiaru i daty (wszystkie układy wierszy panelu oraz wyniki wyszukiwania) mają `Typography.NumeralAlignment="Tabular"`:
   w 1.14.5 stałą szerokość miały tylko nazwy, więc cyfry dat (wąska jedynka) nie stały pionowo pod sobą.
 
+### 1.14.7 — limit 10 s dla dysków, które nie odpowiadają
+- Odłączony dysk zewnętrzny lub nieosiągalny udział nie zawiesza już programu: `Core/FileSystem/DiskTimeout` czeka na system najwyżej 10 s
+  (zawieszonego wywołania nie da się przerwać, więc zostaje na wątku roboczym).
+- Listowanie folderu po 10 s kończy się komunikatem „Dysk nie odpowiada (po 10 s)”, panel zostaje na poprzedniej liście.
+- Lista dysków pyta każdy dysk osobno: ten, który milczy, jest „niegotowy”, a reszta listy się pokazuje.
+- `LocalFileSystem.DirectoryExists` po 10 s zakłada, że folder istnieje (nieznany stan nie przenosi panelu do folderu domowego);
+  `ChangeDriveAsync` sprawdza foldery poza wątkiem interfejsu; po timeoucie nie ma ponownego sprawdzania „folder zniknął” na wątku UI.
+- Sprawdzone na VM: `cd \\10.255.255.1\x` — okno reaguje przez cały czas, po 10 s komunikat w pasku stanu. Testy: `DiskTimeoutTests`.
+- Nie objęte: synchroniczne `Directory.Exists` wewnątrz operacji (kopiowanie, usuwanie).
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |

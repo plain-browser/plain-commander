@@ -62,13 +62,27 @@ public sealed class LocalFileSystem : IFileSystem
         await producer.ConfigureAwait(false);
     }
 
-    public IReadOnlyList<DriveEntry> GetDrives() => DriveInfo.GetDrives().Select(ToDrive).ToList();
+    public IReadOnlyList<DriveEntry> GetDrives()
+    {
+        // each drive is asked on its own, so one that does not answer shows as not ready instead of freezing the list
+        var drives = DriveInfo.GetDrives();
+        var tasks = drives.Select(d => Task.Run(() => ToDrive(d))).ToArray();
+        var deadline = DateTime.UtcNow + DiskTimeout.Limit;
+        return drives.Select((d, i) =>
+        {
+            var left = deadline - DateTime.UtcNow;
+            return tasks[i].Wait(left > TimeSpan.Zero ? left : TimeSpan.Zero)
+                ? tasks[i].Result
+                : new DriveEntry(d.Name, string.Empty, d.DriveType, 0, 0, false);
+        }).ToList();
+    }
 
     public DriveEntry? GetDrive(string root)
     {
         try
         {
-            return ToDrive(new DriveInfo(root));
+            var drive = new DriveInfo(root);
+            return DiskTimeout.Run(() => ToDrive(drive), new DriveEntry(drive.Name, string.Empty, drive.DriveType, 0, 0, false));
         }
         catch (ArgumentException)
         {
@@ -76,7 +90,8 @@ public sealed class LocalFileSystem : IFileSystem
         }
     }
 
-    public bool DirectoryExists(string path) => Directory.Exists(path);
+    /// <summary>A disk that does not answer in 10 s counts as "there": it is not known to be gone, and listing it reports the timeout.</summary>
+    public bool DirectoryExists(string path) => DiskTimeout.Run(() => Directory.Exists(path), true);
 
     public IDisposable? Watch(string path, Action onChanged)
     {

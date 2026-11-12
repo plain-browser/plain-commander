@@ -503,6 +503,10 @@ internal static class Texts
         _ => ex.Message,
     });
 
+    public static string NoAnswer(string path) => Core.FileSystem.ExactPath.DisplayText(Polish
+        ? $"Dysk nie odpowiada (po 10 s): {path}"
+        : $"The disk did not respond (after 10 s): {path}");
+
     public static string CannotLaunch(string name, Exception ex) =>
         Polish ? $"Nie można otworzyć {name}: {ex.Message}" : $"Cannot open {name}: {ex.Message}";
 
