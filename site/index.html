@@ -88,13 +88,16 @@ footer a{color:var(--fg2)}
       <h1>Dwa panele. Klawiatura. Nic więcej.</h1>
       <p class="lead">Dwupanelowy menedżer plików dla Windows 11: obsługa z klawiatury, nowoczesny wygląd Fluent, szybkie operacje na dziesiątkach tysięcy plików.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.14.9-x64.msix">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          Pobierz 1.14.9 dla Windows 11 (x64)
+        <a class="btn primary" href="https://apps.microsoft.com/detail/9NJMJ1VQ1X87">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/></svg>
+          Pobierz ze Sklepu Microsoft
         </a>
-        <a class="btn secondary" href="#install">Jak zainstalować</a>
+        <a class="btn secondary" href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.14.9-x64.msix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          MSIX z GitHuba 1.14.9 (x64)
+        </a>
       </div>
-      <p class="req">Pakiet MSIX, 35 MB, zawiera własny runtime. Windows 11 22H2 lub nowszy. Wersja ARM64 w przygotowaniu.</p>
+      <p class="req">Pakiet MSIX, 35 MB, zawiera własny runtime. Windows 11 22H2 lub nowszy. Sklep instaluje wersję x64 i ARM64, bez certyfikatu.</p>
     </div>
     <div class="shot"><img src="img/main.png" alt="Okno Plain Commandera: dwa panele z listami plików, zaznaczone pozycje w kolorze akcentu, pasek klawiszy F2–F8 na dole" width="1024" height="720"></div>
   </section>
@@ -122,7 +125,7 @@ footer a{color:var(--fg2)}
 
   <section id="install">
     <h2>Instalacja</h2>
-    <p class="sub">Plain Commander jest pakietem MSIX, więc instaluje się i odinstalowuje jak aplikacja ze Sklepu. Wydanie 1.14.9 jest podpisane certyfikatem deweloperskim, który trzeba raz dodać do zaufanych.</p>
+    <p class="sub">Najprościej: <a href="https://apps.microsoft.com/detail/9NJMJ1VQ1X87">Plain Commander w Sklepie Microsoft</a> (x64 i ARM64, aktualizacje ze Sklepu, bez certyfikatu). Wersja ze Sklepu nie ma przycisku „Jako administrator”, bo Sklep nie dopuszcza uprawnienia <code>allowElevation</code>. Poniżej wersja z GitHuba: pakiet MSIX podpisany certyfikatem deweloperskim, który trzeba raz dodać do zaufanych.</p>
     <ol class="steps">
       <li><h3>Pobierz dwa pliki</h3><p><a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.14.9-x64.msix">PlainCommander-1.14.9-x64.msix</a> oraz certyfikat <a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-dev.cer">PlainCommander-dev.cer</a>.</p></li>
       <li><h3>Zaufaj certyfikatowi (raz, jako administrator)</h3><p>Kliknij plik <code>.cer</code> prawym przyciskiem → Zainstaluj certyfikat → Komputer lokalny → magazyn „Zaufane osoby”. Albo w podniesionym PowerShellu:</p>

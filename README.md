@@ -18,8 +18,8 @@ the last file operation with `Ctrl+Z`.
 
 ![Plain Commander: two panels, marked files, drive buttons with OneDrive, an encrypted .pce container in violet](docs/screenshot-main.png)
 
-> **Status:** the application is in active development (current release: 1.14.x). It is usable every day, but it is
-> not signed with a publicly trusted certificate yet; see [Installation](#installation).
+> **Status:** the application is in active development (current release: 1.14.x). It is usable every day. Install it from the
+> [Microsoft Store](https://apps.microsoft.com/detail/9NJMJ1VQ1X87), or from GitHub with a developer certificate; see [Installation](#installation).
 
 ---
 
@@ -265,8 +265,14 @@ Every command is in the menus too (`F2` or the menu bar); `F1` shows this list i
 
 ## Installation
 
-Requirements: **Windows 11 (22H2 or later), x64.** The package contains .NET and the Windows App SDK runtime; nothing
+Requirements: **Windows 11 (22H2 or later), x64 or ARM64.** The package contains .NET and the Windows App SDK runtime; nothing
 else needs to be installed.
+
+**Easiest: [get Plain Commander from the Microsoft Store](https://apps.microsoft.com/detail/9NJMJ1VQ1X87)** (x64 and ARM64, updates through the Store, no
+certificate to trust). The Store version has no *As administrator* button, because the Store does not allow the
+`allowElevation` capability; everything else is the same.
+
+**From GitHub** (x64, with *As administrator*):
 
 1. Download `PlainCommander-<version>-x64.msix` and `PlainCommander-dev.cer` from the
    [latest release](https://github.com/plain-browser/plain-commander/releases/latest).
