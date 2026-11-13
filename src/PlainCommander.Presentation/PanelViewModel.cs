@@ -382,6 +382,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<DriveItem> Drives { get; } = [];
 
+    // The drive list is rebuilt while the panel navigates (both start together); without a UI thread (tests) that is a real race.
+    private readonly object _drivesLock = new();
+
     public const int HistoryLimit = 30;
 
     private readonly List<string> _history = [];
@@ -1051,20 +1054,23 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var drives = await Task.Run(_fs.GetDrives);
         var cloud = CloudProvider is { } provider ? await Task.Run(provider) : [];
         var wsl = WslProvider is { } wslProvider ? await Task.Run(wslProvider) : [];
-        Drives.Clear();
-        foreach (var d in drives)
+        lock (_drivesLock)
         {
-            Drives.Add(new DriveItem(d));
-        }
+            Drives.Clear();
+            foreach (var d in drives)
+            {
+                Drives.Add(new DriveItem(d));
+            }
 
-        foreach (var c in cloud)
-        {
-            Drives.Add(new DriveItem(new DriveEntry(c.Path, c.Name, DriveType.Fixed, 0, 0, true, c.Name)));
-        }
+            foreach (var c in cloud)
+            {
+                Drives.Add(new DriveItem(new DriveEntry(c.Path, c.Name, DriveType.Fixed, 0, 0, true, c.Name)));
+            }
 
-        foreach (var distro in wsl)
-        {
-            Drives.Add(new DriveItem(new DriveEntry(WslDistros.Root(distro), distro, DriveType.Network, 0, 0, true)));
+            foreach (var distro in wsl)
+            {
+                Drives.Add(new DriveItem(new DriveEntry(WslDistros.Root(distro), distro, DriveType.Network, 0, 0, true)));
+            }
         }
 
         MarkCurrentDrive();
@@ -1684,16 +1690,19 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void MarkCurrentDrive()
     {
         var root = CurrentRoot;
-        // inside a OneDrive folder that button is the current one (not also the drive holding it)
-        var cloud = Drives.Where(d => d.IsCloud && IsInside(Path, d.Root)).OrderByDescending(static d => d.Root.Length).FirstOrDefault();
-        var distro = WslDistros.DistroOf(Path);
-        foreach (var d in Drives)
+        lock (_drivesLock)
         {
-            d.IsCurrent = cloud is not null
-                ? ReferenceEquals(d, cloud)
-                : d.IsWsl
-                    ? distro is not null && string.Equals(WslDistros.DistroOf(d.Root), distro, StringComparison.OrdinalIgnoreCase)
-                    : !d.IsCloud && root is not null && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase);
+            // inside a OneDrive folder that button is the current one (not also the drive holding it)
+            var cloud = Drives.Where(d => d.IsCloud && IsInside(Path, d.Root)).OrderByDescending(static d => d.Root.Length).FirstOrDefault();
+            var distro = WslDistros.DistroOf(Path);
+            foreach (var d in Drives)
+            {
+                d.IsCurrent = cloud is not null
+                    ? ReferenceEquals(d, cloud)
+                    : d.IsWsl
+                        ? distro is not null && string.Equals(WslDistros.DistroOf(d.Root), distro, StringComparison.OrdinalIgnoreCase)
+                        : !d.IsCloud && root is not null && string.Equals(d.Root, root, StringComparison.OrdinalIgnoreCase);
+            }
         }
     }
 
