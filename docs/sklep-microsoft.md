@@ -51,19 +51,15 @@ Zakładki od góry do dołu; w nawiasach, co wybrać dla Plain Commandera.
     Plain Commander is a dual-pane file manager (full-trust desktop app, WinUI 3, .NET, self-contained).
     runFullTrust: the app manages files on local disks, network shares and removable drives, calls shell
     APIs (IFileOperation, context menus, Recycle Bin) and opens files with their default programs.
-    allowElevation: when an operation hits "access denied" (for example a protected folder), the app offers
-    a button "As administrator". It then starts its own executable elevated (UAC prompt) as a helper for that
-    one operation only; the helper exits when the operation finishes. No service is installed.
     The app has no telemetry and no account; it connects only to servers the user enters (FTP/SFTP/S3).
     Nothing to log in to; all features are available without configuration. Test data: any folder; archives
     can be created from the Files menu (Pack). Languages: English and Polish (follows the Windows language).
 
 ### Uprawnienia zastrzeżone
 
-Pakiet deklaruje `runFullTrust` i `allowElevation`. Oba są dozwolone w Sklepie dla aplikacji desktopowych; przy
-pierwszym zgłoszeniu zespół certyfikacji może poprosić o uzasadnienie (powyżej). Jeśli `allowElevation` zostałoby
-odrzucone, przycisk „Jako administrator” przestaje działać w wersji ze Sklepu i trzeba go ukryć; nie usuwać
-uprawnienia na zapas.
+Pakiet ze Sklepu deklaruje tylko `runFullTrust`. `allowElevation` certyfikacja odrzuciła (2026-11-13), więc `build\msix-store.ps1`
+usuwa je z kopii manifestu i dokłada plik `no-elevation.flag`, po którym aplikacja nie oferuje „Jako administrator”.
+Pakiet deweloperski (GitHub) zachowuje `allowElevation`. Z „Notes for certification” usunąć akapit o `allowElevation`.
 
 ## 4. Po publikacji
 

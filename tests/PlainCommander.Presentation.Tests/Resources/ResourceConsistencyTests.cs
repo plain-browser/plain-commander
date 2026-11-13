@@ -126,6 +126,9 @@ public sealed partial class ResourceConsistencyTests
     {
         var code = string.Concat(Files("*.cs").Concat(Files("*.xaml")).Select(File.ReadAllText));
         var uids = Files("*.xaml").SelectMany(f => XUid().Matches(File.ReadAllText(f)).Select(m => m.Groups[1].Value)).ToHashSet(StringComparer.Ordinal);
+        // The manifest shows some strings itself (ms-resource:Name), e.g. the app description in the Store and Start menu.
+        var manifest = File.ReadAllText(Path.Combine(AppDir, "Package.appxmanifest"));
+        uids.UnionWith(Regex.Matches(manifest, "ms-resource:([A-Za-z0-9_.]+)").Select(m => m.Groups[1].Value));
         var composed = Enum.GetNames<FilterDatePreset>().Select(p => "Flt_Date" + p).ToHashSet(StringComparer.Ordinal);
         var unused = BaseNames
             .Where(k => !uids.Contains(k) && !composed.Contains(k) && !k.StartsWith("FKey_", StringComparison.Ordinal))

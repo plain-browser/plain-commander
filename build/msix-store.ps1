@@ -18,6 +18,9 @@ $xml = [xml](Get-Content $source -Raw)
 $xml.Package.Identity.Name = [string]$id.Name
 $xml.Package.Identity.Publisher = [string]$id.Publisher
 $xml.Package.Properties.PublisherDisplayName = [string]$id.PublisherDisplayName
+# The Store denied allowElevation (certification 2026-11-13): the Store package goes without it, and the app hides "As administrator".
+$elevation = $xml.Package.Capabilities.ChildNodes | Where-Object { $_.LocalName -eq 'Capability' -and $_.GetAttribute('Name') -eq 'allowElevation' }
+if ($elevation) { [void]$xml.Package.Capabilities.RemoveChild($elevation) }
 $version = $xml.Package.Identity.Version
 if ($version -notmatch '\.0$') { throw "Package version $version must end with .0 for the Store" }
 $storeDir = "$PSScriptRoot\out\store"; New-Item -ItemType Directory -Force $storeDir | Out-Null
@@ -27,7 +30,7 @@ Write-Host "Store identity: $($id.Name) / $($id.Publisher) / $($id.PublisherDisp
 $packages = @()
 foreach ($platform in $Platforms) {
   $outDir = "$storeDir\$platform\"
-  dotnet build "$root\src\PlainCommander.App" -c $Configuration -p:Platform=$platform -p:Packaged=true `
+  dotnet build "$root\src\PlainCommander.App" -c $Configuration -p:Platform=$platform -p:Packaged=true -p:StoreNoElevation=true `
     -p:AppxManifestPath=$manifest -p:AppxPackageDir=$outDir -p:GenerateAppxPackageOnBuild=true `
     -p:AppxPackageSigningEnabled=false -nologo -v q
   if ($LASTEXITCODE -ne 0) { throw "build failed ($platform)" }

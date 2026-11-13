@@ -51,7 +51,7 @@ public partial class App : Application
                 sp.GetRequiredService<IRecycleBin>(),
                 sp.GetRequiredService<IIconProvider>(),
                 new RemoteSetup(dialogs, Secrets),
-                ElevationService.IsAdministrator ? null : Elevation,
+                ElevationService.IsAdministrator || ElevationService.IsDisabled ? null : Elevation,
                 new ClipboardService(),
                 new PlainCommander.Core.Details.WindowsFileDetails(),
                 new DiskImages(OwnerWindow),

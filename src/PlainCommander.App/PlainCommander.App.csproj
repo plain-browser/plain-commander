@@ -54,6 +54,8 @@
     <Content Include="..\..\third_party\7-Zip\arm64\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(RuntimeIdentifier)' == 'win-arm64'" />
     <Content Include="..\..\third_party\7-Zip\x64\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" />
     <Content Include="..\..\third_party\7-Zip\License.txt" Link="7-Zip-License.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Store package: allowElevation was denied, so the app must not offer "As administrator" (see ElevationService.IsDisabled). -->
+    <Content Include="no-elevation.flag" CopyToOutputDirectory="PreserveNewest" Condition="'$(StoreNoElevation)' == 'true'" />
     <!-- build\msix-store.ps1 points AppxManifestPath at a copy of the manifest carrying the Microsoft Store identity. -->
     <AppxManifest Include="$(AppxManifestPath)" Condition="'$(Packaged)' == 'true'">
       <SubType>Designer</SubType>

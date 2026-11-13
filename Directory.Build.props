@@ -7,7 +7,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <Version>1.14.8</Version>
+    <Version>1.14.9</Version>
     <Authors>Plain Commander contributors</Authors>
     <Product>Plain Commander</Product>
     <Copyright>© 2026 Plain Commander contributors</Copyright>

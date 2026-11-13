@@ -837,6 +837,12 @@ domyślny i nie wymaga 7-Zip.
 - `Description` w `Package.appxmanifest` było na sztywno po polsku; teraz `ms-resource:AppDescription` z `Strings/en-US` i `Strings/pl-PL`.
 - Do zrobienia ręcznie: sprawdzić w Partner Center listingi każdego języka (opis, funkcje), zbudować `build\msix-store.ps1 -Wack`, wysłać nowe zgłoszenie.
 
+### 1.14.9 — pakiet ze Sklepu bez allowElevation
+- Certyfikacja 2026-11-13 (zgłoszenie z 1.14.8): `allowElevation` odrzucone (10.6.3), 10.1.4.3 Description nadal zgłaszane bez wskazania języka.
+- `build\msix-store.ps1` usuwa `allowElevation` z kopii manifestu i buduje z `-p:StoreNoElevation=true`, co dokłada do pakietu plik
+  `no-elevation.flag`; `ElevationService.IsDisabled` (plik obok exe) ukrywa „Jako administrator” (`MainViewModel` dostaje `elevation = null`).
+- Pakiet deweloperski z GitHuba bez zmian (ma `allowElevation`, przycisk działa). `runFullTrust` zostaje.
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |

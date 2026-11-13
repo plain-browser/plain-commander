@@ -30,6 +30,12 @@ internal sealed partial class ElevationService : IElevation, IAsyncDisposable
     /// <summary>The app itself already runs as administrator: nothing to offer.</summary>
     public static bool IsAdministrator => Environment.IsPrivilegedProcess;
 
+    /// <summary>
+    /// The Microsoft Store refused <c>allowElevation</c>, so the Store package is built without it and carries this
+    /// marker file (build\msix-store.ps1): there "As administrator" is not offered, since it would fail.
+    /// </summary>
+    public static bool IsDisabled { get; } = File.Exists(Path.Combine(AppContext.BaseDirectory, "no-elevation.flag"));
+
     public async Task<ElevationClient> ConnectAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
