@@ -61,6 +61,12 @@ Pakiet ze Sklepu deklaruje tylko `runFullTrust`. `allowElevation` certyfikacja o
 usuwa je z kopii manifestu i dokłada plik `no-elevation.flag`, po którym aplikacja nie oferuje „Jako administrator”.
 Pakiet deweloperski (GitHub) zachowuje `allowElevation`. Z „Notes for certification” usunąć akapit o `allowElevation`.
 
+### Języki w Sklepie
+
+W Sklepie jest wyłącznie listing angielski (en-US); `docs/store/listing-pl.md` nie jest tam używany. Partner Center wymaga
+listingu dla każdego języka wykrytego w pakiecie, więc jeśli wymaga też polskiego, trzeba go uzupełnić albo ograniczyć
+języki pakietu do en-US.
+
 ## 4. Po publikacji
 
 - Link do Sklepu ma postać `https://apps.microsoft.com/detail/<ProductId>` (ProductId z Product identity);
