@@ -1,12 +1,14 @@
 # Microsoft Store listing — English (en-US)
 
-Paste into Partner Center → Store listings → English. Field limits are given in brackets.
+Paste into Partner Center → Store listings → English. Copy only the text under each heading, never the headings or the italic notes (a pasted heading was once flagged as placeholder text).
 
 ## Product name (reserved in Partner Center)
 
 Plain Commander
 
-## Description [10 000 characters]
+## Description
+
+_(Partner Center field limit: 10 000 characters. This line and the heading are not part of the text.)_
 
 A fast, keyboard-first, dual-pane file manager for Windows 11.
 
@@ -41,11 +43,15 @@ No telemetry, no analytics, no update checks, no background services. The progra
 
 Plain Commander is open source (Mozilla Public License 2.0).
 
-## What's new in this version [1 500 characters]
+## What's new in this version
+
+_(Partner Center field limit: 1 500 characters. This line and the heading are not part of the text.)_
 
 First release in the Microsoft Store. A clear description in English and Polish, OneDrive folders on the drive bar, a clearer cursor and selection.
 
-## Product features [up to 20, 200 characters each]
+## Product features
+
+_(Partner Center field limit: up to 20, 200 characters each. This line and the heading are not part of the text.)_
 
 - Two panels with tabs, drive buttons, favorites, history and quick search; every action on a key
 - Background operation queue with progress, pause, per-file conflict choices and retry
@@ -60,11 +66,15 @@ First release in the Microsoft Store. A clear description in English and Polish,
 - Lists 100,000 files in about half a second; no telemetry, no background services
 - Light and dark theme, English and Polish
 
-## Search terms [up to 7, 30 characters each, 21 words in total]
+## Search terms
+
+_(Partner Center field limit: up to 7, 30 characters each, 21 words in total. This line and the heading are not part of the text.)_
 
 file manager; dual pane; two panel; commander; ftp sftp client; archive 7z zip rar; file encryption
 
-## Copyright and trademark info [200 characters]
+## Copyright and trademark info
+
+_(Partner Center field limit: 200 characters. This line and the heading are not part of the text.)_
 
 © 2026 Plain Commander contributors. Mozilla Public License 2.0. Contains 7-Zip (LGPL) by Igor Pavlov.
 

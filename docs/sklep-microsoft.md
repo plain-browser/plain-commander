@@ -77,3 +77,9 @@ języki pakietu do en-US.
   i cena przenoszą się z poprzedniego zgłoszenia.
 - Automatyzację (GitHub Actions z `microsoft/setup-msstore-cli` i `msstore publish`) rozważyć po kilku ręcznych
   wydaniach; wymaga Azure AD i klucza API w sekretach repozytorium.
+
+### Pułapka: tekst zastępczy w listingu
+
+Zgłoszenie z 2026-11-13 odrzucono (10.1.4.3 Description, „Placeholder text: [1 500 characters]”): do pola Description trafił nagłówek
+„What's new in this version [1 500 characters]” z pliku listingu. Kopiować wyłącznie tekst pod nagłówkami; przed wysłaniem przewinąć
+pole Description na sam dół i sprawdzić, czy kończy się zdaniem o licencji MPL.

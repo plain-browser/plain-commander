@@ -1,12 +1,14 @@
 # Opis w Microsoft Store — polski (pl-PL)
 
-Do wklejenia w Partner Center → Store listings → Polish. Limity pól w nawiasach.
+Do wklejenia w Partner Center → Store listings → Polish. Kopiuj tylko tekst pod nagłówkami, nigdy nagłówków ani kursywnych uwag.
 
 ## Nazwa produktu
 
 Plain Commander
 
-## Opis [10 000 znaków]
+## Opis
+
+_(Partner Center field limit: 10 000 znaków. This line and the heading are not part of the text.)_
 
 Szybki, dwupanelowy menedżer plików dla Windows 11, obsługiwany z klawiatury.
 
@@ -41,11 +43,15 @@ Bez telemetrii, bez analityki, bez sprawdzania aktualizacji, bez usług w tle. P
 
 Plain Commander jest oprogramowaniem otwartym (Mozilla Public License 2.0).
 
-## Co nowego w tej wersji [1 500 znaków]
+## Co nowego w tej wersji
+
+_(Partner Center field limit: 1 500 znaków. This line and the heading are not part of the text.)_
 
 Pierwsze wydanie w Microsoft Store. Foldery OneDrive na pasku dysków, wyraźniejszy kursor i zaznaczenie, niezawodna pauza operacji uruchomionych jako administrator.
 
-## Funkcje produktu [do 20, po 200 znaków]
+## Funkcje produktu
+
+_(Partner Center field limit: do 20, po 200 znaków. This line and the heading are not part of the text.)_
 
 - Dwa panele z kartami, przyciski dysków, ulubione, historia i szybkie szukanie; każda czynność pod klawiszem
 - Kolejka operacji w tle z postępem, pauzą, decyzjami o konfliktach dla każdego pliku i ponawianiem
@@ -60,11 +66,15 @@ Pierwsze wydanie w Microsoft Store. Foldery OneDrive na pasku dysków, wyraźnie
 - 100 000 plików w około pół sekundy; bez telemetrii, bez usług w tle
 - Motyw jasny i ciemny, język polski i angielski
 
-## Słowa kluczowe [do 7, po 30 znaków, łącznie 21 słów]
+## Słowa kluczowe
+
+_(Partner Center field limit: do 7, po 30 znaków, łącznie 21 słów. This line and the heading are not part of the text.)_
 
 menedżer plików; dwa panele; commander; klient ftp sftp; archiwa 7z zip rar; szyfrowanie plików; eksplorator
 
-## Prawa autorskie [200 znaków]
+## Prawa autorskie
+
+_(Partner Center field limit: 200 znaków. This line and the heading are not part of the text.)_
 
 © 2026 współtwórcy Plain Commander. Mozilla Public License 2.0. Zawiera 7-Zip (LGPL) Igora Pavlova.
 
