@@ -1,0 +1,108 @@
+# Builds the Microsoft Store packages and, after a manual approval of the "store" environment, sends them to
+# Partner Center (build/store-submit.ps1). Starts on a version tag (v1.2.3) or by hand from the Actions tab.
+# Setup: docs/sklep-microsoft.md, section "Automatyczne zgłoszenie".
+name: store
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: Send the packages to the Store (waits for approval)
+        type: boolean
+        default: false
+      draft:
+        description: Leave the submission as a draft in Partner Center (no certification)
+        type: boolean
+        default: false
+      replace_pending:
+        description: Delete a submission that is still open in Partner Center
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: store
+env:
+  STORE_PRODUCT_ID: 9NJMJ1VQ1X87
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/PlainCommander.App/Package.appxmanifest -Raw)).Package.Identity.Version -replace '\.0$', ''
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match the package version $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Store identity
+        shell: pwsh
+        env:
+          STORE_IDENTITY: ${{ vars.STORE_IDENTITY }}
+        run: |
+          if (-not $env:STORE_IDENTITY) { throw 'Repository variable STORE_IDENTITY is not set (content of build/store-identity.json)' }
+          Set-Content build/store-identity.json $env:STORE_IDENTITY -Encoding utf8
+      - name: Tests
+        shell: pwsh
+        run: |
+          dotnet test --project tests/PlainCommander.Core.Tests -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw 'Core tests failed' }
+          dotnet test --project tests/PlainCommander.Presentation.Tests -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw 'Presentation tests failed' }
+      - name: Packages
+        shell: pwsh
+        run: ./build/msix-store.ps1
+      - name: Windows App Certification Kit (x64)
+        shell: pwsh
+        run: |
+          $appcert = "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\appcert.exe"
+          $package = (Get-Item build/out/store/*-x64-store.msix).FullName
+          $report = [IO.Path]::ChangeExtension($package, '.wack.xml')
+          & $appcert reset | Out-Null
+          & $appcert test -appxpackagepath $package -reportoutputpath $report
+          $result = ([xml](Get-Content $report -Raw)).REPORT.OVERALL_RESULT
+          "Windows App Certification Kit (x64): **$result**" >> $env:GITHUB_STEP_SUMMARY
+          if ($result -notmatch '^(PASS|WARNING)$') { throw "WACK result: $result" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: store-packages
+          path: |
+            build/out/store/*-store.msix
+            build/out/store/*.wack.xml
+          compression-level: 0
+          retention-days: 30
+  submit:
+    needs: build
+    if: github.event_name == 'push' || inputs.submit
+    runs-on: ubuntu-latest
+    environment:
+      name: store
+      url: https://apps.microsoft.com/detail/9NJMJ1VQ1X87
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: store-packages
+          path: packages
+      - name: Send to Partner Center
+        shell: pwsh
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: |
+          $packages = (Get-ChildItem packages -Filter *-store.msix).FullName
+          ./build/store-submit.ps1 -ProductId $env:STORE_PRODUCT_ID -Packages $packages `
+            -ReleaseNotesFile docs/store/whats-new-en.txt `
+            -NoCommit:$${{ inputs.draft == true }} -ReplacePending:$${{ inputs.replace_pending == true }}
+          "Version ${{ needs.build.outputs.version }} sent to Partner Center." >> $env:GITHUB_STEP_SUMMARY

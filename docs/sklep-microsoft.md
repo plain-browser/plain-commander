@@ -75,11 +75,37 @@ języki pakietu do en-US.
   sposób instalacji; instrukcję z certyfikatem deweloperskim zostawić jako alternatywę.
 - Aktualizacja = krok 2 (wyższa wersja) i nowe zgłoszenie z nowymi pakietami i tekstem „What's new”. Teksty listingu
   i cena przenoszą się z poprzedniego zgłoszenia.
-- Automatyzację (GitHub Actions z `microsoft/setup-msstore-cli` i `msstore publish`) rozważyć po kilku ręcznych
-  wydaniach; wymaga Azure AD i klucza API w sekretach repozytorium.
+- Automatyczne zgłoszenie: sekcja 5.
 
 ### Pułapka: tekst zastępczy w listingu
 
 Zgłoszenie z 2026-11-13 odrzucono (10.1.4.3 Description, „Placeholder text: [1 500 characters]”): do pola Description trafił nagłówek
 „What's new in this version [1 500 characters]” z pliku listingu. Kopiować wyłącznie tekst pod nagłówkami; przed wysłaniem przewinąć
 pole Description na sam dół i sprawdzić, czy kończy się zdaniem o licencji MPL.
+
+## 5. Automatyczne zgłoszenie (GitHub Actions)
+
+Workflow `.github/workflows/store.yml` buduje pakiety Sklepu na maszynie GitHuba, uruchamia testy i Windows App Certification
+Kit (x64), a potem czeka na ręczne zatwierdzenie środowiska `store`. Po zatwierdzeniu `build/store-submit.ps1` tworzy zgłoszenie
+przez API Partner Center (kopia ostatniego opublikowanego: listing, cena i notatki zostają), podmienia pakiety, wpisuje
+„What's new” z `docs/store/whats-new-en.txt` i wysyła do certyfikacji.
+
+**Wydanie:** podnieść wersję, zaktualizować `docs/store/whats-new-en.txt` (do 1 500 znaków, sam tekst), wypchnąć tag `v<wersja>`
+(musi zgadzać się z wersją w `Package.appxmanifest`). W zakładce Actions przebieg `store` zatrzyma się na „Review deployments” →
+**Approve and deploy**. Ręcznie: Actions → store → Run workflow (pole „Send the packages to the Store”; „draft” zostawia zgłoszenie
+jako szkic w Partner Center, „replace_pending” usuwa zgłoszenie, które tam jeszcze wisi).
+
+**Jednorazowa konfiguracja:**
+
+1. Partner Center → Account settings → **Tenants**: powiązać albo utworzyć dzierżawę Microsoft Entra ID.
+2. [entra.microsoft.com](https://entra.microsoft.com) → App registrations → **New registration** (np. „plain-commander-store”);
+   zapisać *Application (client) ID* i *Directory (tenant) ID*; Certificates & secrets → **New client secret** → skopiować wartość
+   (widać ją tylko raz; ma termin ważności, po nim trzeba wpisać nową).
+3. Partner Center → Account settings → User management → **Microsoft Entra applications** → Add → wybrać tę aplikację, rola **Manager**.
+4. GitHub → Settings → Environments → `store` → Environment secrets: `STORE_TENANT_ID`, `STORE_CLIENT_ID`, `STORE_CLIENT_SECRET`.
+   Środowisko ma wymaganego recenzenta i przyjmuje tylko gałąź `main` i tagi `v*`.
+5. Zmienna repozytorium `STORE_IDENTITY` zawiera treść `build/store-identity.json` (tożsamość pakietu; jawna w każdym pakiecie).
+
+Ograniczenia: API działa tylko dla aplikacji już opublikowanej; zmiana opisu i zrzutów nadal w Partner Center; zgłoszenie otwarte
+ręcznie w Partner Center blokuje wysyłkę (usunąć je tam albo użyć „replace_pending”). Pakiet ARM64 nie przechodzi WACK w workflow
+(maszyna x64).

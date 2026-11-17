@@ -1,0 +1,1 @@
+Command palette (Ctrl+Shift+P): type a few letters to find and run any command. Reopen a closed tab with Ctrl+Shift+T. Name masks in copy and move (F5/F6): a target such as *.bak or old_*.* renames the files on the way.
