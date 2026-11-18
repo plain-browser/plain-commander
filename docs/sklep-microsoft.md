@@ -109,3 +109,14 @@ jako szkic w Partner Center, „replace_pending” usuwa zgłoszenie, które tam
 Ograniczenia: API działa tylko dla aplikacji już opublikowanej; zmiana opisu i zrzutów nadal w Partner Center; zgłoszenie otwarte
 ręcznie w Partner Center blokuje wysyłkę (usunąć je tam albo użyć „replace_pending”). Pakiet ARM64 nie przechodzi WACK w workflow
 (maszyna x64).
+
+### Zabezpieczenia potoku
+
+- Sekrety Partner Center są tylko w środowisku `store` (wymagane zatwierdzenie, tylko `main` i tagi `v*`); budowanie ich nie widzi.
+- Workflow odrzuca commit, którego nie ma na `main` (tag może wskazywać cokolwiek). Reguły repozytorium: tagów `v*` nie można
+  przesunąć ani usunąć, gałęzi `main` nie można usunąć ani nadpisać (force-push).
+- Akcje są przypięte do SHA commita (komentarz obok podaje wersję); przy aktualizacji zmienić SHA i komentarz razem.
+- `packages.lock.json` w każdym projekcie przypina pakiety NuGet (także przechodnie) wersją i skrótem; na GitHubie przywracanie
+  działa w trybie zablokowanym (`RestoreLockedMode` w `Directory.Build.props`). Po zmianie w `Directory.Packages.props` uruchomić
+  `dotnet restore -p:Platform=x64` na Windows (projekt App przywraca się tylko tam) i scommitować zmienione pliki blokady.
+- Do zrobienia po stronie konta: rola Developer zamiast Manager dla aplikacji Entra, 2FA wymagane w organizacji GitHub.
