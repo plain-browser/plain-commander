@@ -7,6 +7,9 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- packages.lock.json pins every package (also transitive) by version and hash; CI refuses anything else. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(GITHUB_ACTIONS)' == 'true'">true</RestoreLockedMode>
     <Version>1.14.9</Version>
     <Authors>Plain Commander contributors</Authors>
     <Product>Plain Commander</Product>
