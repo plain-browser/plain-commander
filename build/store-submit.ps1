@@ -32,7 +32,10 @@ function Invoke-Store([string]$Method, [string]$Path, $Body) {
     $arguments.Body = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 100 -Compress))
     $arguments.ContentType = 'application/json; charset=utf-8'
   }
-  elseif ($Method -eq 'Post') { $arguments.Headers = $headers + @{ 'Content-Length' = '0' } }
+  elseif ($Method -eq 'Post') {
+    # The API refuses a POST without a JSON media type, even when there is nothing to send.
+    $arguments.Body = [byte[]]::new(0); $arguments.ContentType = 'application/json'
+  }
   try { Invoke-RestMethod @arguments }
   catch { throw "$Method $Path failed: $($_.Exception.Message) $($_.ErrorDetails.Message)" }
 }
