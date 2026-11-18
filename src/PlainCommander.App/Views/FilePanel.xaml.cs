@@ -280,6 +280,32 @@ public sealed partial class FilePanel : UserControl
         FocusRow(index);
     }
 
+    private bool _focusDeferred;
+
+    /// <summary>
+    /// A row focus that was refused (a dialog still closing, the window not in front yet) is done now. Without it the
+    /// list was rebuilt after F8 while the confirmation was closing and the cursor frame never came back.
+    /// </summary>
+    public void RetryDeferredFocus()
+    {
+        if (!_focusDeferred)
+        {
+            return;
+        }
+
+        if (ViewModel?.IsActive != true)
+        {
+            _focusDeferred = false;
+            return;
+        }
+
+        if (CanTakeFocus?.Invoke() != false)
+        {
+            _focusDeferred = false;
+            FocusList();
+        }
+    }
+
     /// <summary>Focus back on the row at once when it exists (no visible flash elsewhere), the usual way otherwise.</summary>
     public void FocusListNow()
     {
@@ -1014,7 +1040,8 @@ public sealed partial class FilePanel : UserControl
         {
             if (CanTakeFocus?.Invoke() == false)
             {
-                Log.Verbose("{Panel} FocusRow {Index}: cannot take focus now", Name, index);
+                Log.Verbose("{Panel} FocusRow {Index}: cannot take focus now, deferred", Name, index);
+                _focusDeferred = true; // RetryDeferredFocus runs when the dialog closes or the window comes back
                 return; // focusing a row would pull the main window over the viewer, search or rename window
             }
 
@@ -1023,6 +1050,7 @@ public sealed partial class FilePanel : UserControl
                 List.UpdateLayout(); // rows of a list that was just replaced (rename, refresh) are built by a layout pass
             }
 
+            _focusDeferred = false;
             if (List.ContainerFromIndex(index) is ListViewItem row)
             {
                 var ok = row.Focus(FocusState.Keyboard);
@@ -1051,6 +1079,10 @@ public sealed partial class FilePanel : UserControl
             if (CanTakeFocus?.Invoke() != false && ViewModel?.IsActive == true && ViewModel.CurrentIndex == index)
             {
                 row.Focus(FocusState.Keyboard);
+            }
+            else if (ViewModel?.IsActive == true && ViewModel.CurrentIndex == index)
+            {
+                _focusDeferred = true;
             }
         }
 

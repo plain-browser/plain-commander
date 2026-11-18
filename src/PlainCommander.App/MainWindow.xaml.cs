@@ -113,7 +113,15 @@ public sealed partial class MainWindow : Window
         RightPanel.ViewOptionRequested += (_, option) => ToggleViewOption(option);
         AppWindow.Closing += OnAppWindowClosing;
         _dialogs.CanReplayKeys = () => _isForeground;
-        _dialogs.AllClosed += (_, _) => ReplayKeysAfterDialog();
+        _dialogs.AllClosed += (_, _) =>
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                LeftPanel.RetryDeferredFocus();
+                RightPanel.RetryDeferredFocus();
+            });
+            ReplayKeysAfterDialog();
+        };
         _strayKeyTimer = DispatcherQueue.CreateTimer();
         _strayKeyTimer.Interval = TimeSpan.FromMilliseconds(150);
         _strayKeyTimer.IsRepeating = false;
@@ -129,6 +137,12 @@ public sealed partial class MainWindow : Window
         Activated += (_, e) =>
         {
             _isForeground = e.WindowActivationState != WindowActivationState.Deactivated;
+            if (_isForeground)
+            {
+                LeftPanel.RetryDeferredFocus();
+                RightPanel.RetryDeferredFocus();
+            }
+
             if (_isForeground && Content.XamlRoot is { } root && !_dialogs.IsOpen && NeedsRowFocus(FocusManager.GetFocusedElement(root)))
             {
                 Serilog.Log.Debug("Window activated with focus on {Source}; focusing the active panel's row", FocusManager.GetFocusedElement(root)?.GetType().Name ?? "nothing");
