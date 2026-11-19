@@ -250,6 +250,17 @@
   <data name="Upg_Question" xml:space="preserve"><value>“{0}” comes from an earlier version and can only be read as it is. Rewrite it in the current layout, in which files are added and deleted in place?</value></data>
   <data name="Upg_Note" xml:space="preserve"><value>The content and the password stay the same. The file is written anew (this takes as long as encrypting it), and Plain Commander versions before 1.15 will no longer open it.</value></data>
   <data name="Upg_Button" xml:space="preserve"><value>Rewrite</value></data>
+  <data name="S3Pce_Title" xml:space="preserve"><value>Copy the .pce file to the server</value></data>
+  <data name="S3Pce_Question" xml:space="preserve"><value>How should “{0}” be kept on the server?</value></data>
+  <data name="S3Pce_QuestionMany" xml:space="preserve"><value>How should the {0} .pce files be kept on the server?</value></data>
+  <data name="S3Pce_ContainerHint" xml:space="preserve"><value>As a container: a folder of encrypted parts. Its files can be listed, added, deleted and fetched one at a time on the server, with the same password. Nothing is encrypted again.</value></data>
+  <data name="S3Pce_PlainHint" xml:space="preserve"><value>As a plain copy: the one file as it is. Any program can download it, but on the server it cannot be opened or changed.</value></data>
+  <data name="S3Pce_Container" xml:space="preserve"><value>As a container</value></data>
+  <data name="S3Pce_Plain" xml:space="preserve"><value>Plain copy</value></data>
+  <data name="S3Pce_OlderTitle" xml:space="preserve"><value>The container is older than last time</value></data>
+  <data name="S3Pce_OlderQuestion" xml:space="preserve"><value>“{0}” is in an older state than when it was last opened on this computer: its most recent changes are gone from the server.</value></data>
+  <data name="S3Pce_OlderNote" xml:space="preserve"><value>This happens when the bucket was restored from a backup, or when someone with access to it removed the newest changes. Open it only if you know why.</value></data>
+  <data name="S3Pce_OlderOpen" xml:space="preserve"><value>Open as it is</value></data>
   <data name="Dlg_PackPasswordZip" xml:space="preserve"><value>Password (AES-256; Windows Explorer cannot open such a zip, 7-Zip and WinRAR can)</value></data>
   <data name="Enc_Title" xml:space="preserve"><value>Encrypt</value></data>
   <data name="Enc_One" xml:space="preserve"><value>Encrypt “{0}” into a password-protected copy:</value></data>

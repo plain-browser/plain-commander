@@ -116,6 +116,16 @@ internal sealed class FakeDialogs : IDialogService
         return Task.FromResult(ChangePasswordAnswers.Count > 0 ? ChangePasswordAnswers.Dequeue() : null);
     }
 
+    public PceUploadChoice? PceUploadAnswer { get; set; } = PceUploadChoice.Container;
+
+    public List<(int Count, string First)> PceUploadQuestions { get; } = [];
+
+    public Task<PceUploadChoice?> AskPceUploadAsync(int count, string firstName)
+    {
+        PceUploadQuestions.Add((count, firstName));
+        return Task.FromResult(PceUploadAnswer);
+    }
+
     public bool UpgradeAnswer { get; set; }
 
     public List<string> UpgradeQuestions { get; } = [];

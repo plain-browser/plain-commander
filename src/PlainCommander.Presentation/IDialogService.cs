@@ -21,6 +21,16 @@ public sealed record PackAnswer(string Target, string? Password = null);
 /// <param name="Folder">Where the encrypted copies go; null or empty for next to each original.</param>
 public sealed record EncryptAnswer(string Extension, string Password, bool HideName = false, Core.Crypto.PceCompression Compression = Core.Crypto.PceCompression.Auto, string? Folder = null);
 
+/// <summary>How a .pce file copied to an S3 server is kept there.</summary>
+public enum PceUploadChoice
+{
+    /// <summary>As a folder of objects: files can be added, deleted and read one at a time on the server.</summary>
+    Container,
+
+    /// <summary>As the one file it is: any program can fetch it, but on the server it can only be read whole.</summary>
+    PlainCopy,
+}
+
 /// <summary>Files → Change password: the password the .pce file has now and the one it gets.</summary>
 public sealed record ChangePasswordAnswer(string Current, string New);
 
@@ -58,6 +68,12 @@ public interface IDialogService
     /// can be changed in place. Versions before 1.15 will not open it afterwards.
     /// </summary>
     Task<bool> ConfirmPceUpgradeAsync(string name);
+
+    /// <summary>
+    /// F5 of .pce files to an S3 server: kept there as containers that can be changed in place (the default), or
+    /// copied as plain files. Null when cancelled.
+    /// </summary>
+    Task<PceUploadChoice?> AskPceUploadAsync(int count, string firstName);
 
     /// <summary>Ctrl+Z: true to reverse <paramref name="operationTitle"/>; <paramref name="details"/> say what will happen.</summary>
     Task<bool> ConfirmUndoAsync(string operationTitle, string details);

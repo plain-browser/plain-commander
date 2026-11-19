@@ -68,6 +68,9 @@ public sealed class PceRolledBackException(ulong known, ulong found)
     public ulong Known { get; } = known;
 
     public ulong Found { get; } = found;
+
+    /// <summary>The container's path as the panels show it, when the one who noticed knows it.</summary>
+    public string? Container { get; init; }
 }
 
 /// <summary>

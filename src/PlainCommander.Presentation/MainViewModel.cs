@@ -60,6 +60,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Operations = new OperationQueueViewModel(prompts, elevation, _dialogs.ShowErrorAsync);
         Operations.Finished += OnOperationFinished;
         Settings = store.Load();
+        PceKnownGenerations.Load(Settings.PceGenerations);
+        PceKnownGenerations.Changed += RememberPceGenerations;
         Remote = new RemoteConnections(
             remote?.Prompts ?? new NoRemotePrompts(),
             remote?.Secrets ?? new NoSecretStore(),
@@ -167,6 +169,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 await panel.NavigateWithFallbackAsync(NullIfEmpty(panel.LastLocalPath), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
             }
         }
+    }
+
+    /// <summary>The change numbers of encrypted containers on servers go to the settings as they grow, so a rollback is noticed in a later run too.</summary>
+    private void RememberPceGenerations()
+    {
+        Settings.PceGenerations = new Dictionary<string, ulong>(PceKnownGenerations.Snapshot(), StringComparer.OrdinalIgnoreCase);
+        SaveSettings();
     }
 
     /// <summary>Saves settings now (the connection manager calls it after changes).</summary>
@@ -369,14 +378,36 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var typed = answer.Folder?.Trim();
-        var folder = string.IsNullOrEmpty(typed) ? null : Path.IsPathRooted(typed) ? typed : Path.Combine(panel.Path, typed);
+        var folder = string.IsNullOrEmpty(typed) ? null : RemotePath.IsRemote(typed) || Path.IsPathRooted(typed) ? typed : Path.Combine(panel.Path, typed);
+        var paths = items.Select(static i => i.Entry.FullPath).ToArray();
+        if (folder is not null && RemotePath.ParseTyped(folder) is { } server)
+        {
+            // Onto an S3 server: each item becomes a container of objects there, encrypted on the way.
+            if (server.Protocol != RemoteProtocol.S3 || server.IsRoot || answer.Extension != PceFormat.Extension || answer.HideName)
+            {
+                await _dialogs.ShowErrorAsync(Texts.EncryptOnServer);
+                return;
+            }
+
+            var toServer = PceRemoteOperation.Encrypt(Remote, paths, server.FullPath, answer.Password, answer.Compression);
+            await Operations.Enqueue(toServer, Texts.OperationTitle(toServer.Kind, items.Count), async result =>
+            {
+                await AfterOperationAsync(panel, result);
+                if (result.Outcome == OperationOutcome.Completed && result.Done == paths.Length && await _dialogs.ConfirmDeleteOriginalsAsync(paths.Length))
+                {
+                    var delete = new DeleteOperation(paths);
+                    _ = Operations.Enqueue(delete, Texts.OperationTitle(delete.Kind, paths.Length), r => AfterOperationAsync(panel, r));
+                }
+            });
+            return;
+        }
+
         if (folder is not null && (RemotePath.IsRemote(folder) || NetworkPath.IsVirtual(folder) || ArchiveFileSystem.Locate(folder) is not null))
         {
             await _dialogs.ShowErrorAsync(Texts.EncryptNotHere);
             return;
         }
 
-        var paths = items.Select(static i => i.Entry.FullPath).ToArray();
         if (folder is not null && paths.Any(p => Directory.Exists(p) && EncryptOperation.IsInside(folder, p)))
         {
             await _dialogs.ShowErrorAsync(Texts.EncryptIntoItself);
@@ -1516,6 +1547,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task ChangePcePasswordAsync()
     {
         var panel = ActivePanel;
+        if (panel.IsRemote && RemotePath.Parse(panel.Path) is { Protocol: RemoteProtocol.S3 })
+        {
+            await ChangeContainerPasswordOnServerAsync(panel);
+            return;
+        }
+
         if (panel.IsRemote || panel.IsInArchive || panel.IsNetworkList)
         {
             await _dialogs.ShowErrorAsync(Texts.ChangePasswordNotHere);
@@ -1568,6 +1605,75 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             await _dialogs.ShowInfoAsync(Texts.ChangePasswordTitle, Texts.PasswordChanged(item.Name)); // the status line is overwritten by the refresh
             return;
         }
+    }
+
+    /// <summary>Files → Change password on an S3 panel: the cursor is on a container (a folder called "*.pce" with a header in it).</summary>
+    private async Task ChangeContainerPasswordOnServerAsync(PanelViewModel panel)
+    {
+        if (panel.CurrentItem is not { Entry: { IsParentLink: false, IsDirectory: true } } item || !PceFormat.IsPceName(item.Name)
+            || RemotePath.Parse(item.Entry.FullPath) is not { } location)
+        {
+            await _dialogs.ShowErrorAsync(Texts.ChangePasswordNothingOnServer);
+            return;
+        }
+
+        var wrong = false;
+        while (true)
+        {
+            var answer = await _dialogs.AskChangePasswordAsync(location.FullPath, wrong, rewrite: false);
+            if (answer is null || string.IsNullOrEmpty(answer.New))
+            {
+                return;
+            }
+
+            panel.Status = Texts.ChangingPassword(item.Name);
+            try
+            {
+                var changed = await Remote.UseAsync(
+                    location.Root,
+                    c => c is S3RemoteClient s3 ? s3.ChangeContainerPasswordAsync(location.Inner, answer.Current, answer.New, CancellationToken.None) : Task.FromResult(false),
+                    CancellationToken.None);
+                if (!changed)
+                {
+                    await _dialogs.ShowErrorAsync(Texts.ChangePasswordNothingOnServer);
+                    return;
+                }
+            }
+            catch (PceWrongPasswordException)
+            {
+                wrong = true;
+                continue;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await _dialogs.ShowErrorAsync(Texts.EncryptedBroken(item.Name, ex));
+                return;
+            }
+
+            ArchivePasswords.Remember(location.FullPath, answer.New);
+            await _dialogs.ShowInfoAsync(Texts.ChangePasswordTitle, Texts.PasswordChanged(item.Name));
+            return;
+        }
+    }
+
+    /// <summary>Whether each of <paramref name="items"/> on an S3 panel is an encrypted container: a folder called "*.pce" holding a header.</summary>
+    private async Task<List<FileItem>> ContainersOnServerAsync(IReadOnlyList<FileItem> items)
+    {
+        var found = new List<FileItem>();
+        foreach (var item in items)
+        {
+            if (!item.Entry.IsDirectory || !PceFormat.IsPceName(item.Name) || RemotePath.Parse(item.Entry.FullPath) is not { Protocol: RemoteProtocol.S3 } location)
+            {
+                continue;
+            }
+
+            if (await Remote.UseAsync(location.Root, c => c is S3RemoteClient s3 ? s3.IsContainerAsync(location.Inner, CancellationToken.None) : Task.FromResult(false), CancellationToken.None))
+            {
+                found.Add(item);
+            }
+        }
+
+        return found;
     }
 
     /// <summary>Inner path of an entry the panel lists inside an archive ("/"-separated).</summary>
@@ -2262,8 +2368,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             target = named;
+
+            // An encrypted container comes down as the .pce file it is, not as a folder of its decrypted content.
+            List<FileItem> containers;
+            try
+            {
+                containers = await ContainersOnServerAsync(items);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await _dialogs.ShowErrorAsync(UserMessages.Describe(ex));
+                return;
+            }
+
+            if (containers.Count > 0)
+            {
+                var whole = containers.Select(static i => i.Entry.FullPath).ToArray();
+                var fetch = PceRemoteOperation.Download(Remote, whole, target.Directory, containers.Count == 1 && items.Count == 1 ? target.NewName : null);
+                await Operations.Enqueue(fetch, Texts.OperationTitle(fetch.Kind, whole.Length), async result =>
+                {
+                    await AfterOperationAsync(source, result);
+                    if (move && result.Outcome == OperationOutcome.Completed && result.Done == whole.Length)
+                    {
+                        var removal = new RemoteDeleteOperation(Remote, whole);
+                        _ = Operations.Enqueue(removal, Texts.OperationTitle(removal.Kind, whole.Length), r => AfterOperationAsync(source, r));
+                    }
+                });
+                paths = items.Except(containers).Select(static i => i.Entry.FullPath).ToArray();
+                if (paths.Length == 0)
+                {
+                    return;
+                }
+            }
+
             var download = new RemoteDownloadOperation(Remote, paths, target, move);
-            await Operations.Enqueue(download, Texts.OperationTitle(download.Kind, items.Count), result => AfterOperationAsync(source, result));
+            await Operations.Enqueue(download, Texts.OperationTitle(download.Kind, paths.Length), result => AfterOperationAsync(source, result));
             return;
         }
 
@@ -2320,8 +2459,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // F5 of .pce files to an S3 server (not into a container already there): as containers that can be changed
+        // on the server, or as the plain files they are — the user says which.
+        var pceFiles = move || folder.Protocol != RemoteProtocol.S3 || folder.IsRoot || folder.Inner.Split('/').Any(PceFormat.IsPceName)
+            ? []
+            : items.Where(static i => i.IsEncrypted).ToList();
+        if (pceFiles.Count > 0)
+        {
+            var choice = await _dialogs.AskPceUploadAsync(pceFiles.Count, pceFiles[0].Name);
+            if (choice is null)
+            {
+                return;
+            }
+
+            if (choice == PceUploadChoice.Container)
+            {
+                var files = pceFiles.Select(static i => i.Entry.FullPath).ToArray();
+                var convert = PceRemoteOperation.Upload(Remote, files, folder.FullPath, items.Count == 1 ? newName : null);
+                await Operations.Enqueue(convert, Texts.OperationTitle(convert.Kind, files.Length), result => AfterOperationAsync(source, result));
+                paths = items.Except(pceFiles).Select(static i => i.Entry.FullPath).ToArray();
+                if (paths.Length == 0)
+                {
+                    return;
+                }
+            }
+        }
+
         var upload = new RemoteUploadOperation(Remote, paths, folder.FullPath, newName, move);
-        await Operations.Enqueue(upload, Texts.OperationTitle(upload.Kind, items.Count), result => AfterOperationAsync(source, result));
+        await Operations.Enqueue(upload, Texts.OperationTitle(upload.Kind, paths.Length), result => AfterOperationAsync(source, result));
     }
 
     /// <summary>F6 within one server: each item is renamed into the target folder (no data moves).</summary>

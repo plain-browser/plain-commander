@@ -400,6 +400,14 @@ internal static class Texts
         ? "Tej operacji nie ma wewnątrz archiwum. W archiwum można usuwać (F8), dodawać pliki z dysku (F5/F6 z drugiego panelu), zmieniać nazwy (Shift+F6), tworzyć katalogi (F7) i wypakowywać (F5)."
         : "This is not available inside an archive. In an archive you can delete (F8), add files from disk (F5/F6 from the other panel), rename (Shift+F6), create folders (F7) and extract (F5).";
 
+    public static string EncryptOnServer => Polish
+        ? "Na serwerze można szyfrować tylko do formatu .pce, na serwer S3 i z widoczną nazwą."
+        : "On a server only .pce can be written, to an S3 server and with the name visible.";
+
+    public static string ChangePasswordNothingOnServer => Polish
+        ? "Ustaw kursor na zaszyfrowanym kontenerze .pce (katalogu na serwerze S3), którego hasło chcesz zmienić."
+        : "Put the cursor on the encrypted .pce container (a folder on an S3 server) whose password you want to change.";
+
     public static string ChangePasswordNothing => Polish
         ? "Ustaw kursor na zaszyfrowanym pliku .pce, którego hasło chcesz zmienić."
         : "Put the cursor on the encrypted .pce file whose password you want to change.";

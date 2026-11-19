@@ -19,6 +19,8 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
     private static readonly string? Endpoint = Environment.GetEnvironmentVariable("PC_PCE_S3");
     private static readonly DateTime T0 = new(2024, 3, 4, 5, 6, 0, DateTimeKind.Utc);
     private readonly Sandbox _local = new();
+    private readonly List<string> _olderQuestions = [];
+    private bool _olderAnswer;
     private RemoteConnections? _connections;
     private string _folder = string.Empty;
 
@@ -63,7 +65,7 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
         var secrets = new MemorySecrets();
         secrets.Write(RemoteConnections.SecretKey(root.Root), "secretsecret");
         RemoteSite[] sites = [new RemoteSite { Protocol = RemoteProtocol.S3, Host = root.Host, Port = root.Port, User = root.User, PlainHttp = true }];
-        _connections = new RemoteConnections(new ScriptedRemotePrompts { Trust = TrustChoice.Once }, secrets, new Dictionary<string, string>(), () => sites);
+        _connections = new RemoteConnections(new Prompts(this), secrets, new Dictionary<string, string>(), () => sites);
         await _connections.UseAsync(root.Root, async c => await c.StatAsync(root.Inner, CancellationToken.None) is null ? await Make(c) : 0, CancellationToken.None);
         async Task<int> Make(IRemoteClient c)
         {
@@ -81,6 +83,19 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
 
         ArchivePasswords.Remember(Box, Password);
         return _connections;
+    }
+
+    private sealed class Prompts(S3PceContainerFolderTests test) : IRemotePrompts
+    {
+        public Task<TrustChoice> ConfirmHostAsync(HostIdentity identity, string? known, CancellationToken cancellationToken) => Task.FromResult(TrustChoice.Once);
+
+        public Task<CredentialAnswer?> AskCredentialsAsync(RemoteSite site, bool passphrase, string? problem, CancellationToken cancellationToken) => Task.FromResult<CredentialAnswer?>(null);
+
+        public Task<bool> ConfirmOlderContainerAsync(string container, CancellationToken cancellationToken)
+        {
+            test._olderQuestions.Add(container);
+            return Task.FromResult(test._olderAnswer);
+        }
     }
 
     private static byte[] Bytes(int count, int seed = 0)
@@ -193,11 +208,13 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
             (await NamesAsync(moved)).Should().Equal("a.bin");
             await connections.UseAsync(location.Root, async c =>
             {
-                (await ((S3RemoteClient)c).ChangeContainerPasswordAsync(movedInner, "nowe", token)).Should().BeTrue();
-                (await ((S3RemoteClient)c).ChangeContainerPasswordAsync(movedInner + "/a.bin", "x", token)).Should().BeFalse();
+                var wrong = async () => await ((S3RemoteClient)c).ChangeContainerPasswordAsync(movedInner, "złe", "nowe", token);
+                await wrong.Should().ThrowAsync<PceWrongPasswordException>();
+                (await ((S3RemoteClient)c).ChangeContainerPasswordAsync(movedInner, Password, "nowe", token)).Should().BeTrue();
+                (await ((S3RemoteClient)c).ChangeContainerPasswordAsync(movedInner + "/a.bin", "nowe", "x", token)).Should().BeFalse();
                 return 0;
             }, token);
-            ArchivePasswords.Remembered(moved).Should().Be("nowe");
+            ArchivePasswords.Remember(moved, "nowe"); // the caller (the command in the app) does this
 
             var down = await Run.Async(new RemoteDownloadOperation(connections, [moved + "/a.bin"], new TransferTarget(_local.Root, "back.bin")), token: token);
             down.Outcome.Should().Be(OperationOutcome.Completed);
@@ -208,6 +225,38 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
             ArchivePasswords.Forget(moved);
             PceKnownGenerations.Forget(moved);
         }
+    }
+
+    [Fact]
+    public async Task A_container_put_back_to_an_older_state_opens_only_when_the_user_says_so()
+    {
+        var connections = await ConnectAsync();
+        var token = TestContext.Current.CancellationToken;
+        var location = RemotePath.Parse(Box)!;
+        File.WriteAllBytes(_local.P("a.bin"), Bytes(100));
+        File.WriteAllBytes(_local.P("b.bin"), Bytes(200));
+        (await Run.Async(new RemoteUploadOperation(connections, [_local.P("a.bin")], Box), token: token)).Outcome.Should().Be(OperationOutcome.Completed);
+        (await Run.Async(new RemoteUploadOperation(connections, [_local.P("b.bin")], Box), token: token)).Outcome.Should().Be(OperationOutcome.Completed);
+        (await NamesAsync(Box)).Should().BeEquivalentTo("a.bin", "b.bin");
+        var seen = PceKnownGenerations.Get(Box);
+        seen.Should().BeGreaterThan(2);
+
+        // Someone with access to the bucket removes the newest index.
+        var raw = (S3RemoteClient)await connections.OpenAsync(location.Root, token);
+        await using (raw)
+        {
+            var store = await raw.ContainerStoreAsync(location.Inner, token);
+            store.Delete(PceObjectNames.Index(seen), token);
+        }
+
+        _olderAnswer = false;
+        var refused = async () => await NamesAsync(Box);
+        (await refused.Should().ThrowAsync<PceRolledBackException>()).Which.Container.Should().Be(Box);
+        _olderQuestions.Should().Equal(Box);
+
+        _olderAnswer = true;
+        (await NamesAsync(Box)).Should().Equal("a.bin");
+        PceKnownGenerations.Get(Box).Should().Be(seen - 1);
     }
 
     [Fact]

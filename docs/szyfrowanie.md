@@ -305,7 +305,7 @@ Usunięcie wymaga miejsca na jeden indeks (od ok. 4,3 KiB): na dysku bez ani jed
 i zostawia kontener nietknięty. Proces ubity w dowolnym momencie usuwania zostawia plik, który się otwiera; nieoddane
 miejsce odzyskuje następne otwarcie do zapisu.
 
-## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19; rdzeń i magazyn S3 wdrożone i sprawdzone na RustFS, aplikacja jeszcze nie)
+## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19; rdzeń, magazyn S3 i logika paneli wdrożone i sprawdzone na RustFS; okna aplikacji WinUI napisane, niezbudowane)
 
 Plan wdrożenia: PLAN.md, etap 24. Dla użytkownika to dalej „plik `.pce`” w panelu S3; rozłożenie na obiekty jest
 szczegółem przechowywania.
@@ -341,6 +341,15 @@ nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka 
 - **Strumień wpisu jest bajt w bajt taki sam jak w pliku** (bloki AEAD pod kluczem wpisu, nonce = numer bloku
   i flaga „ostatni”). Przeniesienie między plikiem `.pce` a formą rozłożoną to kopiowanie strumieni i nowy indeks,
   bez szyfrowania od nowa.
+
+### W panelu
+
+Katalog `nazwa.pce/` z obiektem `head` panel S3 pokazuje jako katalog, a wejście do niego (po haśle, pamiętanym na
+sesję jak dla archiwów) pokazuje odszyfrowane pliki. W środku działa wszystko, co działa w katalogu na serwerze:
+F5 i F6 w obie strony, F8, F7, Shift+F6, F3. Zmiany z jednej operacji idą jednym indeksem (grupowanie), a małe
+pliki dzielą paczki. F5 pliku `.pce` z dysku pyta: kontener (domyślnie, przeniesienie bloków bez szyfrowania) albo
+zwykła kopia. Kontener kopiowany na dysk wraca jako plik `.pce`. Zaszyfruj z celem `s3://…` tworzy kontener od razu
+na serwerze. Katalog kontenera usuwa się i przenosi jak katalog (jego obiekty).
 
 ### Operacje
 

@@ -92,4 +92,10 @@ public sealed class AppSettings
 
     /// <summary>SSH host keys and FTPS certificates the user trusted, by "host:port" → "SHA256:…".</summary>
     public Dictionary<string, string> TrustedHosts { get; set; } = [];
+
+    /// <summary>
+    /// The highest change number each encrypted container on a server was seen at, by its path: what reveals a
+    /// container put back to an older state (<see cref="Remote.PceKnownGenerations"/>).
+    /// </summary>
+    public Dictionary<string, ulong> PceGenerations { get; set; } = [];
 }

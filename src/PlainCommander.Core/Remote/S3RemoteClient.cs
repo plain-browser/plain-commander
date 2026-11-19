@@ -518,6 +518,19 @@ public sealed class S3RemoteClient : IRemoteClient
         }
     }
 
+    public Task FlushAsync(CancellationToken cancellationToken) =>
+        _containers.Count == 0
+            ? Task.CompletedTask
+            : InContainerAsync(
+                () =>
+                {
+                    foreach (var view in _containers.Values)
+                    {
+                        view.Flush();
+                    }
+                },
+                cancellationToken);
+
     /// <summary>Commits the changes gathered for the container at <paramref name="path"/> (or holding it) now.</summary>
     public async Task FlushContainerAsync(string path, CancellationToken cancellationToken)
     {
@@ -527,15 +540,28 @@ public sealed class S3RemoteClient : IRemoteClient
         }
     }
 
-    /// <summary>Replaces the password of the container at <paramref name="path"/>; false when there is no container there.</summary>
-    public async Task<bool> ChangeContainerPasswordAsync(string path, string newPassword, CancellationToken cancellationToken)
+    /// <summary>
+    /// Replaces the password of the container at <paramref name="path"/>; false when there is no container there.
+    /// <see cref="PceWrongPasswordException"/> when <paramref name="current"/> does not open it.
+    /// </summary>
+    public async Task<bool> ChangeContainerPasswordAsync(string path, string current, string newPassword, CancellationToken cancellationToken)
     {
         if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is not { Inner.Length: 0 } inside)
         {
             return false;
         }
 
-        await InContainerAsync(() => inside.View.ChangePassword(newPassword), cancellationToken).ConfigureAwait(false);
+        var (bucket, key) = FileKey(path);
+        var store = new S3PceObjectStore(_client!, bucket, key);
+        await InContainerAsync(
+            () =>
+            {
+                inside.View.Flush();
+                using var container = PceObjectContainer.Open(store, current, writable: true, RemotePath.NameOf(path));
+                container.ChangePassword(newPassword);
+            },
+            cancellationToken).ConfigureAwait(false);
+        Forget(inside.View); // it holds the old header; the next use opens the container afresh
         return true;
     }
 

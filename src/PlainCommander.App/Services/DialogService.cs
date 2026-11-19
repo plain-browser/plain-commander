@@ -281,6 +281,33 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         return await ShowAsync(dialog) == ContentDialogResult.Primary;
     });
 
+    /// <summary>
+    /// F5 of .pce files to an S3 server: as containers of objects (the default button) or as the plain files they
+    /// are; Cancel copies nothing.
+    /// </summary>
+    public Task<PceUploadChoice?> AskPceUploadAsync(int count, string firstName) => OnUiAsync(async () =>
+    {
+        var body = new StackPanel { Spacing = 8, MaxWidth = 520 };
+        body.Children.Add(new TextBlock { Text = count == 1 ? Loc.Format("S3Pce_Question", firstName) : Loc.Format("S3Pce_QuestionMany", count), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = Loc.Get("S3Pce_ContainerHint"), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = Loc.Get("S3Pce_PlainHint"), TextWrapping = TextWrapping.Wrap, Opacity = 0.7 });
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("S3Pce_Title"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("S3Pce_Container"),
+            SecondaryButtonText = Loc.Get("S3Pce_Plain"),
+            CloseButtonText = Loc.Get("Dlg_Cancel"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        return await ShowAsync(dialog) switch
+        {
+            ContentDialogResult.Primary => PceUploadChoice.Container,
+            ContentDialogResult.Secondary => PceUploadChoice.PlainCopy,
+            _ => (PceUploadChoice?)null,
+        };
+    });
+
     /// <summary>Ctrl+Z: what will be reversed and how; "Cofnij" is the default button.</summary>
     public Task<bool> ConfirmUndoAsync(string operationTitle, string details) => OnUiAsync(async () =>
     {
@@ -1216,6 +1243,26 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         return await ShowAsync(dialog, cancellationToken) == ContentDialogResult.Primary
             ? new PlainCommander.Core.Remote.CredentialAnswer(box.Password, remember.IsChecked == true)
             : null;
+    });
+
+    /// <summary>
+    /// An encrypted container on a server shows an older state than when it was last opened here. Opening it is
+    /// the user's call; Cancel is the default, as for a changed host key.
+    /// </summary>
+    public Task<bool> ConfirmOlderContainerAsync(string container, CancellationToken cancellationToken) => OnUiAsync(async () =>
+    {
+        var body = new StackPanel { Spacing = 10, MaxWidth = 520 };
+        body.Children.Add(new TextBlock { Text = Loc.Format("S3Pce_OlderQuestion", container), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Warning, Message = Loc.Get("S3Pce_OlderNote") });
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("S3Pce_OlderTitle"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("S3Pce_OlderOpen"),
+            CloseButtonText = Loc.Get("Dlg_Cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await ShowAsync(dialog, cancellationToken) == ContentDialogResult.Primary;
     });
 
     /// <summary>An unknown server key or certificate, or one that changed since it was trusted.</summary>

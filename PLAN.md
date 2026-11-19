@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–4 zrobione; testy w WSL, S3 na RustFS)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–5 zrobione; testy w WSL, S3 na RustFS; aplikacja WinUI niezbudowana po kroku 5)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1074,6 +1074,33 @@ w pliku. Kroki w kolejności, każdy z testami.
    zawsze), F7, Shift+F6, F3 na wpisie, Zmień hasło. Zaszyfruj z panelem S3 jako celem tworzy formę rozłożoną;
    F5 kontenera między dyskiem a S3 konwertuje (krok 4). Zapamiętana generacja kontenera w ustawieniach
    i ostrzeżenie o starszym stanie.
+   **Zrobione 2026-11-19** (inaczej niż w szkicu: nie przez `PceArchive`, tylko w kliencie S3):
+   - `S3RemoteClient` pokazuje katalog `*.pce` z obiektem `head` jako katalog z odszyfrowaną zawartością
+     (`PceRemoteView`): lista, stat, pobranie (także od offsetu), wysłanie, usunięcie, F7, zmiana nazwy, czas pliku.
+     Dzięki temu F5/F6/F8/F7/Shift+F6/F3/porównanie działają w środku istniejącymi operacjami serwerowymi, bez zmian
+     w nich. Sam katalog kontenera zostaje tym, czym jest na serwerze: F8 usuwa jego obiekty (po opróżnieniu),
+     zmiana nazwy przenosi obiekty. Katalog `*.pce` bez `head` to zwykły katalog (sprawdzane co 3 s).
+   - Zmiany przychodzą po jednym pliku, więc są grupowane (`PceObjectContainer.Batch`): jeden indeks na 500 zmian /
+     5 s / koniec operacji (zamknięcie klienta) / przed odczytem treści; małe pliki dzielą paczki w całej grupie.
+     Połączenie przeglądania zatwierdza po każdym wywołaniu (`IRemoteClient.FlushAsync` w `RemoteConnections.UseAsync`).
+     Po zatwierdzeniu `Clean`. 33 pliki wysłane F5 = 2 obiekty danych i najwyżej kilka indeksów (test na RustFS).
+   - Hasło: `ArchivePasswords` pod pełną ścieżką kontenera (to samo okno co dla archiwów). Cofnięcie stanu:
+     `PceKnownGenerations` (pamięć + `AppSettings.PceGenerations`), pytanie `IRemotePrompts.ConfirmOlderContainerAsync`
+     w `RemoteFileSystem.ListAsync` — zgoda zapomina zapamiętaną generację.
+   - `PceRemoteOperation`: `Upload` (plik `.pce` → kontener, `PceTransfer.ToObjects`), `Download` (kontener → plik),
+     `Encrypt` (pliki i katalogi prosto do nowego kontenera). Cel, który istnieje, to błąd pozycji, bez nadpisania.
+   - `MainViewModel`: F5 plików `.pce` na S3 pyta (`AskPceUploadAsync`: kontener domyślnie / zwykła kopia; nie pyta
+     przy F6 ani gdy cel leży już w kontenerze); F5/F6 kontenera z S3 na dysk daje plik `.pce` (F6 potem usuwa
+     kontener); Zaszyfruj z celem `s3://…` tworzy kontener (tylko `.pce`, bez ukrytej nazwy); Zmień hasło na
+     kontenerze w panelu S3.
+   - Aplikacja: dwa okna w `DialogService` (`AskPceUploadAsync`, `ConfirmOlderContainerAsync`) i teksty `S3Pce_*`
+     w obu językach — **napisane bez budowania (WSL nie buduje WinUI); do zbudowania i obejrzenia na VM**.
+   - Testy: `PceRemoteViewTests` (10, pamięć), `S3PceContainerFolderTests` (4, RustFS, prawdziwe operacje
+     wysyłania/pobierania/usuwania), `PceOnServerTests` (3, RustFS, polecenia paneli).
+   - Ograniczenia: F3 i podgląd pliku z kontenera pobierają odszyfrowaną kopię do `%TEMP%` (jak każdy plik
+     z serwera); kopiowanie kontenera między katalogami tego samego serwera nie jest obsługiwane (jak każda kopia
+     na serwerze); synchronizacja/porównanie katalogów traktują kontener jak katalog z zawartością; błąd ostatniego
+     zatwierdzenia wychodzi na końcu operacji jako jeden komunikat, nie przy pliku.
 6. **Teksty i dokumentacja**: `Strings/en-US` i `pl-PL`, README, `site/index.html`, listingi Sklepu.
 7. **Pomiary**: wysłanie i pobranie 1 GiB i 10 GiB (cel: prędkość łącza przy 8 strumieniach), usunięcie 10 MiB
    z 10 GiB (cel: poniżej 1 s bez Argon2), 10 000 małych plików, otwarcie. RustFS w sieci lokalnej; prawdziwy AWS,

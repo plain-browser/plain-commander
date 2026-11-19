@@ -30,6 +30,12 @@ public interface IRemotePrompts
     /// <summary>The password (or the key's passphrase when <paramref name="passphrase"/>); null when the user cancels.</summary>
     /// <param name="problem">Why it is asked again (wrong password), or null the first time.</param>
     Task<CredentialAnswer?> AskCredentialsAsync(RemoteSite site, bool passphrase, string? problem, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// An encrypted container on the server is in an older state than when it was last opened here: its newest
+    /// changes were removed (a restored backup, or someone with access to the bucket). True to open it as it is.
+    /// </summary>
+    Task<bool> ConfirmOlderContainerAsync(string container, CancellationToken cancellationToken) => Task.FromResult(false);
 }
 
 /// <summary>Where remembered passwords live (the Windows Credential Manager in the app).</summary>

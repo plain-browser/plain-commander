@@ -250,6 +250,17 @@
   <data name="Upg_Question" xml:space="preserve"><value>„{0}” pochodzi ze starszej wersji i w tej postaci można go tylko czytać. Przepisać go na obecny układ, w którym pliki dodaje się i usuwa w miejscu?</value></data>
   <data name="Upg_Note" xml:space="preserve"><value>Zawartość i hasło zostają te same. Plik jest zapisywany od nowa (to potrwa tyle, co jego zaszyfrowanie), a wersje Plain Commandera starsze niż 1.15 już go nie otworzą.</value></data>
   <data name="Upg_Button" xml:space="preserve"><value>Przepisz</value></data>
+  <data name="S3Pce_Title" xml:space="preserve"><value>Kopiowanie pliku .pce na serwer</value></data>
+  <data name="S3Pce_Question" xml:space="preserve"><value>Jak przechowywać „{0}” na serwerze?</value></data>
+  <data name="S3Pce_QuestionMany" xml:space="preserve"><value>Jak przechowywać pliki .pce ({0}) na serwerze?</value></data>
+  <data name="S3Pce_ContainerHint" xml:space="preserve"><value>Jako kontener: katalog zaszyfrowanych części. Pliki w środku można na serwerze przeglądać, dodawać, usuwać i pobierać pojedynczo, tym samym hasłem. Nic nie jest szyfrowane od nowa.</value></data>
+  <data name="S3Pce_PlainHint" xml:space="preserve"><value>Jako zwykłą kopię: jeden plik, taki jaki jest. Pobierze go każdy program, ale na serwerze nie da się go otworzyć ani zmienić.</value></data>
+  <data name="S3Pce_Container" xml:space="preserve"><value>Jako kontener</value></data>
+  <data name="S3Pce_Plain" xml:space="preserve"><value>Zwykła kopia</value></data>
+  <data name="S3Pce_OlderTitle" xml:space="preserve"><value>Kontener jest starszy niż ostatnio</value></data>
+  <data name="S3Pce_OlderQuestion" xml:space="preserve"><value>„{0}” jest w starszym stanie niż wtedy, gdy był ostatnio otwierany na tym komputerze: najnowsze zmiany zniknęły z serwera.</value></data>
+  <data name="S3Pce_OlderNote" xml:space="preserve"><value>Tak bywa po przywróceniu kubełka z kopii zapasowej albo gdy ktoś z dostępem do niego usunął najnowsze zmiany. Otwórz tylko wtedy, gdy wiesz dlaczego.</value></data>
+  <data name="S3Pce_OlderOpen" xml:space="preserve"><value>Otwórz taki, jaki jest</value></data>
   <data name="Dlg_PackPasswordZip" xml:space="preserve"><value>Hasło (AES-256; Eksplorator Windows takiego zipa nie otworzy, 7-Zip i WinRAR tak)</value></data>
   <data name="Enc_Title" xml:space="preserve"><value>Zaszyfruj</value></data>
   <data name="Enc_One" xml:space="preserve"><value>Zaszyfruj „{0}” do kopii z hasłem:</value></data>

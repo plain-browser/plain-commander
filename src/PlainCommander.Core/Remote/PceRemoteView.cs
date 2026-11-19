@@ -104,7 +104,18 @@ internal sealed class PceRemoteView : IDisposable
         var container = Container();
         if (_batch is null)
         {
-            container.Refresh(); // someone else may have changed it since
+            try
+            {
+                container.Refresh(); // someone else may have changed it since
+            }
+            catch (PceRolledBackException ex)
+            {
+                // Closed, so that once the user accepts the older state the next call opens it as the store shows it.
+                _container?.Dispose();
+                _container = null;
+                throw new PceRolledBackException(ex.Known, ex.Found) { Container = _path };
+            }
+
             PceKnownGenerations.Saw(_path, container.Generation);
         }
 
@@ -319,6 +330,10 @@ internal sealed class PceRemoteView : IDisposable
             {
                 ArchivePasswords.Forget(_path);
                 wrong = true;
+            }
+            catch (PceRolledBackException ex)
+            {
+                throw new PceRolledBackException(ex.Known, ex.Found) { Container = _path };
             }
         }
     }

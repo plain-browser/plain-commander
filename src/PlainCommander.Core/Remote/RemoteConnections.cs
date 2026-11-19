@@ -40,6 +40,19 @@ public sealed class RemoteConnections : IAsyncDisposable
         _factory = factory ?? CreateClient;
     }
 
+    /// <summary>Asks whether a container found in an older state may be opened as it is; a yes is remembered.</summary>
+    public async Task<bool> AcceptOlderContainerAsync(Crypto.PceRolledBackException rolledBack, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rolledBack);
+        if (rolledBack.Container is not { } container || !await _prompts.ConfirmOlderContainerAsync(container, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        PceKnownGenerations.Forget(container);
+        return true;
+    }
+
     /// <summary>Roots with a live login, for the drive menu.</summary>
     public IReadOnlyList<string> OpenRoots => _sessions.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
@@ -67,15 +80,20 @@ public sealed class RemoteConnections : IAsyncDisposable
         try
         {
             session.Browser ??= await LoginAsync(session, cancellationToken).ConfigureAwait(false);
+            T result;
             try
             {
-                return await call(session.Browser).ConfigureAwait(false);
+                result = await call(session.Browser).ConfigureAwait(false);
             }
             catch (RemoteException) when (!session.Browser.IsConnected)
             {
                 // the server dropped the idle connection: once more on a fresh one
-                return await call(session.Browser).ConfigureAwait(false);
+                result = await call(session.Browser).ConfigureAwait(false);
             }
+
+            // The browsing connection lives as long as the login: what a call changed is not left waiting on it.
+            await session.Browser.FlushAsync(cancellationToken).ConfigureAwait(false);
+            return result;
         }
         finally
         {

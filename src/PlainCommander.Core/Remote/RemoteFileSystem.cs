@@ -33,7 +33,22 @@ public sealed class RemoteFileSystem : IFileSystem
             yield break;
         }
 
-        var items = await Connections.UseAsync(location.Root, c => c.ListAsync(location.Inner, cancellationToken), cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<RemoteItem> items;
+        try
+        {
+            items = await Connections.UseAsync(location.Root, c => c.ListAsync(location.Inner, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Crypto.PceRolledBackException ex) when (ex.Container is not null)
+        {
+            // An encrypted container shows an older state than last time: the user decides whether that is fine.
+            if (!await Connections.AcceptOlderContainerAsync(ex, cancellationToken).ConfigureAwait(false))
+            {
+                throw;
+            }
+
+            items = await Connections.UseAsync(location.Root, c => c.ListAsync(location.Inner, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+
         if (location.Parent is { } parent)
         {
             yield return FileEntry.ParentLink(parent.FullPath);

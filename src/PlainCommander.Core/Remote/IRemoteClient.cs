@@ -17,6 +17,12 @@ public interface IRemoteClient : IAsyncDisposable
 
     Task ConnectAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Makes changes the client has gathered permanent (an S3 client gathers what is changed inside an encrypted
+    /// container, to commit it in one piece). Nothing to do for most clients.
+    /// </summary>
+    Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     /// <summary>The folder the server starts in (home), as an absolute path.</summary>
     Task<string> GetHomeAsync(CancellationToken cancellationToken);
 
