@@ -27,7 +27,7 @@ ARCHIVES AS FOLDERS
 7z, zip, rar (including rar5 and multi-part), iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg and more open like directories, with passwords. Write support for zip, 7z, tar and tar.gz. Search inside archives.
 
 ENCRYPTION
-Encrypt files and folders with a password into the program's own .pce container (AES-256-GCM, Argon2id key derivation, authenticated), which opens like an archive: browse it, copy files out or in, and delete inside it, with the file shrinking at once. 7z and zip with AES-256 are available for exchange with other programs.
+Encrypt files and folders with a password into the program's own .pce container (AES-256-GCM, Argon2id key derivation, authenticated), which opens like an archive: browse it, copy files out or in, and delete inside it, with the file shrinking at once. A container can also be kept on S3-compatible storage, split into encrypted objects: add, delete and fetch single files there with the same password, while the server sees neither names nor content. 7z and zip with AES-256 are available for exchange with other programs.
 
 SERVERS, NETWORK AND CLOUD
 FTP, FTPS, SFTP and S3-compatible storage (Amazon S3, MinIO, Cloudflare R2, Wasabi, Backblaze B2) as ordinary folders, with resumable transfers and permission editing. Computers and shares on the local network, OneDrive folders (personal and work) and attached ISO or VHDX images are one click away in the drive menu.
@@ -58,6 +58,7 @@ _(Partner Center field limit: up to 20, 200 characters each. This line and the h
 - Undo (Ctrl+Z) for copy, move, rename, delete, pack and encrypt
 - Archives open like folders: 7z, zip, rar, iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg
 - Password encryption with AES-256-GCM (.pce), 7z and zip AES-256
+- Encrypted .pce containers on S3 storage, changed in place
 - FTP, FTPS, SFTP and S3-compatible servers as ordinary folders, resumable transfers
 - Local network shares, OneDrive, ISO and VHDX images in the drive menu
 - Directory compare, two-way synchronization, file compare, checksums

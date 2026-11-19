@@ -177,6 +177,27 @@ public sealed class S3RemoteClient : IRemoteClient
             }
         }
 
+        // a folder "name.pce" holding "head" is a container: the panel draws it as encrypted
+        var candidates = items.Where(i => i.IsDirectory && PceFormat.IsPceName(i.Name)).Take(ExactTimesLimit).ToList();
+        if (candidates.Count > 0)
+        {
+            var containers = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+            await Parallel.ForEachAsync(candidates, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellationToken }, async (folder, token) =>
+            {
+                if (await HeadAsync(c, bucket, prefix + folder.Name + "/" + PceObjectNames.Head, token).ConfigureAwait(false) is not null)
+                {
+                    containers[folder.Name] = true;
+                }
+            }).ConfigureAwait(false);
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].IsDirectory && containers.ContainsKey(items[i].Name))
+                {
+                    items[i] = items[i] with { IsContainer = true };
+                }
+            }
+        }
+
         return items;
     }, cancellationToken);
 

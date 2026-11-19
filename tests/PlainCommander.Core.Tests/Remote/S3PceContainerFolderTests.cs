@@ -112,6 +112,13 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
         return await fs.ListAsync(path, includeHidden: true, token).Where(e => !e.IsParentLink).Select(e => e.Name).ToListAsync(token);
     }
 
+    private async Task<bool> MarkedEncryptedAsync(string folder, string name)
+    {
+        var fs = new RemoteFileSystem(new LocalFileSystem(), _connections!);
+        var token = TestContext.Current.CancellationToken;
+        return (await fs.ListAsync(folder, includeHidden: true, token).ToListAsync(token)).Single(e => e.Name == name).IsEncryptedContainer;
+    }
+
     [Fact]
     public async Task Files_go_in_and_out_of_the_container_through_the_ordinary_operations()
     {
@@ -132,6 +139,7 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
         }
 
         (await NamesAsync(_folder)).Should().Equal("box.pce");
+        (await MarkedEncryptedAsync(_folder, "box.pce")).Should().BeTrue("the panel draws a container in the encryption colour");
         (await NamesAsync(Box)).Should().BeEmpty();
 
         var up = await Run.Async(new RemoteUploadOperation(connections, [_local.P("src")], Box), token: token);
@@ -273,6 +281,7 @@ public sealed class S3PceContainerFolderTests : IAsyncDisposable
         }, token);
         (await Run.Async(new RemoteUploadOperation(connections, [_local.P("a.txt")], plain), token: token)).Outcome.Should().Be(OperationOutcome.Completed);
         (await NamesAsync(plain)).Should().Equal("a.txt");
+        (await MarkedEncryptedAsync(_folder, "zwykły.pce")).Should().BeFalse();
         var copy = new MemoryStream();
         await connections.UseAsync(RemotePath.Parse(plain)!.Root, async c =>
         {

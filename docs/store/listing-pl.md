@@ -27,7 +27,7 @@ ARCHIWA JAK FOLDERY
 7z, zip, rar (także rar5 i wieloczęściowe), iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg i inne otwierają się jak katalogi, również z hasłem. Zapis do zip, 7z, tar i tar.gz. Szukanie wewnątrz archiwów.
 
 SZYFROWANIE
-Szyfrowanie plików i folderów hasłem do własnego kontenera .pce (AES-256-GCM, klucz Argon2id, z uwierzytelnieniem), który otwiera się jak archiwum: można go przeglądać, kopiować z niego i do niego pliki oraz usuwać w środku, a plik od razu maleje. Do wymiany z innymi programami są 7z i zip z AES-256.
+Szyfrowanie plików i folderów hasłem do własnego kontenera .pce (AES-256-GCM, klucz Argon2id, z uwierzytelnieniem), który otwiera się jak archiwum: można go przeglądać, kopiować z niego i do niego pliki oraz usuwać w środku, a plik od razu maleje. Kontener może też leżeć w magazynie zgodnym z S3, rozłożony na zaszyfrowane obiekty: pojedyncze pliki dodaje się, usuwa i pobiera tym samym hasłem, a serwer nie widzi ani nazw, ani treści. Do wymiany z innymi programami są 7z i zip z AES-256.
 
 SERWERY, SIEĆ I CHMURA
 FTP, FTPS, SFTP i magazyny zgodne z S3 (Amazon S3, MinIO, Cloudflare R2, Wasabi, Backblaze B2) jako zwykłe foldery, ze wznawianiem przesyłania i edycją uprawnień. Komputery i udziały w sieci lokalnej, foldery OneDrive (osobisty i firmowy) oraz podłączone obrazy ISO i VHDX są w menu dysków.
@@ -58,6 +58,7 @@ _(Partner Center field limit: do 20, po 200 znaków. This line and the heading a
 - Cofanie (Ctrl+Z) kopiowania, przenoszenia, zmiany nazwy, usuwania, pakowania i szyfrowania
 - Archiwa otwierane jak foldery: 7z, zip, rar, iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg
 - Szyfrowanie hasłem AES-256-GCM (.pce), 7z i zip AES-256
+- Zaszyfrowane kontenery .pce w magazynie S3, zmieniane w miejscu
 - Serwery FTP, FTPS, SFTP i zgodne z S3 jako zwykłe foldery, wznawianie przesyłania
 - Udziały w sieci lokalnej, OneDrive, obrazy ISO i VHDX w menu dysków
 - Porównanie katalogów, dwukierunkowa synchronizacja, porównanie plików, sumy kontrolne

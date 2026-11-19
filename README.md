@@ -57,7 +57,7 @@ the last file operation with `Ctrl+Z`.
 | **Operation queue** | Copy, move, delete, pack and unpack run in the background in a queue with progress, pause, cancel, per-file conflict choices ("overwrite / skip / keep both / only if newer", with "apply to all"), and retry/skip on errors. |
 | **Undo (`Ctrl+Z`)** | Reverses copy, move, rename, Recycle Bin deletes, new files and folders, attribute changes, packing and encryption, after telling you exactly what will happen. Nothing is ever deleted for good or overwritten by an undo. |
 | **Archives as folders** | 7z, zip, rar (including rar5 and multi-part), iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg and more open like directories, with passwords. Write support for zip, 7z, tar and tar.gz. |
-| **Own encryption format, `.pce`** | AES-256-GCM with an Argon2id key, authenticated, about disk speed (more than 700 MiB/s measured). Open an encrypted container like an archive: browse it, copy single files out or in, delete inside it and the file shrinks at once. 7z and zip (AES-256) are available for other programs. |
+| **Own encryption format, `.pce`** | AES-256-GCM with an Argon2id key, authenticated, about disk speed (more than 700 MiB/s measured). Open an encrypted container like an archive: browse it, copy single files out or in, delete inside it and the file shrinks at once. The same container can live on S3 storage, split into encrypted objects, and be used there the same way. 7z and zip (AES-256) are available for other programs. |
 | **Servers and clouds** | FTP, FTPS, SFTP and S3-compatible storage (Amazon S3, MinIO, Cloudflare R2, Wasabi, Backblaze B2) as ordinary folders, with resumable transfers. Local-network computers and shares, OneDrive (personal and work accounts) one click away. |
 | **Compare and synchronize** | Directory compare with a diff view, two-way synchronization with a preview, text and binary file compare. |
 | **Bulk rename** | Masks, counters, search and replace, case, transliteration to Latin letters, with a preview and undo. |
@@ -171,7 +171,22 @@ permanent deletes, operations on servers and inside archives, and operations don
   remembered for the session, in memory only.
 - **Files from versions before 1.15** open as before, read-only; the first change (or a password change) offers to
   rewrite the file in the current layout. Versions before 1.15 do not open files written by 1.15 or later.
-- `.pce` files are drawn in violet in the panels.
+- **On S3 storage** a container is kept as a folder `name.pce` of encrypted objects instead of one file, because an
+  object on S3 cannot be changed in place. In the panel it is one violet folder: `Enter` and the password open it, and
+  `F5`, `F6`, `F7`, `Shift+F6` and `F8` work inside as in any server folder. Adding a file sends only that file,
+  deleting one writes a small new index, and reading a file fetches only its blocks; large files go up in parts,
+  several at once. The server sees object sizes and the times of changes, never names or content.
+  - `F5` on a `.pce` file towards S3 asks: **as a container** (the default; nothing is encrypted again, the password
+    stays) or as a plain copy of the one file. `F5` on a container towards a disk gives back one `.pce` file.
+  - *Files → Encrypt* with an `s3://…` target creates the container on the server directly; *Change .pce password*
+    works on it too and rewrites one small object.
+  - Two computers may change the same container at once on servers with conditional writes (Amazon S3 and most
+    compatible stores; tested with RustFS): the slower one repeats its change on top of the other's. If a container is found in an
+    older state than this computer last saw (a bucket restored from a backup, or tampering), Plain Commander asks
+    before opening it.
+  - Limits: viewing (`F3`) a file from a container on a server downloads a decrypted temporary copy, as for any
+    server file; directory synchronisation treats the container as a folder of its decrypted files.
+- `.pce` files, and containers on a server, are drawn in violet in the panels.
 
 **7z and zip** are offered for exchange with other programs: AES-256, with 7z also hiding the names. (Plain Commander
 never writes the weak legacy "ZipCrypto" and does not create rar archives.)
@@ -183,6 +198,7 @@ never writes the weak legacy "ZipCrypto" and does not create rar archives.)
   move both ways, create, delete, rename. Passwords are stored in the Windows Credential Manager only if you tick
   "remember"; the server's host key fingerprint is shown on first connection and a change is clearly warned about.
 - **S3-compatible storage:** Amazon S3, MinIO, Cloudflare R2, Wasabi, Backblaze B2; buckets are top-level folders.
+  Encrypted `.pce` containers can be kept there and changed in place (see *Encryption* above).
 - **Local network:** computers on the network, their shared folders and the files in them (`Alt+F1` → *Network*);
   typing `\\server` opens that server's shares; the Windows credential prompt appears when a share needs a login.
 - **OneDrive:** your personal and work or school OneDrive folders appear as buttons next to the drives and in the drive
@@ -362,6 +378,9 @@ Notes for the curious:
   key with the block number and a "last" flag as the nonce; one encrypted index (paths, sizes, times, entry keys,
   extents) under a key derived from the master key and a fresh salt; a second copy of the header and a footer at the
   end. A change appends a new index before anything it replaces is reused, so the last committed state always opens.
+  On S3 the same streams and index are split into immutable objects under `name.pce/`: `head` (the header), `data/…`
+  (one large entry, or a pack of small ones) and `index/…` (one object per committed state, named so that the newest
+  lists first and written with `If-None-Match: *`, which makes a commit atomic and lets concurrent writers retry).
   The first layout (`PCE1`: one stream, a folder as a TAR inside) is still read. Details (in Polish):
   [docs/szyfrowanie.md](docs/szyfrowanie.md).
 - **Stack:** .NET 10 (C# 14), WinUI 3 / Windows App SDK, CommunityToolkit.Mvvm, CsWin32, Serilog, SharpCompress,

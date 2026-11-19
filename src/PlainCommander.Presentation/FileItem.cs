@@ -98,6 +98,9 @@ public sealed partial class FileItem : ObservableObject
     /// <summary>A .pce container (Plain Commander's own encryption): drawn in its own colour, Enter decrypts it.</summary>
     public bool IsEncrypted => !Entry.IsDirectory && Core.Crypto.PceFormat.IsPceName(Entry.Name);
 
+    /// <summary>Drawn in the encryption colour: a .pce file, or a container folder on a server.</summary>
+    public bool LooksEncrypted => IsEncrypted || Entry.IsEncryptedContainer;
+
     /// <summary>Hidden or system entries are drawn faded (".." never is).</summary>
     public bool IsHidden => !Entry.IsParentLink && (Entry.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0;
 

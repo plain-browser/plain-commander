@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–5 zrobione; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–6 zrobione; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1109,6 +1109,14 @@ w pliku. Kroki w kolejności, każdy z testami.
      na serwerze); synchronizacja/porównanie katalogów traktują kontener jak katalog z zawartością; błąd ostatniego
      zatwierdzenia wychodzi na końcu operacji jako jeden komunikat, nie przy pliku.
 6. **Teksty i dokumentacja**: `Strings/en-US` i `pl-PL`, README, `site/index.html`, listingi Sklepu.
+   **Zrobione 2026-11-19**: README (wiersz tabeli funkcji, punkt „On S3 storage” w sekcji szyfrowania z ograniczeniami,
+   wzmianka przy S3, układ obiektów w opisie formatu), strona (dwie nowe karty: szyfrowanie `.pce`, serwery
+   i zaszyfrowane S3 — wcześniej strona w ogóle nie wspominała o szyfrowaniu ani serwerach), listingi Sklepu en i pl
+   (akapit o szyfrowaniu i nowy punkt listy funkcji). Teksty okien były gotowe w kroku 5. `whats-new-en.txt`
+   bez zmian: opisuje 1.15.0, które czeka w Sklepie; tekst następnej wersji przy jej wydaniu.
+   Przy okazji: kontener na serwerze jest w panelu fioletowy jak plik `.pce` (`RemoteItem.IsContainer` z listy S3 —
+   jedno żądanie HEAD na katalog `*.pce`, `FileEntry.IsEncryptedContainer`, `FileItem.LooksEncrypted`); sprawdzone na VM, zwykły katalog `*.pce` zostaje
+   żółty (`docs/stage24-s3-container.png`).
 7. **Pomiary**: wysłanie i pobranie 1 GiB i 10 GiB (cel: prędkość łącza przy 8 strumieniach), usunięcie 10 MiB
    z 10 GiB (cel: poniżej 1 s bez Argon2), 10 000 małych plików, otwarcie. RustFS w sieci lokalnej; prawdziwy AWS,
    jeśli będzie konto.

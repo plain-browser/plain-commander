@@ -95,6 +95,7 @@ public sealed class RemoteFileSystem : IFileSystem
             Modified = item.Modified,
             Attributes = attributes,
             Mode = item.Mode,
+            IsEncryptedContainer = item.IsDirectory && item.IsContainer,
         };
     }
 

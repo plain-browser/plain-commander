@@ -17,6 +17,9 @@ public sealed record FileEntry
     /// <summary>Unix permission bits of a file on a server (SFTP, FTP); null on disk.</summary>
     public int? Mode { get; init; }
 
+    /// <summary>A folder on a server that is a .pce container kept as objects: its content is encrypted there.</summary>
+    public bool IsEncryptedContainer { get; init; }
+
     /// <summary>
     /// Extension without the dot. Empty for directories, dot-less names and names whose only dot
     /// is the first character (".gitignore" is a name, not an extension).

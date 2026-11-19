@@ -73,7 +73,7 @@ public static class Ui
         Resource<Brush>(marked ? "PcMarkTextBrush" : "PcTextSecondaryBrush");
 
     public static Brush NameForeground(bool directory, bool marked, bool encrypted) =>
-        Resource<Brush>(marked ? "PcMarkTextBrush" : directory ? "PcFolderTextBrush" : encrypted ? "PcEncryptedTextBrush" : "PcTextBrush");
+        Resource<Brush>(marked ? "PcMarkTextBrush" : encrypted ? "PcEncryptedTextBrush" : directory ? "PcFolderTextBrush" : "PcTextBrush");
 
     public static Brush MarkBackground(bool marked) => marked ? Resource<Brush>("PcMarkBrush") : Transparent;
 

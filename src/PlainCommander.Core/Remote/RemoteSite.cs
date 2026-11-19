@@ -65,4 +65,4 @@ public sealed record RemoteCredentials(string Secret)
 
 /// <summary>One file or folder on a server.</summary>
 /// <param name="Mode">Unix permission bits (0–07777) when the server reports them.</param>
-public sealed record RemoteItem(string Name, bool IsDirectory, long Size, DateTimeOffset Modified, bool IsLink = false, int? Mode = null);
+public sealed record RemoteItem(string Name, bool IsDirectory, long Size, DateTimeOffset Modified, bool IsLink = false, int? Mode = null, bool IsContainer = false);
