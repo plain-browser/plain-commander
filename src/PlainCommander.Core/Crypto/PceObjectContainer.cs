@@ -82,7 +82,7 @@ public sealed class PceRolledBackException(ulong known, ulong found)
 /// are no longer the newest and are old enough that no writer can still be committing over them.
 /// </para>
 /// </summary>
-public sealed class PceObjectContainer : IDisposable
+public sealed class PceObjectContainer : IPceContainer
 {
     private const int HeaderSize = PceContainerFormat.HeaderSize;
     private const int FooterSize = PceContainerFormat.FooterSize;
@@ -149,8 +149,26 @@ public sealed class PceObjectContainer : IDisposable
             var header = PceContainerFormat.NewHeader(options, password, master, split: true);
             var container = new PceObjectContainer(store, true, header, master, options, split ?? PceSplitOptions.Default);
             container._viewed = container._split.UtcNow(); // the store was empty a moment ago
-            store.Put(PceObjectNames.Head, PceContainerFormat.WriteHeader(header));
-            container.Commit(static _ => []);
+            try
+            {
+                store.Put(PceObjectNames.Head, PceContainerFormat.WriteHeader(header));
+                container.Commit(static _ => []);
+            }
+            catch (IOException)
+            {
+                // Without its first index there is no container: the header alone would only be in the way of
+                // the next attempt, which wants the place empty.
+                try
+                {
+                    store.Delete(PceObjectNames.Head);
+                }
+                catch (IOException)
+                {
+                }
+
+                throw;
+            }
+
             return container;
         }
         catch
@@ -320,6 +338,64 @@ public sealed class PceObjectContainer : IDisposable
             {
                 // From here the data stays whatever happens: when the commit's outcome is unknown the index may
                 // refer to it, and when it is known to have failed Clean removes what nothing refers to.
+                Commit(entries => [.. entries.Where(e => !taken.Contains(e.Path)), .. added]);
+            }
+        }
+    }
+
+    /// <summary>The entry's sealed blocks as they lie in the data objects, for carrying to another container.</summary>
+    internal IPceStoredBytes OpenStored(PceEntry entry)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return new ObjectExtents(_store, entry, _split.ReadAhead);
+    }
+
+    /// <summary>
+    /// Adds entries that are already sealed (in a container of the same cipher and block size): their bytes are
+    /// stored as they are, large ones in objects of their own and small ones in packs, and they keep their keys.
+    /// Otherwise as <see cref="Add"/>: all of them or none.
+    /// </summary>
+    /// <param name="progress">Called with the stored bytes copied so far.</param>
+    internal void AddStored(IEnumerable<PceStored> items, Action<long>? progress = null, CancellationToken token = default)
+    {
+        lock (_gate)
+        {
+            EnsureWritable();
+            var added = new List<PceEntry>();
+            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            long done = 0;
+            using var writer = new DataWriter(_store, _split, token);
+            try
+            {
+                foreach (var item in items)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var entry = item.Entry;
+                    if (!taken.Add(entry.Path))
+                    {
+                        throw new ArgumentException($"\"{entry.Path}\" is given twice.", nameof(items));
+                    }
+
+                    if (entry.StoredSize > 0)
+                    {
+                        using var bytes = item.Open();
+                        PceTransfer.Pump(bytes, entry.StoredSize, writer.Write, ref done, progress, token);
+                    }
+
+                    added.Add(new PceEntry(entry.Path, entry.IsDirectory, entry.Size, entry.ModifiedUtc, entry.Attributes, entry.Compressed, entry.Key, writer.EndEntry()));
+                }
+
+                writer.Finish();
+                token.ThrowIfCancellationRequested();
+            }
+            catch
+            {
+                writer.Abandon();
+                throw;
+            }
+
+            if (added.Count > 0)
+            {
                 Commit(entries => [.. entries.Where(e => !taken.Contains(e.Path)), .. added]);
             }
         }

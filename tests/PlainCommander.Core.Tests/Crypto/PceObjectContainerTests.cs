@@ -535,6 +535,29 @@ public sealed class PceObjectContainerTests
     }
 
     [Fact]
+    public void A_container_that_could_not_be_created_leaves_the_place_empty()
+    {
+        foreach (var answerLost in new[] { false, true })
+        {
+            for (var fail = 1; fail <= 3; fail++)
+            {
+                var store = new MemoryObjectStore { FailAt = fail, FailAfterEffect = answerLost };
+                var create = () => Create(store).Dispose();
+                if (answerLost && fail == 3)
+                {
+                    create(); // the first index was stored and recognised
+                    Open(store).Dispose();
+                    continue;
+                }
+
+                create.Should().Throw<IOException>();
+                store.Names.Should().BeEmpty($"request {fail}, answer lost: {answerLost}");
+                Create(store).Dispose();
+            }
+        }
+    }
+
+    [Fact]
     public void A_container_open_for_reading_refuses_changes()
     {
         var store = Built(("a.bin", Bytes(5000)));

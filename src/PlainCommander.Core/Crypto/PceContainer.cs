@@ -19,7 +19,7 @@ namespace PlainCommander.Core.Crypto;
 /// unused space, which the next change removes.
 /// </para>
 /// </summary>
-public sealed class PceContainer : IDisposable
+public sealed class PceContainer : IPceContainer
 {
     private const int HeaderSize = PceContainerFormat.HeaderSize;
     private const int FooterSize = PceContainerFormat.FooterSize;
@@ -325,6 +325,94 @@ public sealed class PceContainer : IDisposable
                 }
 
                 token.ThrowIfCancellationRequested(); // a cancel during the last block still cancels
+            }
+            catch (Exception ex)
+            {
+                Undo(fresh, start, ex);
+                throw;
+            }
+
+            if (added.Count == 0)
+            {
+                return;
+            }
+
+            Change(() =>
+            {
+                if (fresh)
+                {
+                    _storage.SetLength(position);
+                }
+
+                var entries = _entries.Where(e => !taken.Contains(e.Path)).ToList();
+                entries.AddRange(added);
+                _entries = entries;
+            }, CancellationToken.None);
+        }
+    }
+
+    /// <summary>The entry's sealed blocks as they lie in the file, for carrying to another container.</summary>
+    internal IPceStoredBytes OpenStored(PceEntry entry)
+    {
+        lock (_gate)
+        {
+            EnsureUsable();
+            return new PceFileExtents(this, _storage, _version, entry);
+        }
+    }
+
+    /// <summary>
+    /// Adds entries that are already sealed (in a container of the same cipher and block size): their bytes are
+    /// copied as they are and they keep their keys. Otherwise as <see cref="Add"/>: all of them or none.
+    /// </summary>
+    /// <param name="progress">Called with the stored bytes copied so far.</param>
+    internal void AddStored(IEnumerable<PceStored> items, Action<long>? progress = null, CancellationToken token = default)
+    {
+        lock (_gate)
+        {
+            EnsureWritable();
+            var fresh = _entries.Count == 0 && _indexOffset == HeaderSize;
+            var start = fresh ? HeaderSize : _storage.Length;
+            var position = start;
+            var added = new List<PceEntry>();
+            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            long done = 0;
+            try
+            {
+                foreach (var item in items)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var entry = item.Entry;
+                    if (!taken.Add(entry.Path))
+                    {
+                        throw new ArgumentException($"\"{entry.Path}\" is given twice.", nameof(items));
+                    }
+
+                    var stored = entry.StoredSize;
+                    var extents = new List<PceExtent>();
+                    if (stored > 0)
+                    {
+                        using var bytes = item.Open();
+                        var at = position;
+                        PceTransfer.Pump(
+                            bytes,
+                            stored,
+                            block =>
+                            {
+                                _storage.Write(block, at);
+                                at += block.Length;
+                            },
+                            ref done,
+                            progress,
+                            token);
+                        extents.Add(new PceExtent(position, stored));
+                        position += stored;
+                    }
+
+                    added.Add(new PceEntry(entry.Path, entry.IsDirectory, entry.Size, entry.ModifiedUtc, entry.Attributes, entry.Compressed, entry.Key, extents));
+                }
+
+                token.ThrowIfCancellationRequested();
             }
             catch (Exception ex)
             {

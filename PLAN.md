@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–3 zrobione; testy w WSL, S3 na RustFS)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–4 zrobione; testy w WSL, S3 na RustFS)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1060,6 +1060,15 @@ w pliku. Kroki w kolejności, każdy z testami.
    przez coś innego). Nie zrobione: pobieranie kilkoma strumieniami (krok 7), test serwera bez zapisu warunkowego.
 4. **Konwersja**: plik `.pce` → forma rozłożona i z powrotem przez kopiowanie strumieni (bez szyfrowania od nowa),
    `PceFile.Upgrade` dla `PCE1` po drodze. Testy: zawartość i klucze wpisów te same po obu stronach.
+   **Zrobione 2026-11-19**: `PceTransfer.ToObjects` / `ToFile` (`PceTransfer.cs`), wspólny interfejs `IPceContainer`
+   obu kontenerów (pod `PceArchive` w kroku 5), `OpenStored` / `AddStored` w obu (surowe bloki z kluczem wpisu).
+   Kopia ma ten sam szyfr i rozmiar bloku co źródło (inaczej bloki by nie pasowały) i własny klucz główny pod tym
+   samym hasłem. Plik `PCE1` jest szyfrowany od nowa prosto do magazynu (`PceFile.CopyFirstLayout`), a plik na dysku
+   użytkownika zostaje nietknięty — odstępstwo od „`Upgrade` po drodze”, bo `Upgrade` przepisuje plik źródłowy.
+   Nieudana kopia do magazynu zostawia go pustym (także gdy zawiedzie samo `Create`), do pliku — bez pliku
+   i bez `.part`; zajęte miejsce docelowe nie jest ruszane. Testy `PceTransferTests` (10): te same bajty i klucze
+   w obie strony, tam i z powrotem ten sam rozmiar i układ pliku, awaria na każdym żądaniu, anulowanie.
+   Tylko na magazynie w pamięci; na RustFS nieuruchamiane (ten sam interfejs co w kroku 3).
 5. **Panel**: katalog `*.pce` z obiektem `head` na S3 jest w panelu jednym elementem; Enter pyta o hasło i otwiera
    go jak archiwum (`PceArchive` nad wspólnym interfejsem obu kontenerów). F5/F6 do środka, F8 (trwałe, pyta
    zawsze), F7, Shift+F6, F3 na wpisie, Zmień hasło. Zaszyfruj z panelem S3 jako celem tworzy formę rozłożoną;

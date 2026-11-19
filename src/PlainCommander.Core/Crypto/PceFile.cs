@@ -467,38 +467,8 @@ public static class PceFile
         string? temp = null;
         try
         {
-            using (var content = Open(file, password))
-            {
-                var name = PlainName(content.Metadata.Name) ?? throw new PceFormatException($"The stored name \"{content.Metadata.Name}\" is not a valid file name.");
-                var compression = content.Header.IsCompressed ? PceCompression.Auto : PceCompression.None;
-                temp = TempNames.ReserveFile(file);
-                using var container = PceContainer.Create(temp, password);
-                try
-                {
-                    if (content.Header.IsFolder)
-                    {
-                        container.Add(
-                            TarItems(content.Content).Select(item => new PceSource(name + "/" + item.Name, item.IsDirectory, item.IsDirectory ? null : () => item.Body, item.ModifiedUtc, FileAttributes.None)),
-                            compression,
-                            progress,
-                            token);
-                        if (container.Entries.Count == 0)
-                        {
-                            container.Add([new PceSource(name, true, null, content.Metadata.ModifiedUtc, content.Metadata.Attributes)], PceCompression.None, null, token);
-                        }
-                    }
-                    else
-                    {
-                        container.Add([new PceSource(name, false, () => new Slice(content.Content, null), content.Metadata.ModifiedUtc, content.Metadata.Attributes)], compression, progress, token);
-                    }
-                }
-                catch (ArgumentException ex)
-                {
-                    throw new PceFormatException("Damaged folder content (an entry name is not a path).", ex);
-                }
-            }
-
-            File.Move(temp, file, overwrite: true);
+            CopyFirstLayout(file, password, () => PceContainer.Create(temp = TempNames.ReserveFile(file), password), progress, token);
+            File.Move(temp!, file, overwrite: true);
             return true;
         }
         finally
@@ -507,6 +477,43 @@ public static class PceFile
             {
                 TryDelete(temp);
             }
+        }
+    }
+
+    /// <summary>
+    /// The content of a file of the first layout as entries of a new container, encrypted anew. The container is
+    /// made by <paramref name="create"/> only once the file has opened (so a wrong password makes nothing) and is
+    /// disposed here.
+    /// </summary>
+    /// <param name="progress">Called with the plain bytes carried over so far.</param>
+    internal static void CopyFirstLayout(string file, string password, Func<IPceContainer> create, Action<long>? progress, CancellationToken token)
+    {
+        using var content = Open(file, password);
+        var name = PlainName(content.Metadata.Name) ?? throw new PceFormatException($"The stored name \"{content.Metadata.Name}\" is not a valid file name.");
+        var compression = content.Header.IsCompressed ? PceCompression.Auto : PceCompression.None;
+        using var container = create();
+        try
+        {
+            if (content.Header.IsFolder)
+            {
+                container.Add(
+                    TarItems(content.Content).Select(item => new PceSource(name + "/" + item.Name, item.IsDirectory, item.IsDirectory ? null : () => item.Body, item.ModifiedUtc, FileAttributes.None)),
+                    compression,
+                    progress,
+                    token);
+                if (container.Entries.Count == 0)
+                {
+                    container.Add([new PceSource(name, true, null, content.Metadata.ModifiedUtc, content.Metadata.Attributes)], PceCompression.None, null, token);
+                }
+            }
+            else
+            {
+                container.Add([new PceSource(name, false, () => new Slice(content.Content, null), content.Metadata.ModifiedUtc, content.Metadata.Attributes)], compression, progress, token);
+            }
+        }
+        catch (ArgumentException ex)
+        {
+            throw new PceFormatException("Damaged folder content (an entry name is not a path).", ex);
         }
     }
 
