@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–5 zrobione; testy w WSL, S3 na RustFS; aplikacja WinUI niezbudowana po kroku 5)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–5 zrobione; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1094,7 +1094,14 @@ w pliku. Kroki w kolejności, każdy z testami.
      kontener); Zaszyfruj z celem `s3://…` tworzy kontener (tylko `.pce`, bez ukrytej nazwy); Zmień hasło na
      kontenerze w panelu S3.
    - Aplikacja: dwa okna w `DialogService` (`AskPceUploadAsync`, `ConfirmOlderContainerAsync`) i teksty `S3Pce_*`
-     w obu językach — **napisane bez budowania (WSL nie buduje WinUI); do zbudowania i obejrzenia na VM**.
+     w obu językach — zbudowane i obejrzane na VM 2026-11-19 (build bez ostrzeżeń; RustFS; en i pl): F5 pliku
+     `.pce` na serwer z pytaniem, wejście do kontenera, F8 i F5 w środku, kontener na dysk jako plik `.pce`,
+     Zaszyfruj z celem `s3://…`, pytanie o starszy stan (indeks usunięty na serwerze) i otwarcie po zgodzie.
+     Nie przeklikane w GUI: Zmień hasło na serwerze, F6, „Zwykła kopia”.
+   - Błąd znaleziony w GUI i naprawiony: limit 10 s „dysk nie odpowiada” liczył czas otwartego okna (hasło
+     kontenera, pytanie o starszy stan, także logowanie do serwera), więc otwarcie przepadało. Teraz
+     `DiskTimeout.Pause()` wstrzymuje zegar na czas każdego okna (`DialogService.ShowAsync`), a po odpowiedzi
+     limit biegnie od nowa. Kontener na serwerze ma w panelu ikonę zwykłego katalogu (bez koloru szyfrowania).
    - Testy: `PceRemoteViewTests` (10, pamięć), `S3PceContainerFolderTests` (4, RustFS, prawdziwe operacje
      wysyłania/pobierania/usuwania), `PceOnServerTests` (3, RustFS, polecenia paneli).
    - Ograniczenia: F3 i podgląd pliku z kontenera pobierają odszyfrowaną kopię do `%TEMP%` (jak każdy plik

@@ -1345,6 +1345,8 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
     /// <param name="cancellationToken">Closes the dialog (with no answer) when the operation that asked is cancelled.</param>
     private async Task<ContentDialogResult> ShowAsync(ContentDialog dialog, CancellationToken cancellationToken)
     {
+        // a listing that waits for this answer (a password, a login) must not be taken for a silent disk
+        using var pause = PlainCommander.Core.FileSystem.DiskTimeout.Pause();
         await _gate.WaitAsync(cancellationToken); // an operation cancelled while its question waited asks nothing
         try
         {

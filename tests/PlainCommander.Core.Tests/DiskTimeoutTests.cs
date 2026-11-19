@@ -34,4 +34,40 @@ public class DiskTimeoutTests
         DiskTimeout.Run(() => { gate.Wait(); return "late"; }, "fallback", TimeSpan.FromMilliseconds(200)).Should().Be("fallback");
         gate.Set();
     }
+
+    private static readonly TimeSpan Short = TimeSpan.FromMilliseconds(200);
+
+    [Fact]
+    public async Task Time_spent_on_a_question_does_not_count()
+    {
+        var work = new TaskCompletionSource<int>();
+        Task<int> waiting;
+        using (DiskTimeout.Pause())
+        {
+            waiting = DiskTimeout.WithTimeoutAsync(work.Task, Short, TestContext.Current.CancellationToken);
+            await Task.Delay(Short * 4, TestContext.Current.CancellationToken);
+            waiting.IsCompleted.Should().BeFalse("the question is still open");
+        }
+
+        // answered: the work gets a full limit again
+        await Task.Delay(Short / 4, TestContext.Current.CancellationToken);
+        waiting.IsCompleted.Should().BeFalse();
+        work.SetResult(7);
+        (await waiting).Should().Be(7);
+    }
+
+    [Fact]
+    public async Task After_the_answer_a_silent_call_still_times_out()
+    {
+        var never = new TaskCompletionSource<int>();
+        Task<int> waiting;
+        using (DiskTimeout.Pause())
+        {
+            waiting = DiskTimeout.WithTimeoutAsync(never.Task, Short, TestContext.Current.CancellationToken);
+            await Task.Delay(Short * 2, TestContext.Current.CancellationToken);
+        }
+
+        var act = () => waiting;
+        await act.Should().ThrowAsync<TimeoutException>();
+    }
 }
