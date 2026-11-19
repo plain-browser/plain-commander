@@ -305,7 +305,7 @@ Usunięcie wymaga miejsca na jeden indeks (od ok. 4,3 KiB): na dysku bez ani jed
 i zostawia kontener nietknięty. Proces ubity w dowolnym momencie usuwania zostawia plik, który się otwiera; nieoddane
 miejsce odzyskuje następne otwarcie do zapisu.
 
-## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19; rdzeń w `Core/Crypto` wdrożony, S3 i aplikacja jeszcze nie)
+## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19; rdzeń i magazyn S3 wdrożone i sprawdzone na RustFS, aplikacja jeszcze nie)
 
 Plan wdrożenia: PLAN.md, etap 24. Dla użytkownika to dalej „plik `.pce`” w panelu S3; rozłożenie na obiekty jest
 szczegółem przechowywania.
@@ -396,12 +396,17 @@ Prymitywy bez zmian (Argon2id, AES‑256‑GCM / ChaCha20‑Poly1305, losowy klu
 - **Cofnięcie do starszego stanu** (ktoś z dostępem do kubełka usuwa najnowsze indeksy): aplikacja zapamiętuje
   najwyższą widzianą generację każdego kontenera i ostrzega, gdy serwer pokazuje niższą. Bez stanu po stronie klienta
   tego się nie wykryje; na innym komputerze chroni dopiero wersjonowanie albo Object Lock w kubełku.
-- **Integralność w drodze:** suma CRC32C każdej części przy wysyłaniu.
+- **Integralność w drodze:** sumy, które AWS SDK 4 dolicza domyślnie do każdego PUT i każdej części (CRC32, nie
+  CRC32C: jawne wymuszanie algorytmu nie jest warte ryzyka na serwerach „zgodnych z S3”), oprócz podpisu żądania.
+  Uszkodzenie i tak wykryłby tag bloku przy odczycie; suma chroni przed zapisaniem złych danych.
 
 ### Ograniczenia
 
-- Warunkowy zapis (`If-None-Match`) mają AWS (od 2024) i część serwerów zgodnych z S3. Gdzie go brak, kontener
-  działa z jednym piszącym, a aplikacja mówi to przy otwarciu do zapisu. Do sprawdzenia na RustFS w kroku 3.
+- Warunkowy zapis (`If-None-Match`) mają AWS (od 2024) i część serwerów zgodnych z S3; RustFS go ma (sprawdzone
+  2026-11-19: z 12 równoległych zapisów tej samej nazwy wygrywa dokładnie jeden). Magazyn sprawdza to sondą przy
+  pierwszym użyciu (dwa zapisy warunkowe pod nazwą roboczą); gdzie zapisu warunkowego brak, kontener działa z jednym
+  piszącym (`SafeForSeveralWriters`), a aplikacja ma to powiedzieć przy otwarciu do zapisu. Ścieżka „brak” nie była
+  sprawdzana na prawdziwym serwerze — nie mamy takiego.
 - Klasy archiwalne (Glacier) nie dają odczytu zakresami bez przywrócenia obiektu.
 - Miejsce po małych plikach wraca dopiero przy przepakowaniu paczki; po dużych od razu.
 - Indeks jest przepisywany w całości przy każdej zmianie, jak w pliku (10 000 wpisów ≈ 1 MB na żądanie).

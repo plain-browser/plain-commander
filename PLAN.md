@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–2 zrobione, tylko WSL)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–3 zrobione; testy w WSL, S3 na RustFS)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1049,6 +1049,15 @@ w pliku. Kroki w kolejności, każdy z testami.
    z CRC32C, pobieranie zakresami równolegle, zapis warunkowy. Wykrycie serwera bez `If-None-Match` → tryb jednego
    piszącego. Testy na RustFS (te same zmienne co testy serwerowe); sprawdzić, czy RustFS obsługuje zapis warunkowy
    i sumy części.
+   **Zrobione 2026-11-19**: `Remote/S3PceObjectStore.cs` (klient `IAmazonS3` z zewnątrz, kubełek, prefiks; żądania
+   blokują wątek, błędy jako `IOException`; 409 przy zapisie warunkowym ponawiane). Testy `S3PceObjectStoreTests` (6,
+   zmienna `PC_PCE_S3=http://host:port`; części po 5 MiB, bo S3 nie przyjmuje mniejszych): zakresy, lista, zapis
+   warunkowy, 12 równoległych zapisów jednej generacji, wysyłanie w częściach i porzucanie, cały kontener (plik
+   17 MiB w dwóch obiektach, paczki, zstd, usuwanie, zmiana hasła), 4 piszące wątki. RustFS (`rustfs/rustfs:latest`
+   z 2026-10-25) obsługuje zapis warunkowy i wysyłanie w częściach z domyślnymi sumami SDK; jawnego CRC32C nie
+   wymuszam. Serwer: kontener `pc-test-rustfs` na Unraidzie (512 MB, port 19000, zatrzymany po testach —
+   `docker start pc-test-rustfs`); z WSL przez tunel `ssh -L 19000:127.0.0.1:19000` (lokalny port 9000 jest zajęty
+   przez coś innego). Nie zrobione: pobieranie kilkoma strumieniami (krok 7), test serwera bez zapisu warunkowego.
 4. **Konwersja**: plik `.pce` → forma rozłożona i z powrotem przez kopiowanie strumieni (bez szyfrowania od nowa),
    `PceFile.Upgrade` dla `PCE1` po drodze. Testy: zawartość i klucze wpisów te same po obu stronach.
 5. **Panel**: katalog `*.pce` z obiektem `head` na S3 jest w panelu jednym elementem; Enter pyta o hasło i otwiera
