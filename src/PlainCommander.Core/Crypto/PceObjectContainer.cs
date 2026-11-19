@@ -451,6 +451,20 @@ public sealed class PceObjectContainer : IPceContainer
         }
     }
 
+    /// <summary>
+    /// Several changes committed as one: files stored as they come (small ones sharing packs across the whole
+    /// batch), index edits kept in memory, and a single new index at <see cref="Batch.Commit"/>. For callers that
+    /// change the container item by item, where an index per item would cost more than the items.
+    /// </summary>
+    internal Batch BeginBatch()
+    {
+        lock (_gate)
+        {
+            EnsureWritable();
+            return new Batch(this);
+        }
+    }
+
     /// <summary>Takes up the changes made from elsewhere since this container was opened or last changed.</summary>
     public void Refresh()
     {
@@ -858,6 +872,141 @@ public sealed class PceObjectContainer : IPceContainer
         return sparse.Count;
     }
 
+    /// <summary>See <see cref="BeginBatch"/>. Not thread-safe: one caller at a time.</summary>
+    internal sealed class Batch : IDisposable
+    {
+        private readonly PceObjectContainer _owner;
+        private readonly List<Func<IReadOnlyList<PceEntry>, List<PceEntry>?>> _edits = [];
+        private DataWriter _writer;
+        private List<PceEntry> _view;
+
+        internal Batch(PceObjectContainer owner)
+        {
+            _owner = owner;
+            _view = owner._entries;
+            _writer = new DataWriter(owner._store, owner._split, CancellationToken.None);
+        }
+
+        /// <summary>The container's entries as they will be once the pending changes are committed.</summary>
+        public IReadOnlyList<PceEntry> Entries => _view;
+
+        /// <summary>Changes made and not yet committed.</summary>
+        public int Pending => _edits.Count;
+
+        /// <summary>
+        /// Stores one file (or records one folder). Its bytes may still be in memory, in the pack shared with the
+        /// batch's other small files, until <see cref="Commit"/>.
+        /// </summary>
+        public void Add(PceSource source, PceCompression compression = PceCompression.None, Action<long>? progress = null, CancellationToken token = default)
+        {
+            lock (_owner._gate)
+            {
+                _owner.EnsureWritable();
+                var path = PceContainer.NormalizePath(source.Path);
+                long done = 0;
+                var entry = source.IsDirectory
+                    ? new PceEntry(path, true, 0, source.ModifiedUtc.ToUniversalTime(), source.Attributes & ~FileAttributes.Directory, false, new byte[PceFormat.KeySize], [])
+                    : _owner.WriteEntry(_writer, source, path, compression, ref done, progress, token);
+                token.ThrowIfCancellationRequested();
+                Apply(entries => [.. entries.Where(e => !string.Equals(e.Path, path, StringComparison.OrdinalIgnoreCase)), entry]);
+            }
+        }
+
+        /// <summary>Deletes the entries at <paramref name="paths"/> and everything under them; returns how many went.</summary>
+        public int Delete(IEnumerable<string> paths)
+        {
+            var roots = paths.Select(PceContainer.NormalizePath).ToList();
+            var before = _view.Count;
+            Apply(entries =>
+            {
+                var keep = entries.Where(e => !roots.Exists(r => PceContainer.IsAtOrUnder(e.Path, r))).ToList();
+                return keep.Count == entries.Count ? null : keep;
+            });
+            return before - _view.Count;
+        }
+
+        public void Rename(string path, string newPath) => Apply(entries => PceContainer.Renamed(entries, path, newPath));
+
+        /// <summary>Sets an entry's time; nothing when there is no such entry.</summary>
+        public void Touch(string path, DateTime modifiedUtc)
+        {
+            var normalized = PceContainer.NormalizePath(path);
+            Apply(entries =>
+            {
+                var at = entries.ToList().FindIndex(e => string.Equals(e.Path, normalized, StringComparison.OrdinalIgnoreCase));
+                if (at < 0 || entries[at].ModifiedUtc == modifiedUtc)
+                {
+                    return null;
+                }
+
+                var old = entries[at];
+                var result = entries.ToList();
+                result[at] = new PceEntry(old.Path, old.IsDirectory, old.Size, modifiedUtc, old.Attributes, old.Compressed, old.Key, old.Extents);
+                return result;
+            });
+        }
+
+        /// <summary>
+        /// Stores what is still in memory and commits everything as one index. When the container was changed
+        /// from elsewhere meanwhile, the batch's edits are applied to what it holds now, in the order they were made.
+        /// </summary>
+        public void Commit()
+        {
+            lock (_owner._gate)
+            {
+                if (_edits.Count == 0)
+                {
+                    return;
+                }
+
+                _owner.EnsureWritable();
+                _writer.Finish();
+                _owner.Commit(entries =>
+                {
+                    IReadOnlyList<PceEntry> current = entries;
+                    foreach (var edit in _edits)
+                    {
+                        current = edit(current) ?? current;
+                    }
+
+                    return ReferenceEquals(current, entries) ? null : (List<PceEntry>)current;
+                });
+
+                // What the batch stored and then replaced or deleted again never reached an index.
+                var live = _owner._entries.SelectMany(e => e.Extents).Select(e => e.Object).ToHashSet();
+                _writer.Abandon(live);
+                _writer.Dispose();
+                _writer = new DataWriter(_owner._store, _owner._split, CancellationToken.None);
+                _edits.Clear();
+                _view = _owner._entries;
+            }
+        }
+
+        /// <summary>Uncommitted changes are dropped and what was stored for them deleted.</summary>
+        public void Dispose()
+        {
+            lock (_owner._gate)
+            {
+                if (_edits.Count > 0)
+                {
+                    _writer.Abandon();
+                    _edits.Clear();
+                }
+
+                _writer.Dispose();
+            }
+        }
+
+        private void Apply(Func<IReadOnlyList<PceEntry>, List<PceEntry>?> edit)
+        {
+            if (edit(_view) is { } changed)
+            {
+                _view = changed;
+                _edits.Add(edit);
+            }
+        }
+    }
+
     /// <summary>
     /// Turns the sealed blocks of the entries of one change into data objects. An entry's bytes gather in a part
     /// buffer: when it fills, the entry is a large one and goes out as an upload in parts (several parts on the
@@ -951,13 +1100,19 @@ public sealed class PceObjectContainer : IPceContainer
         public void Finish() => StorePack();
 
         /// <summary>The change will not happen: what was stored for it is deleted, as far as the store lets us.</summary>
-        public void Abandon()
+        /// <param name="keep">Objects an index refers to after all: these stay.</param>
+        public void Abandon(HashSet<PceObjectId>? keep = null)
         {
             WaitForSends();
             _upload?.Dispose();
             _upload = null;
             foreach (var id in _created)
             {
+                if (keep?.Contains(id) == true)
+                {
+                    continue;
+                }
+
                 try
                 {
                     store.Delete(PceObjectNames.Data(id), CancellationToken.None);

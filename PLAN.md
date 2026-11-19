@@ -1079,9 +1079,8 @@ w pliku. Kroki w kolejności, każdy z testami.
    z 10 GiB (cel: poniżej 1 s bez Argon2), 10 000 małych plików, otwarcie. RustFS w sieci lokalnej; prawdziwy AWS,
    jeśli będzie konto.
 
-Do ustalenia przed krokiem 5:
-- F5 pliku `.pce` z dysku do S3: zawsze konwersja na formę rozłożoną, czy pytanie (jeden obiekt tylko do odczytu
-  kontra forma rozłożona)?
+Decyzja 2026-11-19: F5 pliku `.pce` z dysku do S3 pyta — forma rozłożona (domyślnie) albo zwykła kopia pliku (jeden
+obiekt, na S3 tylko do odczytu).
 
 Decyzja 2026-11-19: bez obiektu `README` w prefiksie — kontener to tylko `head`, `index/` i `data/`.
 

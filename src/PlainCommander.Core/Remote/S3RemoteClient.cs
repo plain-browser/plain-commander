@@ -4,6 +4,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
+using PlainCommander.Core.Crypto;
 
 namespace PlainCommander.Core.Remote;
 
@@ -12,6 +13,12 @@ namespace PlainCommander.Core.Remote;
 /// root lists the buckets; below that "/" in keys makes the folders, as the AWS console shows them (an empty
 /// folder is a "name/" object). S3 cannot set a file's time, so it is kept in the "mtime" metadata as rclone
 /// does, and read back from there when an exact time is needed (compare, synchronize).
+/// <para>
+/// A folder "name.pce" that holds a "head" object is a .pce container kept as objects
+/// (<see cref="PceObjectContainer"/>): paths below it are answered from the container, decrypted — its files are
+/// listed, fetched, sent, deleted and renamed like files of any folder. The folder itself stays what it is on the
+/// server: deleting or renaming it deletes or moves its objects.
+/// </para>
 /// </summary>
 public sealed class S3RemoteClient : IRemoteClient
 {
@@ -22,8 +29,11 @@ public sealed class S3RemoteClient : IRemoteClient
     /// time); bigger folders show when S3 stored the files, to keep the listing quick.
     /// </summary>
     public const int ExactTimesLimit = 500;
+    private static readonly TimeSpan NotAContainerFor = TimeSpan.FromSeconds(3);
     private readonly RemoteSite _site;
     private readonly RemoteCredentials _credentials;
+    private readonly Dictionary<string, PceRemoteView> _containers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTime> _notContainers = new(StringComparer.Ordinal);
     private AmazonS3Client? _client;
 
     public S3RemoteClient(RemoteSite site, RemoteCredentials credentials)
@@ -99,7 +109,17 @@ public sealed class S3RemoteClient : IRemoteClient
 
     public Task<string> GetHomeAsync(CancellationToken cancellationToken) => Task.FromResult("/");
 
-    public Task<IReadOnlyList<RemoteItem>> ListAsync(string path, CancellationToken cancellationToken) => CallAsync<IReadOnlyList<RemoteItem>>(async c =>
+    public async Task<IReadOnlyList<RemoteItem>> ListAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { } inside)
+        {
+            return await InContainerAsync(() => inside.View.List(inside.Inner) ?? throw new DirectoryNotFoundException(path), cancellationToken).ConfigureAwait(false);
+        }
+
+        return await ListPlainAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<IReadOnlyList<RemoteItem>> ListPlainAsync(string path, CancellationToken cancellationToken) => CallAsync<IReadOnlyList<RemoteItem>>(async c =>
     {
         var (bucket, key) = Split(path);
         if (bucket is null)
@@ -160,7 +180,17 @@ public sealed class S3RemoteClient : IRemoteClient
         return items;
     }, cancellationToken);
 
-    public Task<RemoteItem?> StatAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task<RemoteItem?> StatAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            return await InContainerAsync(() => inside.View.Stat(inside.Inner), cancellationToken).ConfigureAwait(false);
+        }
+
+        return await StatPlainAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<RemoteItem?> StatPlainAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = Split(path);
         if (bucket is null)
@@ -188,6 +218,11 @@ public sealed class S3RemoteClient : IRemoteClient
     /// <summary>The time the file had when it was uploaded (metadata), else when S3 stored it.</summary>
     public async Task<DateTimeOffset?> GetModifiedAsync(string path, CancellationToken cancellationToken)
     {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            return await InContainerAsync(() => inside.View.Stat(inside.Inner)?.Modified, cancellationToken).ConfigureAwait(false);
+        }
+
         var (bucket, key) = Split(path);
         if (bucket is null || key.Length == 0)
         {
@@ -197,7 +232,18 @@ public sealed class S3RemoteClient : IRemoteClient
         return await CallAsync(async c => await HeadAsync(c, bucket, key, cancellationToken).ConfigureAwait(false) is { } head ? MtimeOf(head) : (DateTimeOffset?)null, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task DownloadAsync(string path, Stream destination, long offset, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task DownloadAsync(string path, Stream destination, long offset, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            await InContainerAsync(() => inside.View.Download(inside.Inner, destination, offset, cancellationToken), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await DownloadPlainAsync(path, destination, offset, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> DownloadPlainAsync(string path, Stream destination, long offset, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = FileKey(path);
         var request = new GetObjectRequest { BucketName = bucket, Key = key };
@@ -212,7 +258,18 @@ public sealed class S3RemoteClient : IRemoteClient
     }, cancellationToken);
 
     /// <summary>One request for small files, parts in parallel for big ones (the SDK decides). S3 has no append.</summary>
-    public Task UploadAsync(Stream source, string path, bool append, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task UploadAsync(Stream source, string path, bool append, CancellationToken cancellationToken)
+    {
+        if (!append && await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            await InContainerAsync(() => inside.View.Upload(source, inside.Inner, cancellationToken), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await UploadPlainAsync(source, path, append, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> UploadPlainAsync(Stream source, string path, bool append, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         if (append)
         {
@@ -225,7 +282,18 @@ public sealed class S3RemoteClient : IRemoteClient
         return true;
     }, cancellationToken);
 
-    public Task DeleteFileAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task DeleteFileAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            await InContainerAsync(() => inside.View.DeleteFile(inside.Inner), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await DeleteFilePlainAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> DeleteFilePlainAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = FileKey(path);
         await c.DeleteObjectAsync(new DeleteObjectRequest { BucketName = bucket, Key = key }, cancellationToken).ConfigureAwait(false);
@@ -233,7 +301,26 @@ public sealed class S3RemoteClient : IRemoteClient
     }, cancellationToken);
 
     /// <summary>A bucket is removed (it must be empty); a folder loses its "name/" marker, if it had one.</summary>
-    public Task DeleteDirectoryAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task DeleteDirectoryAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { } inside)
+        {
+            if (inside.Inner.Length > 0)
+            {
+                await InContainerAsync(() => inside.View.DeleteDirectory(inside.Inner), cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await DeleteContainerAsync(path, inside.View, cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        await DeleteDirectoryPlainAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> DeleteDirectoryPlainAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = Split(path);
         if (bucket is null)
@@ -254,7 +341,18 @@ public sealed class S3RemoteClient : IRemoteClient
     }, cancellationToken);
 
     /// <summary>At the root a new bucket; below, an empty "name/" object, as the AWS console makes folders.</summary>
-    public Task CreateDirectoryAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task CreateDirectoryAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            await InContainerAsync(() => inside.View.CreateDirectory(inside.Inner), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await CreateDirectoryPlainAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> CreateDirectoryPlainAsync(string path, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = Split(path);
         if (bucket is null)
@@ -275,7 +373,34 @@ public sealed class S3RemoteClient : IRemoteClient
     }, cancellationToken);
 
     /// <summary>S3 has no rename: copy then delete, every object of a folder. Buckets cannot be renamed.</summary>
-    public Task RenameAsync(string source, string target, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task RenameAsync(string source, string target, CancellationToken cancellationToken)
+    {
+        var from = await ContainerAsync(source, cancellationToken).ConfigureAwait(false);
+        var to = await ContainerAsync(target, cancellationToken).ConfigureAwait(false);
+        if (from is { Inner.Length: > 0 } || to is { Inner.Length: > 0 })
+        {
+            if (from is not { Inner.Length: > 0 } a || to is not { Inner.Length: > 0 } b || !ReferenceEquals(a.View, b.View))
+            {
+                throw new RemoteException("A file cannot be moved into or out of an encrypted container by renaming; copy it instead.");
+            }
+
+            await InContainerAsync(() => a.View.Rename(a.Inner, b.Inner), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // The container itself moves as the objects it is: whatever is pending goes in first, and its view is
+        // dropped, because the place it stood for is about to be gone.
+        if (from is { } moved)
+        {
+            await InContainerAsync(moved.View.Flush, cancellationToken).ConfigureAwait(false);
+            Forget(moved.View);
+        }
+
+        await RenamePlainAsync(source, target, cancellationToken).ConfigureAwait(false);
+        _notContainers.Clear();
+    }
+
+    private Task<bool> RenamePlainAsync(string source, string target, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (fromBucket, fromKey) = FileKey(source);
         var (toBucket, toKey) = FileKey(target);
@@ -305,7 +430,18 @@ public sealed class S3RemoteClient : IRemoteClient
     }, cancellationToken);
 
     /// <summary>Stores the time as metadata: the object is copied onto itself with the new metadata (server side).</summary>
-    public Task SetModifiedAsync(string path, DateTimeOffset modified, CancellationToken cancellationToken) => CallAsync(async c =>
+    public async Task SetModifiedAsync(string path, DateTimeOffset modified, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: > 0 } inside)
+        {
+            await InContainerAsync(() => inside.View.SetModified(inside.Inner, modified), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await SetModifiedPlainAsync(path, modified, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<bool> SetModifiedPlainAsync(string path, DateTimeOffset modified, CancellationToken cancellationToken) => CallAsync(async c =>
     {
         var (bucket, key) = FileKey(path);
         try
@@ -344,11 +480,192 @@ public sealed class S3RemoteClient : IRemoteClient
     public Task SetModeAsync(string path, int mode, CancellationToken cancellationToken) =>
         throw new RemoteException("S3 has no Unix permissions.");
 
-    public ValueTask DisposeAsync()
+    /// <summary>
+    /// Commits what the containers used through this client have gathered. A failure here is a failure of the work
+    /// that was done through the client: it is thrown once everything is closed.
+    /// </summary>
+    public async ValueTask DisposeAsync()
     {
+        IOException? failed = null;
+        if (_containers.Count > 0)
+        {
+            var views = _containers.Values.ToList();
+            _containers.Clear();
+            await Task.Run(() =>
+            {
+                foreach (var view in views)
+                {
+                    try
+                    {
+                        view.Flush();
+                    }
+                    catch (IOException ex)
+                    {
+                        failed ??= ex;
+                    }
+
+                    view.Dispose();
+                }
+            }).ConfigureAwait(false);
+        }
+
+        _notContainers.Clear();
         _client?.Dispose();
         _client = null;
-        return ValueTask.CompletedTask;
+        if (failed is not null)
+        {
+            throw new RemoteException("The last changes to the encrypted container were not saved: " + failed.Message, failed);
+        }
+    }
+
+    /// <summary>Commits the changes gathered for the container at <paramref name="path"/> (or holding it) now.</summary>
+    public async Task FlushContainerAsync(string path, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { } inside)
+        {
+            await InContainerAsync(inside.View.Flush, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Replaces the password of the container at <paramref name="path"/>; false when there is no container there.</summary>
+    public async Task<bool> ChangeContainerPasswordAsync(string path, string newPassword, CancellationToken cancellationToken)
+    {
+        if (await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is not { Inner.Length: 0 } inside)
+        {
+            return false;
+        }
+
+        await InContainerAsync(() => inside.View.ChangePassword(newPassword), cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="path"/> is a container kept as objects (the folder itself, not something inside it).</summary>
+    public async Task<bool> IsContainerAsync(string path, CancellationToken cancellationToken) =>
+        await ContainerAsync(path, cancellationToken).ConfigureAwait(false) is { Inner.Length: 0 };
+
+    /// <summary>The store under a container folder, for making a container there or reading one whole.</summary>
+    internal async Task<IPceObjectStore> ContainerStoreAsync(string path, CancellationToken cancellationToken)
+    {
+        if (_client is null)
+        {
+            await ConnectAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var (bucket, key) = FileKey(path);
+        return new S3PceObjectStore(_client!, bucket, key);
+    }
+
+    /// <summary>
+    /// The container <paramref name="path"/> leads into (or is) and the path inside it; null for every other path.
+    /// The candidate is the first folder on the path called "*.pce"; it is a container when it holds a "head" object.
+    /// </summary>
+    private async Task<(PceRemoteView View, string Inner)?> ContainerAsync(string path, CancellationToken cancellationToken)
+    {
+        var (bucket, key) = Split(path);
+        if (bucket is null || key.Length == 0)
+        {
+            return null;
+        }
+
+        var segments = key.Split('/');
+        var at = Array.FindIndex(segments, PceFormat.IsPceName);
+        if (at < 0)
+        {
+            return null;
+        }
+
+        var rootKey = string.Join('/', segments[..(at + 1)]);
+        var id = bucket + "/" + rootKey;
+        var inner = string.Join('/', segments[(at + 1)..]);
+        if (_containers.TryGetValue(id, out var known))
+        {
+            return (known, inner);
+        }
+
+        if (_notContainers.TryGetValue(id, out var checkedAt) && DateTime.UtcNow - checkedAt < NotAContainerFor && DateTime.UtcNow >= checkedAt)
+        {
+            return null;
+        }
+
+        var isContainer = await CallAsync(async c => await HeadAsync(c, bucket, rootKey + "/" + PceObjectNames.Head, cancellationToken).ConfigureAwait(false) is not null, cancellationToken).ConfigureAwait(false);
+        if (!isContainer)
+        {
+            _notContainers[id] = DateTime.UtcNow;
+            return null;
+        }
+
+        _notContainers.Remove(id);
+        var root = RemotePath.RootOf(RemoteProtocol.S3, _site.User, _site.Host.Trim(), _site.EffectivePort) + "/" + id;
+        var view = new PceRemoteView(new S3PceObjectStore(_client!, bucket, rootKey), root);
+        _containers[id] = view;
+        return (view, inner);
+    }
+
+    /// <summary>
+    /// Container work blocks, so it runs off the caller's thread; its failures (a refused password, damage, a part
+    /// gone) pass as they are, since they say more than a server's message would.
+    /// </summary>
+    private static async Task<T> InContainerAsync<T>(Func<T> work, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Task.Run(work, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not IOException)
+        {
+            throw new RemoteException(ex.Message, ex);
+        }
+    }
+
+    private static Task<bool> InContainerAsync(Action work, CancellationToken cancellationToken) =>
+        InContainerAsync(
+            () =>
+            {
+                work();
+                return true;
+            },
+            cancellationToken);
+
+    private void Forget(PceRemoteView view)
+    {
+        foreach (var id in _containers.Where(p => ReferenceEquals(p.Value, view)).Select(p => p.Key).ToList())
+        {
+            _containers.Remove(id);
+        }
+
+        view.Dispose();
+    }
+
+    /// <summary>
+    /// Deleting the container's folder: allowed once nothing is left in it (as for any folder), and then every
+    /// object under it goes — the header, the indexes, what was not yet tidied away.
+    /// </summary>
+    private async Task DeleteContainerAsync(string path, PceRemoteView view, CancellationToken cancellationToken)
+    {
+        await InContainerAsync(
+            () =>
+            {
+                if (view.List(string.Empty) is { Count: > 0 })
+                {
+                    throw new IOException($"\"{RemotePath.NameOf(path)}\" is not empty.");
+                }
+
+                view.Flush();
+            },
+            cancellationToken).ConfigureAwait(false);
+        Forget(view);
+        var (bucket, key) = FileKey(path);
+        var store = new S3PceObjectStore(_client!, bucket, key);
+        await InContainerAsync(
+            () =>
+            {
+                store.DiscardUploads(DateTime.MaxValue, cancellationToken);
+                foreach (var item in store.List(string.Empty, int.MaxValue, cancellationToken))
+                {
+                    store.Delete(item.Name, cancellationToken);
+                }
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>"/bucket/a/b" → ("bucket", "a/b"); "/" → (null, "").</summary>
