@@ -12,6 +12,7 @@ internal sealed class MemoryObjectStore : IPceObjectStore
     public const string Crash = "injected failure";
     private readonly Lock _gate = new();
     private readonly SortedDictionary<string, (byte[] Content, DateTime ModifiedUtc)> _objects = new(StringComparer.Ordinal);
+    private readonly Dictionary<Upload, DateTime> _uploads = [];
 
     public bool ConditionalPut { get; set; } = true;
 
@@ -42,7 +43,7 @@ internal sealed class MemoryObjectStore : IPceObjectStore
     }
 
     /// <summary>Uploads begun and neither completed nor discarded.</summary>
-    public int OpenUploads { get; private set; }
+    public int OpenUploads => _uploads.Count;
 
     public byte[]? Content(string name)
     {
@@ -118,8 +119,17 @@ internal sealed class MemoryObjectStore : IPceObjectStore
     public IPceObjectUpload BeginUpload(string name, CancellationToken cancellationToken = default) =>
         Request("BEGIN " + name, () =>
         {
-            OpenUploads++;
-            return new Upload(this, name);
+            var upload = new Upload(this, name);
+            _uploads[upload] = Now;
+            return upload;
+        }, cancellationToken);
+
+    public int DiscardUploads(DateTime startedBeforeUtc, CancellationToken cancellationToken = default) =>
+        Request("DISCARD uploads", () =>
+        {
+            var stale = _uploads.Where(u => u.Value < startedBeforeUtc).Select(u => u.Key).ToList();
+            stale.ForEach(u => _uploads.Remove(u));
+            return stale.Count;
         }, cancellationToken);
 
     public void Delete(string name, CancellationToken cancellationToken = default) =>
@@ -155,7 +165,6 @@ internal sealed class MemoryObjectStore : IPceObjectStore
     private sealed class Upload(MemoryObjectStore store, string name) : IPceObjectUpload
     {
         private readonly SortedDictionary<int, byte[]> _parts = [];
-        private bool _closed;
 
         public void Write(int number, ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
         {
@@ -180,13 +189,6 @@ internal sealed class MemoryObjectStore : IPceObjectStore
             }
         }
 
-        private void Close()
-        {
-            if (!_closed)
-            {
-                _closed = true;
-                store.OpenUploads--;
-            }
-        }
+        private void Close() => store._uploads.Remove(this);
     }
 }

@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (krok 1 zrobiony, niecommitowany)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–2 zrobione, tylko WSL)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1035,6 +1035,16 @@ w pliku. Kroki w kolejności, każdy z testami.
    round‑trip jak w etapie 23; **awaria po każdym żądaniu** — kontener się otwiera, wpisy poza zmienianymi mają
    poprawną treść; dwóch piszących naraz (przegrany ponawia, nic nie ginie); losowe sekwencje przeciw modelowi;
    podmiana obiektu danych i usunięcie najnowszego indeksu wykryte.
+   **Zrobione 2026-11-19**: `PceObjectContainer.cs` (+ `PceSplitOptions`, `PceCleanResult`, `PceRolledBackException`);
+   `PceBlockWriter`/`PceBlockReader` nie zależą już od pliku (`IPceBlockSink`, `IPceStoredBytes`, `PceFileExtents`).
+   Duże wpisy idą w częściach po kilka naraz, małe do paczek; `Clean` usuwa osierocone obiekty, stare indeksy,
+   porzucone wysyłania (`IPceObjectStore.DiscardUploads`) i przepisuje paczki z ponad połową martwych danych.
+   Testy: `PceObjectContainerTests` (51) — awaria na każdym żądaniu każdej zmiany w obu wariantach (żądanie nie
+   doszło / odpowiedź zginęła), 6 piszących wątków, losowe sekwencje przeciw modelowi, ten sam kontener w katalogu.
+   **Luka złapana testem wielu piszących**: usuwanie indeksu N−2 zaraz po zatwierdzeniu N pozwalało spóźnionemu
+   piszącemu zająć zwolnioną nazwę i zgubić zmianę. Reguła teraz: indeks znika dopiero po godzinie (`IndexAge`),
+   a piszący z obrazem starszym niż 10 minut (`ViewLease`) czyta najnowszy indeks przed zatwierdzeniem.
+   Nie zrobione tu: pobieranie kilkoma strumieniami naraz (pomiar w kroku 7).
 3. **S3** (`S3PceObjectStore` na AWSSDK.S3, obok `S3RemoteClient`): wysyłanie wieloczęściowe po 8 części naraz
    z CRC32C, pobieranie zakresami równolegle, zapis warunkowy. Wykrycie serwera bez `If-None-Match` → tryb jednego
    piszącego. Testy na RustFS (te same zmienne co testy serwerowe); sprawdzić, czy RustFS obsługuje zapis warunkowy

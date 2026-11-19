@@ -272,7 +272,7 @@ public sealed class PceContainer : IDisposable
                 throw new ArgumentException("A folder has no content.", nameof(entry));
             }
 
-            var blocks = new PceBlockReader(this, _storage, _version, _header.Cipher, entry, _header.ChunkSize);
+            var blocks = new PceBlockReader(new PceFileExtents(this, _storage, _version, entry), _header.Cipher, entry, _header.ChunkSize);
             if (entry.Compressed)
             {
                 return new PceFile.CorruptAsFormatStream(new DecompressionStream(blocks, leaveOpen: false));
@@ -381,37 +381,43 @@ public sealed class PceContainer : IDisposable
         lock (_gate)
         {
             EnsureWritable();
-            var from = NormalizePath(path);
-            var to = NormalizePath(newPath);
-            if (IsAtOrUnder(to, from) && !string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new IOException($"\"{from}\" cannot be moved into itself.");
-            }
-
-            var moved = _entries.Where(e => IsAtOrUnder(e.Path, from)).ToList();
-            if (moved.Count == 0)
-            {
-                throw new FileNotFoundException($"\"{from}\" is not in the encrypted file.");
-            }
-
-            var renamed = moved.ToDictionary(e => e, e => to + e.Path[from.Length..]);
-            var others = new HashSet<string>(_entries.Where(e => !renamed.ContainsKey(e)).Select(e => e.Path), StringComparer.OrdinalIgnoreCase);
-            foreach (var name in renamed.Values)
-            {
-                if (others.Contains(name) || Encoding.UTF8.GetByteCount(name) > ushort.MaxValue)
-                {
-                    throw new IOException($"\"{name}\" already exists in the encrypted file or is too long.");
-                }
-            }
-
-            Change(() =>
-            {
-                // Entries are shared with whoever holds the old list, so the renamed ones are new objects.
-                _entries = _entries
-                    .Select(e => renamed.TryGetValue(e, out var name) ? new PceEntry(name, e.IsDirectory, e.Size, e.ModifiedUtc, e.Attributes, e.Compressed, e.Key, e.Extents) : e)
-                    .ToList();
-            }, CancellationToken.None);
+            var renamed = Renamed(_entries, path, newPath);
+            Change(() => _entries = renamed, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// The entries with <paramref name="path"/> and everything under it at <paramref name="newPath"/>. Entries are
+    /// shared with whoever holds the old list, so the renamed ones are new objects.
+    /// </summary>
+    internal static List<PceEntry> Renamed(IReadOnlyList<PceEntry> entries, string path, string newPath)
+    {
+        var from = NormalizePath(path);
+        var to = NormalizePath(newPath);
+        if (IsAtOrUnder(to, from) && !string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new IOException($"\"{from}\" cannot be moved into itself.");
+        }
+
+        var moved = entries.Where(e => IsAtOrUnder(e.Path, from)).ToList();
+        if (moved.Count == 0)
+        {
+            throw new FileNotFoundException($"\"{from}\" is not in the encrypted file.");
+        }
+
+        var renamed = moved.ToDictionary(e => e, e => to + e.Path[from.Length..]);
+        var others = new HashSet<string>(entries.Where(e => !renamed.ContainsKey(e)).Select(e => e.Path), StringComparer.OrdinalIgnoreCase);
+        foreach (var name in renamed.Values)
+        {
+            if (others.Contains(name) || Encoding.UTF8.GetByteCount(name) > ushort.MaxValue)
+            {
+                throw new IOException($"\"{name}\" already exists in the encrypted file or is too long.");
+            }
+        }
+
+        return entries
+            .Select(e => renamed.TryGetValue(e, out var name) ? new PceEntry(name, e.IsDirectory, e.Size, e.ModifiedUtc, e.Attributes, e.Compressed, e.Key, e.Extents) : e)
+            .ToList();
     }
 
     /// <summary>
@@ -487,7 +493,7 @@ public sealed class PceContainer : IDisposable
         return normalized;
     }
 
-    private static bool IsAtOrUnder(string path, string root) =>
+    internal static bool IsAtOrUnder(string path, string root) =>
         path.StartsWith(root, StringComparison.OrdinalIgnoreCase) && (path.Length == root.Length || path[root.Length] == '/');
 
     private PceEntry WriteEntry(PceSource source, string path, PceCompression compression, ref long position, ref long done, Action<long>? progress, CancellationToken token)
@@ -504,7 +510,7 @@ public sealed class PceContainer : IDisposable
         var compress = compression switch
         {
             PceCompression.Always => true,
-            PceCompression.Auto => SamplePays(buffer.AsSpan(0, first)),
+            PceCompression.Auto => SamplePays(buffer.AsSpan(0, first), _options),
             _ => false,
         };
 
@@ -537,7 +543,7 @@ public sealed class PceContainer : IDisposable
     }
 
     /// <summary>Auto mode: the first block must shrink below the threshold. Media, archives and encrypted data stay as they are.</summary>
-    private bool SamplePays(ReadOnlySpan<byte> sample)
+    internal static bool SamplePays(ReadOnlySpan<byte> sample, PceOptions options)
     {
         if (sample.Length < 256)
         {
@@ -545,12 +551,12 @@ public sealed class PceContainer : IDisposable
         }
 
         using var compressed = new MemoryStream(sample.Length);
-        using (var zstd = new CompressionStream(compressed, _options.ZstdLevel, leaveOpen: true))
+        using (var zstd = new CompressionStream(compressed, options.ZstdLevel, leaveOpen: true))
         {
             zstd.Write(sample);
         }
 
-        return compressed.Length < sample.Length * _options.AutoThreshold;
+        return compressed.Length < sample.Length * options.AutoThreshold;
     }
 
     /// <summary>Entries could not be written: the file goes back to what the committed index describes.</summary>

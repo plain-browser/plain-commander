@@ -37,6 +37,12 @@ internal interface IPceObjectStore
     /// <summary>Starts a large object sent in parts; nothing is visible under the name until it is completed.</summary>
     IPceObjectUpload BeginUpload(string name, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Discards uploads in parts begun before <paramref name="startedBeforeUtc"/> and never completed (their
+    /// writer died, or the answer to its request was lost). Returns how many.
+    /// </summary>
+    int DiscardUploads(DateTime startedBeforeUtc, CancellationToken cancellationToken = default);
+
     /// <summary>Removes the object; one that is not there is not an error.</summary>
     void Delete(string name, CancellationToken cancellationToken = default);
 
@@ -285,6 +291,22 @@ internal sealed class DirectoryPceObjectStore : IPceObjectStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         return new Upload(this, PathOf(name));
+    }
+
+    public int DiscardUploads(DateTime startedBeforeUtc, CancellationToken cancellationToken = default)
+    {
+        var discarded = 0;
+        foreach (var file in new DirectoryInfo(_temp).EnumerateFiles())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (file.LastWriteTimeUtc < startedBeforeUtc)
+            {
+                file.Delete();
+                discarded++;
+            }
+        }
+
+        return discarded;
     }
 
     public void Delete(string name, CancellationToken cancellationToken = default)

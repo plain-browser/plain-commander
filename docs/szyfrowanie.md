@@ -305,7 +305,7 @@ Usunięcie wymaga miejsca na jeden indeks (od ok. 4,3 KiB): na dysku bez ani jed
 i zostawia kontener nietknięty. Proces ubity w dowolnym momencie usuwania zostawia plik, który się otwiera; nieoddane
 miejsce odzyskuje następne otwarcie do zapisu.
 
-## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19, niewdrożony)
+## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19; rdzeń w `Core/Crypto` wdrożony, S3 i aplikacja jeszcze nie)
 
 Plan wdrożenia: PLAN.md, etap 24. Dla użytkownika to dalej „plik `.pce`” w panelu S3; rozłożenie na obiekty jest
 szczegółem przechowywania.
@@ -329,12 +329,15 @@ nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka 
 ```
 
 - **`head`** zmienia się tylko przy zmianie hasła (jeden PUT 94 bajtów; PUT w S3 jest atomowy, więc nie ma nagłówka
-  urwanego w połowie). Kopia w każdym indeksie zostaje jako zapas, gdyby `head` zniknął.
+  urwanego w połowie). Kopia w każdym indeksie zostaje jako zapas, gdyby `head` zniknął albo przestał być
+  nagłówkiem — ale nie przy złym haśle: inaczej kopia zapisana przed zmianą hasła utrzymywałaby stare hasło przy życiu.
+  Jak w pliku, zmiana hasła nie zmienia klucza głównego, więc nie odbiera dostępu komuś, kto znał stare hasło i ma
+  starą kopię nagłówka.
 - **Indeks** jest niezmienny: każda zmiana dopisuje nowy obiekt z generacją o jeden większą. Nazwa to 16 cyfr
   szesnastkowych z `2^64 − 1 − generacja`, więc najnowszy indeks jest pierwszy na liście i wystarcza
   `LIST index/` z `max-keys=1`. Fragment wpisu wskazuje (id obiektu danych, offset, długość) zamiast (offset, długość).
-- **Obiekty danych** nie zmieniają się nigdy: powstają i znikają. Wpis o rozmiarze od 8 MiB ma własny obiekt; mniejsze
-  trafiają do paczek po ok. 32 MiB. Nazwy są losowe, więc z listy kubełka nie widać nazw plików ani katalogów.
+- **Obiekty danych** nie zmieniają się nigdy: powstają i znikają. Wpis o rozmiarze od 8 MiB ma własny obiekt (dłuższy
+  niż 10 000 części po 16 MiB — kilka obiektów, bo fragment wskazuje obiekt); mniejsze trafiają do paczek po ok. 32 MiB. Nazwy są losowe, więc z listy kubełka nie widać nazw plików ani katalogów.
 - **Strumień wpisu jest bajt w bajt taki sam jak w pliku** (bloki AEAD pod kluczem wpisu, nonce = numer bloku
   i flaga „ostatni”). Przeniesienie między plikiem `.pce` a formą rozłożoną to kopiowanie strumieni i nowy indeks,
   bez szyfrowania od nowa.
@@ -343,7 +346,7 @@ nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka 
 
 | operacja             | żądania                                                                              |
 |----------------------|---------------------------------------------------------------------------------------|
-| otwarcie             | `LIST index/` (1 klucz), GET `head`, GET indeksu                                      |
+| otwarcie             | `LIST index/` (1 klucz), GET indeksu, GET `head`                                      |
 | odczyt wpisu         | GET z zakresem, porcjami po 8 MiB, kilka naraz                                        |
 | dopisanie            | obiekty danych (duże wieloczęściowo), na końcu PUT nowego indeksu                     |
 | usunięcie dużego     | PUT nowego indeksu, potem `DeleteObject`                                              |
@@ -354,9 +357,17 @@ nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka 
 - **Zatwierdzenie** to PUT indeksu z `If-None-Match: *`: obiekt o tej generacji powstaje albo nie. Drugi piszący
   dostaje 412, czyta świeży indeks i ponawia swoją zmianę na nim. Kolejność jak w pliku: najpierw dane, potem indeks,
   który się do nich odwołuje; usuwanie obiektów dopiero po zatwierdzeniu indeksu, który ich już nie wskazuje.
-- **Przerwana operacja** zostawia tylko obiekty, do których nie prowadzi żaden indeks. Sprzątanie przy otwarciu do
-  zapisu: obiekty danych spoza najnowszego indeksu starsze niż doba (młodszych może właśnie używać inny piszący),
-  indeksy starsze niż dwa ostatnie, przerwane wysyłania wieloczęściowe.
+- **Przerwana operacja** zostawia tylko obiekty, do których nie prowadzi żaden indeks. Sprzątanie (`Clean`, wołane
+  po zmianie, nie przy otwarciu): obiekty danych spoza najnowszego indeksu starsze niż doba (młodszych może właśnie
+  używać inny piszący), przerwane wysyłania wieloczęściowe starsze niż doba, paczki z ponad połową martwych danych
+  (przepisywane) i stare indeksy — według reguły niżej. „Teraz” to zegar magazynu: czas najmłodszego obiektu.
+- **Stare indeksy nie znikają od razu.** Zapis „tylko gdy nie ma” chroni generację tylko dopóty, dopóki jej obiekt
+  istnieje: piszący, który przespał kilka zmian i sprzątanie, zastałby nazwę swojej następnej generacji znowu wolną
+  i zatwierdził zmianę, której nikt nie zobaczy (złapane testem wielu piszących). Dlatego indeks jest usuwany dopiero,
+  gdy nie należy do dwóch najnowszych **i** ma ponad godzinę, a piszący, którego obraz kontenera jest starszy niż
+  10 minut, przed zatwierdzeniem czyta najnowszy indeks jeszcze raz. Margines 50 minut pokrywa różnicę zegarów.
+- **Odpowiedź zgubiona po drodze** (PUT indeksu wykonany, klient dostał błąd): kontener czyta obiekt o tej nazwie
+  i jeśli to jego bajty, uznaje zmianę za zatwierdzoną.
 - **Czytnik otwarty w trakcie zmiany** widzi indeks, który przeczytał; gdy jego obiekt danych zniknie, dostaje błąd
   „kontener się zmienił”, jak w pliku.
 
@@ -365,8 +376,9 @@ nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka 
 - Bloki nie zależą od siebie (nonce to numer bloku), więc duży plik jest cięty na części wieloczęściowego wysyłania
   po 16 MiB (większe, gdy plik przekracza 10 000 części), szyfrowane i wysyłane po 8 naraz. AES‑GCM robi ponad
   1 GiB/s na rdzeń; ogranicza łącze.
-- Pobieranie: zakresy po 8 MiB w kilku strumieniach, bloki odszyfrowywane w kolejności. F3 i wyjęcie fragmentu
-  pobierają tylko potrzebne bloki.
+- Pobieranie: czytanie po kolei pobiera z wyprzedzeniem coraz więcej (od 64 KiB do 8 MiB na żądanie), skok pobiera
+  tylko blok, na który trafił — F3 i wyjęcie fragmentu nie ściągają reszty. Kilka strumieni naraz: do zmierzenia
+  w kroku 7 etapu 24 (na razie jeden).
 - Małe pliki w paczkach: 10 000 plików to kilkanaście PUT‑ów, nie 10 000 (czas i opłaty za żądania).
 - Zrzut na dysk i trzy zapisy indeksu z pliku nie mają tu odpowiednika: jedna zmiana to jeden PUT indeksu.
 
@@ -379,6 +391,8 @@ Prymitywy bez zmian (Argon2id, AES‑256‑GCM / ChaCha20‑Poly1305, losowy klu
 - **Podmiana obiektu danych na inny** kończy się błędem uwierzytelnienia: każdy wpis ma własny klucz, a indeks wiąże
   wpis z obiektem, offsetem i długością. Osobne wiązanie id obiektu w blokach nie jest potrzebne (i zepsułoby
   przenoszenie strumieni między plikiem a S3).
+- **Stary indeks pod nowszą nazwą** nie przechodzi: stopka (AAD indeksu) zawiera generację, która musi zgadzać się
+  z nazwą obiektu.
 - **Cofnięcie do starszego stanu** (ktoś z dostępem do kubełka usuwa najnowsze indeksy): aplikacja zapamiętuje
   najwyższą widzianą generację każdego kontenera i ostrzega, gdy serwer pokazuje niższą. Bez stanu po stronie klienta
   tego się nie wykryje; na innym komputerze chroni dopiero wersjonowanie albo Object Lock w kubełku.
