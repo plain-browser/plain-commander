@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — zaplanowany 2026-11-19, niezaczęty
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (krok 1 zrobiony, niecommitowany)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1023,6 +1023,12 @@ w pliku. Kroki w kolejności, każdy z testami.
    na wybranym żądaniu (jak `MemoryStorage` z etapu 23), i w katalogu na dysku. Indeks z fragmentami (id obiektu,
    offset, długość), flaga „rozłożony” w nagłówku, nazwy indeksów z odwróconej generacji. Testy: zapis/odczyt
    indeksu, zmiana dowolnego bajtu → błąd, plik z flagą odrzucany przez `PceContainer` z komunikatem.
+   **Zrobione 2026-11-19**: `PceObjectStore.cs` (`IPceObjectStore`, `IPceObjectUpload`, `PceObjectId`, `PceObjectNames`,
+   `DirectoryPceObjectStore`), flaga `PceLayout.Split` (16, pod tagiem zawiniętego klucza), indeks w wersji 2
+   (fragment = id obiektu 16 B + offset + długość). Magazyn jest synchroniczny, jak `IPceStorage`. Testy:
+   `PceObjectStoreTests` (51) i `MemoryObjectStore` (żądanie zgubione albo wykonane z utraconą odpowiedzią, dziennik
+   żądań, zegar). Pułapka: poza Windows `File.Move(overwrite: false)` nie jest atomowe (16 piszących → 4 wygranych),
+   więc `PutNew` zajmuje nazwę dowiązaniem twardym (`link`); na Windows zostaje przeniesienie.
 2. **Kontener rozłożony** (`PceObjectContainer`): otwarcie, lista, strumień odczytu z przewijaniem i czytaniem
    z wyprzedzeniem, utworzenie, dopisanie (duże wpisy osobno, małe w paczkach), usunięcie, zmiana nazwy, zmiana
    hasła, sprzątanie osieroconych obiektów i starych indeksów, przepakowanie paczki z martwymi danymi. Testy:
@@ -1048,8 +1054,8 @@ w pliku. Kroki w kolejności, każdy z testami.
 Do ustalenia przed krokiem 5:
 - F5 pliku `.pce` z dysku do S3: zawsze konwersja na formę rozłożoną, czy pytanie (jeden obiekt tylko do odczytu
   kontra forma rozłożona)?
-- Katalog `nazwa.pce/` widziany przez inne narzędzia (rclone, konsola AWS) to trzy podkatalogi z losowymi nazwami —
-  czy to wystarcza, czy dodać obiekt `README` z jednym zdaniem wyjaśnienia?
+
+Decyzja 2026-11-19: bez obiektu `README` w prefiksie — kontener to tylko `head`, `index/` i `data/`.
 
 ## 5. Skróty klawiszowe
 

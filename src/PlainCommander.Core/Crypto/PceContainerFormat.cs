@@ -31,7 +31,11 @@ internal static class PceContainerFormat
     /// <summary>An index is one message in memory; anything near this size is damage, not a real container.</summary>
     public const long MaxIndexSize = 1L << 30;
 
+    /// <summary>Extents are (offset, length) in the file.</summary>
     private const byte IndexVersion = 1;
+
+    /// <summary>Extents are (data object, offset, length): the index of a container kept as separate objects.</summary>
+    private const byte SplitIndexVersion = 2;
 
     public static ReadOnlySpan<byte> Magic => "PCE2"u8;
 
@@ -56,7 +60,8 @@ internal static class PceContainerFormat
         return buffer;
     }
 
-    public static PceContainerHeader ReadHeader(ReadOnlySpan<byte> buffer)
+    /// <param name="split">Whether the header is expected to be the "head" object of a container kept as objects.</param>
+    public static PceContainerHeader ReadHeader(ReadOnlySpan<byte> buffer, bool split = false)
     {
         if (buffer.Length < HeaderSize || !buffer[..4].SequenceEqual(Magic))
         {
@@ -66,9 +71,16 @@ internal static class PceContainerFormat
         var flags = (PceLayout)buffer[4];
         var kdf = (PceKdf)buffer[5];
         var cipher = (PceCipherKind)buffer[6];
-        if ((flags & ~PceLayout.NfcPassword) != 0 || buffer[7] != 0 || !Enum.IsDefined(kdf) || !Enum.IsDefined(cipher))
+        if ((flags & ~(PceLayout.NfcPassword | PceLayout.Split)) != 0 || buffer[7] != 0 || !Enum.IsDefined(kdf) || !Enum.IsDefined(cipher))
         {
             throw new PceFormatException("The file was written by a newer version.");
+        }
+
+        if ((flags & PceLayout.Split) != 0 != split)
+        {
+            throw new PceFormatException(split
+                ? "This is the header of a container file, not of a container stored as separate objects."
+                : "This is one part of a container stored as separate objects, not a container file.");
         }
 
         var chunk = BinaryPrimitives.ReadUInt32LittleEndian(buffer[30..]);
@@ -91,10 +103,10 @@ internal static class PceContainerFormat
     }
 
     /// <summary>A header for a new container (or a new password): fresh salt, the master key wrapped with the password key.</summary>
-    public static PceContainerHeader NewHeader(PceOptions options, string password, ReadOnlySpan<byte> masterKey) =>
+    public static PceContainerHeader NewHeader(PceOptions options, string password, ReadOnlySpan<byte> masterKey, bool split = false) =>
         Wrap(
             new PceContainerHeader(
-                PceLayout.NfcPassword,
+                split ? PceLayout.NfcPassword | PceLayout.Split : PceLayout.NfcPassword,
                 options.Kdf,
                 options.Cipher ?? (AesGcm.IsSupported ? PceCipherKind.AesGcm : PceCipherKind.ChaCha20Poly1305),
                 options.Kdf == PceKdf.Argon2id ? (uint)options.Argon2MemoryKiB : (uint)options.Pbkdf2Iterations,
@@ -170,7 +182,7 @@ internal static class PceContainerFormat
     public static byte[] SealIndex(PceContainerHeader header, ReadOnlySpan<byte> masterKey, IReadOnlyList<PceEntry> entries, long offset, ulong generation)
     {
         var kind = header.Cipher;
-        var plain = EncodeIndex(entries);
+        var plain = EncodeIndex(entries, header.IsSplit);
         var sealedIndex = new byte[plain.Length + PceFormat.TagSize + HeaderSize + FooterSize];
         WriteHeader(header).CopyTo(sealedIndex.AsSpan(plain.Length + PceFormat.TagSize));
         var footer = sealedIndex.AsSpan(plain.Length + PceFormat.TagSize + HeaderSize);
@@ -195,11 +207,18 @@ internal static class PceContainerFormat
     }
 
     /// <summary>Bytes <see cref="SealIndex"/> produces for these entries.</summary>
-    public static long SealedIndexSize(IReadOnlyList<PceEntry> entries) => PaddedIndexSize(entries) + PceFormat.TagSize + HeaderSize + FooterSize;
+    public static long SealedIndexSize(IReadOnlyList<PceEntry> entries, bool split = false) =>
+        PaddedIndexSize(entries, split) + PceFormat.TagSize + HeaderSize + FooterSize;
 
     /// <summary>The entries of a sealed index, or null when it does not authenticate with this key and footer.</summary>
-    public static List<PceEntry>? OpenIndex(PceCipherKind kind, ReadOnlySpan<byte> masterKey, ReadOnlySpan<byte> sealedIndex, ReadOnlySpan<byte> footer)
+    /// <param name="split">Whether the index belongs to a container kept as objects (its extents name data objects).</param>
+    public static List<PceEntry>? OpenIndex(PceCipherKind kind, ReadOnlySpan<byte> masterKey, ReadOnlySpan<byte> sealedIndex, ReadOnlySpan<byte> footer, bool split = false)
     {
+        if (sealedIndex.Length < PceFormat.TagSize || footer.Length != FooterSize)
+        {
+            return null;
+        }
+
         var length = sealedIndex.Length - PceFormat.TagSize;
         var plain = new byte[length];
         var key = IndexKey(masterKey, footer.Slice(24, PceFormat.SaltSize));
@@ -209,7 +228,7 @@ internal static class PceContainerFormat
             Span<byte> nonce = stackalloc byte[PceFormat.NonceSize];
             nonce.Clear();
             cipher.Decrypt(nonce, sealedIndex[..length], sealedIndex[length..], plain, footer);
-            return DecodeIndex(plain);
+            return DecodeIndex(plain, split);
         }
         catch (CryptographicException)
         {
@@ -235,23 +254,24 @@ internal static class PceContainerFormat
         return key;
     }
 
-    private static int PaddedIndexSize(IReadOnlyList<PceEntry> entries)
+    private static int PaddedIndexSize(IReadOnlyList<PceEntry> entries, bool split)
     {
         long size = 1 + 4;
+        long extentSize = split ? PceObjectId.Size + 16 : 16;
         foreach (var entry in entries)
         {
-            size += 2 + Encoding.UTF8.GetByteCount(entry.Path) + 1 + 1 + 8 + 8 + 4 + PceFormat.KeySize + 4 + 16L * entry.Extents.Count;
+            size += 2 + Encoding.UTF8.GetByteCount(entry.Path) + 1 + 1 + 8 + 8 + 4 + PceFormat.KeySize + 4 + extentSize * entry.Extents.Count;
         }
 
         size = (size + IndexPadding - 1) / IndexPadding * IndexPadding;
         return size <= MaxIndexSize ? (int)size : throw new IOException("Too many entries for one container.");
     }
 
-    private static byte[] EncodeIndex(IReadOnlyList<PceEntry> entries)
+    private static byte[] EncodeIndex(IReadOnlyList<PceEntry> entries, bool split)
     {
-        var buffer = new byte[PaddedIndexSize(entries)];
+        var buffer = new byte[PaddedIndexSize(entries, split)];
         var span = buffer.AsSpan();
-        span[0] = IndexVersion;
+        span[0] = split ? SplitIndexVersion : IndexVersion;
         BinaryPrimitives.WriteUInt32LittleEndian(span[1..], (uint)entries.Count);
         var at = 5;
         foreach (var entry in entries)
@@ -271,6 +291,12 @@ internal static class PceContainerFormat
             at += 4;
             foreach (var extent in entry.Extents)
             {
+                if (split)
+                {
+                    extent.Object.Write(span[at..]);
+                    at += PceObjectId.Size;
+                }
+
                 BinaryPrimitives.WriteInt64LittleEndian(span[at..], extent.Offset);
                 BinaryPrimitives.WriteInt64LittleEndian(span[(at + 8)..], extent.Length);
                 at += 16;
@@ -280,13 +306,14 @@ internal static class PceContainerFormat
         return buffer;
     }
 
-    private static List<PceEntry> DecodeIndex(ReadOnlySpan<byte> plain)
+    private static List<PceEntry> DecodeIndex(ReadOnlySpan<byte> plain, bool split)
     {
-        if (plain.Length < 5 || plain[0] != IndexVersion)
+        if (plain.Length < 5 || plain[0] != (split ? SplitIndexVersion : IndexVersion))
         {
             throw new PceFormatException("The file was written by a newer version (unknown index).");
         }
 
+        var extentSize = split ? PceObjectId.Size + 16 : 16;
         var count = BinaryPrimitives.ReadUInt32LittleEndian(plain[1..]);
         var at = 5;
         var entries = new List<PceEntry>((int)Math.Min(count, 1 << 20));
@@ -313,7 +340,7 @@ internal static class PceContainerFormat
             at += PceFormat.KeySize;
             var extentCount = BinaryPrimitives.ReadUInt32LittleEndian(plain[at..]);
             at += 4;
-            if (size < 0 || ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks || extentCount > (uint)((plain.Length - at) / 16))
+            if (size < 0 || ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks || extentCount > (uint)((plain.Length - at) / extentSize))
             {
                 throw new PceFormatException("Damaged index.");
             }
@@ -321,7 +348,14 @@ internal static class PceContainerFormat
             var extents = new List<PceExtent>((int)extentCount);
             for (var x = 0u; x < extentCount; x++)
             {
-                extents.Add(new PceExtent(BinaryPrimitives.ReadInt64LittleEndian(plain[at..]), BinaryPrimitives.ReadInt64LittleEndian(plain[(at + 8)..])));
+                var id = default(PceObjectId);
+                if (split)
+                {
+                    id = PceObjectId.Read(plain[at..]);
+                    at += PceObjectId.Size;
+                }
+
+                extents.Add(new PceExtent(BinaryPrimitives.ReadInt64LittleEndian(plain[at..]), BinaryPrimitives.ReadInt64LittleEndian(plain[(at + 8)..])) { Object = id });
                 at += 16;
             }
 
@@ -354,13 +388,19 @@ internal sealed record PceContainerHeader(
     byte[] WrapNonce,
     byte[] WrappedKey)
 {
+    /// <summary>The header of a container kept as separate objects.</summary>
+    public bool IsSplit => (Flags & PceLayout.Split) != 0;
+
     /// <summary>The fields the password derivation reads, in the shape it takes.</summary>
     public PceHeader ForKdf() => new(Flags, Kdf, Cipher, KdfCost, KdfTime, KdfParallelism, Salt, ChunkSize, []);
 }
 
-/// <summary>A run of an entry's stored bytes in the file.</summary>
+/// <summary>A run of an entry's stored bytes: in the file, or in a data object of a container kept as objects.</summary>
 internal sealed class PceExtent(long offset, long length)
 {
+    /// <summary>The data object the bytes lie in; unset in a container file.</summary>
+    public PceObjectId Object { get; init; }
+
     public long Offset { get; set; } = offset;
 
     public long Length { get; set; } = length;

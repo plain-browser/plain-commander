@@ -169,6 +169,12 @@ public enum PceLayout : byte
     /// <see cref="PasswordKdf.DeriveMatching"/>.
     /// </summary>
     NfcPassword = 8,
+
+    /// <summary>
+    /// The header of a container kept as separate objects (the "head" object beside "index/" and "data/"), not the
+    /// start of a container file: see <see cref="PceObjectNames"/>.
+    /// </summary>
+    Split = 16,
 }
 
 /// <summary>Whether to compress before encrypting.</summary>
