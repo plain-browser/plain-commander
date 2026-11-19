@@ -859,7 +859,7 @@ domyślny i nie wymaga 7-Zip.
   przyjmuje klawisze), Ctrl+W i Ctrl+Shift+T (karta wraca z folderem i kursorem), F6 z `old_*.*` w miejscu, F5 z `*.bak`.
   Nie sprawdzone w GUI: klik myszą w wiersz palety.
 
-### 1.15.0 — `.pce` zmieniany w miejscu (przygotowane 2026-11-19, niecommitowane, niewydane)
+### 1.15.0 — `.pce` zmieniany w miejscu (wydane na GitHub 2026-11-19, commit `00f5e6e`; zgłoszenie do Sklepu czeka na zatwierdzenie środowiska `store`)
 - Zawiera etap 23 (niżej) i niewydane 1.14.10 (wyżej). Wersja w `Directory.Build.props`, manifeście, `site/index.html`
   i README; notatki wydania po angielsku w `docs/release-notes-1.15.0.md` (z ostrzeżeniem: wersje starsze niż 1.15 nie
   otwierają nowych plików `.pce`), „What's new” Sklepu w `docs/store/whats-new-en.txt`.
@@ -867,7 +867,7 @@ domyślny i nie wymaga 7-Zip.
 - Do zrobienia na polecenie: commit (bez cudzego `DeleteMarkProbeTests.cs`), push, wydanie GitHub z pakietem i `.cer`,
   zgłoszenie do Sklepu (`store.yml`).
 
-### Etap 23 — `.pce` jako kontener z indeksem (usuwanie zmniejsza plik) — w toku od 2026-11-19 (kroki 1–7 zrobione i sprawdzone na VM 2026-11-19; niecommitowane, niewydane)
+### Etap 23 — `.pce` jako kontener z indeksem (usuwanie zmniejsza plik) — zrobiony i sprawdzony na VM 2026-11-19, wydany w 1.15.0
 Projekt: `docs/szyfrowanie.md`, sekcja „Nowy układ `.pce`”. Powód: z dzisiejszego `.pce` (jeden strumień, magia `PCE1`)
 nie da się usunąć pliku bez przepakowania całości. Nazwa i rozszerzenie zostają `.pce`; nowy układ ma magię `PCE2`,
 niewidoczną w interfejsie. Kroki w kolejności, każdy z testami.
@@ -1011,6 +1011,45 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
+
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — zaplanowany 2026-11-19, niezaczęty
+Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
+trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
+i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
+w pliku. Kroki w kolejności, każdy z testami.
+
+1. **Magazyn obiektów i format** (`Core/Crypto`): `IPceObjectStore` (GET z zakresem, PUT, PUT „tylko gdy nie ma”,
+   wysyłanie wieloczęściowe, usunięcie, lista z prefiksem i czasem zapisu) z implementacją w pamięci, która zawodzi
+   na wybranym żądaniu (jak `MemoryStorage` z etapu 23), i w katalogu na dysku. Indeks z fragmentami (id obiektu,
+   offset, długość), flaga „rozłożony” w nagłówku, nazwy indeksów z odwróconej generacji. Testy: zapis/odczyt
+   indeksu, zmiana dowolnego bajtu → błąd, plik z flagą odrzucany przez `PceContainer` z komunikatem.
+2. **Kontener rozłożony** (`PceObjectContainer`): otwarcie, lista, strumień odczytu z przewijaniem i czytaniem
+   z wyprzedzeniem, utworzenie, dopisanie (duże wpisy osobno, małe w paczkach), usunięcie, zmiana nazwy, zmiana
+   hasła, sprzątanie osieroconych obiektów i starych indeksów, przepakowanie paczki z martwymi danymi. Testy:
+   round‑trip jak w etapie 23; **awaria po każdym żądaniu** — kontener się otwiera, wpisy poza zmienianymi mają
+   poprawną treść; dwóch piszących naraz (przegrany ponawia, nic nie ginie); losowe sekwencje przeciw modelowi;
+   podmiana obiektu danych i usunięcie najnowszego indeksu wykryte.
+3. **S3** (`S3PceObjectStore` na AWSSDK.S3, obok `S3RemoteClient`): wysyłanie wieloczęściowe po 8 części naraz
+   z CRC32C, pobieranie zakresami równolegle, zapis warunkowy. Wykrycie serwera bez `If-None-Match` → tryb jednego
+   piszącego. Testy na RustFS (te same zmienne co testy serwerowe); sprawdzić, czy RustFS obsługuje zapis warunkowy
+   i sumy części.
+4. **Konwersja**: plik `.pce` → forma rozłożona i z powrotem przez kopiowanie strumieni (bez szyfrowania od nowa),
+   `PceFile.Upgrade` dla `PCE1` po drodze. Testy: zawartość i klucze wpisów te same po obu stronach.
+5. **Panel**: katalog `*.pce` z obiektem `head` na S3 jest w panelu jednym elementem; Enter pyta o hasło i otwiera
+   go jak archiwum (`PceArchive` nad wspólnym interfejsem obu kontenerów). F5/F6 do środka, F8 (trwałe, pyta
+   zawsze), F7, Shift+F6, F3 na wpisie, Zmień hasło. Zaszyfruj z panelem S3 jako celem tworzy formę rozłożoną;
+   F5 kontenera między dyskiem a S3 konwertuje (krok 4). Zapamiętana generacja kontenera w ustawieniach
+   i ostrzeżenie o starszym stanie.
+6. **Teksty i dokumentacja**: `Strings/en-US` i `pl-PL`, README, `site/index.html`, listingi Sklepu.
+7. **Pomiary**: wysłanie i pobranie 1 GiB i 10 GiB (cel: prędkość łącza przy 8 strumieniach), usunięcie 10 MiB
+   z 10 GiB (cel: poniżej 1 s bez Argon2), 10 000 małych plików, otwarcie. RustFS w sieci lokalnej; prawdziwy AWS,
+   jeśli będzie konto.
+
+Do ustalenia przed krokiem 5:
+- F5 pliku `.pce` z dysku do S3: zawsze konwersja na formę rozłożoną, czy pytanie (jeden obiekt tylko do odczytu
+  kontra forma rozłożona)?
+- Katalog `nazwa.pce/` widziany przez inne narzędzia (rclone, konsola AWS) to trzy podkatalogi z losowymi nazwami —
+  czy to wystarcza, czy dodać obiekt `README` z jednym zdaniem wyjaśnienia?
 
 ## 5. Skróty klawiszowe
 

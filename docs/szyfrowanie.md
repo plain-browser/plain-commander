@@ -304,3 +304,97 @@ była kosztem odczytu: ten test odszyfrowuje od razu po zapisaniu 2 GiB, gdy sys
 Usunięcie wymaga miejsca na jeden indeks (od ok. 4,3 KiB): na dysku bez ani jednego wolnego klastra kończy się błędem
 i zostawia kontener nietknięty. Proces ubity w dowolnym momencie usuwania zostawia plik, który się otwiera; nieoddane
 miejsce odzyskuje następne otwarcie do zapisu.
+
+## `.pce` na S3: kontener rozłożony na obiekty (projekt 2026-11-19, niewdrożony)
+
+Plan wdrożenia: PLAN.md, etap 24. Dla użytkownika to dalej „plik `.pce`” w panelu S3; rozłożenie na obiekty jest
+szczegółem przechowywania.
+
+### Po co
+
+Obiekt w S3 jest niezmienny: nie ma zapisu pod offsetem ani obcięcia, więc zmiany w miejscu, na których stoi
+kontener w pliku, tam nie istnieją. Kontener trzymany jako jeden obiekt da się czytać (zakres bajtów: stopka, indeks,
+bloki wpisu), ale każda zmiana oznacza złożenie całego obiektu od nowa. W S3 tanie jest dopisanie i usunięcie
+obiektu, a drogie jego przerobienie — dlatego to, co plik zmienia w miejscu, staje się osobnym, niezmiennym obiektem.
+Cel: **usunięcie pliku i zmiana hasła kosztują jedno małe żądanie, a wysyłanie i pobieranie idą równolegle.**
+
+### Układ
+
+Kontener to prefiks `nazwa.pce/` w kubełku:
+
+```
+nazwa.pce/head                      nagłówek kontenera (94 B, te same bajty co w pliku; flaga „rozłożony”)
+nazwa.pce/index/<odwrócona gen.>    indeks ‖ kopia nagłówka ‖ stopka — ten sam zapis co koniec pliku PCE2
+nazwa.pce/data/<losowy id 128 b>    strumień jednego dużego wpisu albo paczka strumieni małych wpisów
+```
+
+- **`head`** zmienia się tylko przy zmianie hasła (jeden PUT 94 bajtów; PUT w S3 jest atomowy, więc nie ma nagłówka
+  urwanego w połowie). Kopia w każdym indeksie zostaje jako zapas, gdyby `head` zniknął.
+- **Indeks** jest niezmienny: każda zmiana dopisuje nowy obiekt z generacją o jeden większą. Nazwa to 16 cyfr
+  szesnastkowych z `2^64 − 1 − generacja`, więc najnowszy indeks jest pierwszy na liście i wystarcza
+  `LIST index/` z `max-keys=1`. Fragment wpisu wskazuje (id obiektu danych, offset, długość) zamiast (offset, długość).
+- **Obiekty danych** nie zmieniają się nigdy: powstają i znikają. Wpis o rozmiarze od 8 MiB ma własny obiekt; mniejsze
+  trafiają do paczek po ok. 32 MiB. Nazwy są losowe, więc z listy kubełka nie widać nazw plików ani katalogów.
+- **Strumień wpisu jest bajt w bajt taki sam jak w pliku** (bloki AEAD pod kluczem wpisu, nonce = numer bloku
+  i flaga „ostatni”). Przeniesienie między plikiem `.pce` a formą rozłożoną to kopiowanie strumieni i nowy indeks,
+  bez szyfrowania od nowa.
+
+### Operacje
+
+| operacja             | żądania                                                                              |
+|----------------------|---------------------------------------------------------------------------------------|
+| otwarcie             | `LIST index/` (1 klucz), GET `head`, GET indeksu                                      |
+| odczyt wpisu         | GET z zakresem, porcjami po 8 MiB, kilka naraz                                        |
+| dopisanie            | obiekty danych (duże wieloczęściowo), na końcu PUT nowego indeksu                     |
+| usunięcie dużego     | PUT nowego indeksu, potem `DeleteObject`                                              |
+| usunięcie małego     | PUT nowego indeksu; paczka przepakowywana, gdy martwe dane przekroczą połowę          |
+| zmiana nazwy         | PUT nowego indeksu                                                                    |
+| zmiana hasła         | PUT `head`                                                                            |
+
+- **Zatwierdzenie** to PUT indeksu z `If-None-Match: *`: obiekt o tej generacji powstaje albo nie. Drugi piszący
+  dostaje 412, czyta świeży indeks i ponawia swoją zmianę na nim. Kolejność jak w pliku: najpierw dane, potem indeks,
+  który się do nich odwołuje; usuwanie obiektów dopiero po zatwierdzeniu indeksu, który ich już nie wskazuje.
+- **Przerwana operacja** zostawia tylko obiekty, do których nie prowadzi żaden indeks. Sprzątanie przy otwarciu do
+  zapisu: obiekty danych spoza najnowszego indeksu starsze niż doba (młodszych może właśnie używać inny piszący),
+  indeksy starsze niż dwa ostatnie, przerwane wysyłania wieloczęściowe.
+- **Czytnik otwarty w trakcie zmiany** widzi indeks, który przeczytał; gdy jego obiekt danych zniknie, dostaje błąd
+  „kontener się zmienił”, jak w pliku.
+
+### Szybkość
+
+- Bloki nie zależą od siebie (nonce to numer bloku), więc duży plik jest cięty na części wieloczęściowego wysyłania
+  po 16 MiB (większe, gdy plik przekracza 10 000 części), szyfrowane i wysyłane po 8 naraz. AES‑GCM robi ponad
+  1 GiB/s na rdzeń; ogranicza łącze.
+- Pobieranie: zakresy po 8 MiB w kilku strumieniach, bloki odszyfrowywane w kolejności. F3 i wyjęcie fragmentu
+  pobierają tylko potrzebne bloki.
+- Małe pliki w paczkach: 10 000 plików to kilkanaście PUT‑ów, nie 10 000 (czas i opłaty za żądania).
+- Zrzut na dysk i trzy zapisy indeksu z pliku nie mają tu odpowiednika: jedna zmiana to jeden PUT indeksu.
+
+### Bezpieczeństwo
+
+Prymitywy bez zmian (Argon2id, AES‑256‑GCM / ChaCha20‑Poly1305, losowy klucz każdego wpisu, klucz indeksu z HKDF).
+
+- **Co widzi dostawca:** liczbę i rozmiary obiektów danych (czyli rozmiary dużych plików z dokładnością do bloku),
+  chwile zmian i to, które zakresy są czytane. Nazw, dat, struktury katalogów i rozmiarów małych plików nie widzi.
+- **Podmiana obiektu danych na inny** kończy się błędem uwierzytelnienia: każdy wpis ma własny klucz, a indeks wiąże
+  wpis z obiektem, offsetem i długością. Osobne wiązanie id obiektu w blokach nie jest potrzebne (i zepsułoby
+  przenoszenie strumieni między plikiem a S3).
+- **Cofnięcie do starszego stanu** (ktoś z dostępem do kubełka usuwa najnowsze indeksy): aplikacja zapamiętuje
+  najwyższą widzianą generację każdego kontenera i ostrzega, gdy serwer pokazuje niższą. Bez stanu po stronie klienta
+  tego się nie wykryje; na innym komputerze chroni dopiero wersjonowanie albo Object Lock w kubełku.
+- **Integralność w drodze:** suma CRC32C każdej części przy wysyłaniu.
+
+### Ograniczenia
+
+- Warunkowy zapis (`If-None-Match`) mają AWS (od 2024) i część serwerów zgodnych z S3. Gdzie go brak, kontener
+  działa z jednym piszącym, a aplikacja mówi to przy otwarciu do zapisu. Do sprawdzenia na RustFS w kroku 3.
+- Klasy archiwalne (Glacier) nie dają odczytu zakresami bez przywrócenia obiektu.
+- Miejsce po małych plikach wraca dopiero przy przepakowaniu paczki; po dużych od razu.
+- Indeks jest przepisywany w całości przy każdej zmianie, jak w pliku (10 000 wpisów ≈ 1 MB na żądanie).
+
+### Odrzucone
+
+- **Jeden obiekt składany przez `UploadPartCopy`**: każda zmiana kopiuje cały obiekt (po stronie serwera, ale
+  proporcjonalnie do rozmiaru kontenera), części muszą mieć co najmniej 5 MiB, a małe wpisy i tak trzeba pobrać
+  i wysłać ponownie.
+- **Jeden obiekt na każdy plik**: 10 000 małych plików to 10 000 żądań i tyle samo rozmiarów widocznych dla dostawcy.
