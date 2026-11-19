@@ -843,6 +843,175 @@ domyślny i nie wymaga 7-Zip.
   `no-elevation.flag`; `ElevationService.IsDisabled` (plik obok exe) ukrywa „Jako administrator” (`MainViewModel` dostaje `elevation = null`).
 - Pakiet deweloperski z GitHuba bez zmian (ma `allowElevation`, przycisk działa). `runFullTrust` zostaje.
 
+### 1.14.10 — paleta poleceń, przywracanie kart, maski w F5/F6 (niewydane osobno; weszło do 1.15.0)
+- **Maski nazw w F5/F6**: ostatni człon celu z `*` lub `?` jest maską (`*.bak`, `old_*.*`, `kopie\??-*.*`); folder to część przed nią,
+  sama maska = ten sam folder (zmiana nazw w miejscu przez F6). `Core/Operations/RenameMask`: nazwa i maska dzielone na ostatniej kropce,
+  `*` = reszta członu, `?` = kolejny znak, pozostałe znaki dopisywane; maska bez kropki daje nazwę bez rozszerzenia.
+  `TransferTarget.Mask` niesie ją do `TransferOperation` (także przez pomocnika z uprawnieniami administratora). Dla jednego elementu maska
+  staje się zwykłą nową nazwą, więc działa też z archiwum i serwerem; dla kilku tylko dysk → dysk. Maska dająca pustą nazwę albo tę samą
+  nazwę dwóm elementom jest odrzucana przed rozpoczęciem.
+- **Przywracanie zamkniętej karty** (Ctrl+Shift+T, Polecenia → Przywróć zamkniętą kartę): panel pamięta 10 ostatnio zamkniętych kart
+  (w tej sesji); karta wraca na swoje miejsce z folderem, widokiem, kursorem i zaznaczeniem; folder, który zniknął → najbliższy istniejący.
+- **Paleta poleceń** (Ctrl+Shift+P): wszystkie polecenia z tabeli menu w jednej liście zawężanej wpisywaniem (`CommandPalette.Filter`:
+  każde słowo musi pasować do nazwy lub menu, bez polskich znaków; najpierw nazwy zaczynające się od wpisanego tekstu). ↑/↓, Enter, Esc.
+- Testy zielone w WSL (Core 847, Presentation 434) i na Windows (Core 939, Presentation 429); build bez ostrzeżeń.
+- Sprawdzone w GUI na maszynie testowej 2026-11-17: paleta (lista, zawężanie „tab”, ↑/↓, Enter → nowa karta; polecenie z dialogiem → Filtr
+  przyjmuje klawisze), Ctrl+W i Ctrl+Shift+T (karta wraca z folderem i kursorem), F6 z `old_*.*` w miejscu, F5 z `*.bak`.
+  Nie sprawdzone w GUI: klik myszą w wiersz palety.
+
+### 1.15.0 — `.pce` zmieniany w miejscu (przygotowane 2026-11-19, niecommitowane, niewydane)
+- Zawiera etap 23 (niżej) i niewydane 1.14.10 (wyżej). Wersja w `Directory.Build.props`, manifeście, `site/index.html`
+  i README; notatki wydania po angielsku w `docs/release-notes-1.15.0.md` (z ostrzeżeniem: wersje starsze niż 1.15 nie
+  otwierają nowych plików `.pce`), „What's new” Sklepu w `docs/store/whats-new-en.txt`.
+- Decyzja 2026-11-19: zrzut danych na dysk przed indeksem zostaje (Zaszyfruj ok. 1 s na GiB wolniej niż 1.14).
+- Do zrobienia na polecenie: commit (bez cudzego `DeleteMarkProbeTests.cs`), push, wydanie GitHub z pakietem i `.cer`,
+  zgłoszenie do Sklepu (`store.yml`).
+
+### Etap 23 — `.pce` jako kontener z indeksem (usuwanie zmniejsza plik) — w toku od 2026-11-19 (kroki 1–7 zrobione i sprawdzone na VM 2026-11-19; niecommitowane, niewydane)
+Projekt: `docs/szyfrowanie.md`, sekcja „Nowy układ `.pce`”. Powód: z dzisiejszego `.pce` (jeden strumień, magia `PCE1`)
+nie da się usunąć pliku bez przepakowania całości. Nazwa i rozszerzenie zostają `.pce`; nowy układ ma magię `PCE2`,
+niewidoczną w interfejsie. Kroki w kolejności, każdy z testami.
+
+1. **Format** (`Core/Crypto`): `PceFormat` rozpoznaje `PCE1`/`PCE2` po magii; nowy nagłówek z zawiniętym kluczem
+   głównym, stopka, indeks (serializacja binarna, dopełnienie do 4 KiB, klucz z HKDF i saltu ze stopki), klucze wpisów.
+   Nieznany bit flag = „plik z nowszej wersji” (w `PCE1` bity były pomijane). Testy: zapis/odczyt nagłówka, stopki
+   i indeksu, zmiana dowolnego bajtu nagłówka, stopki i indeksu → błąd, złe hasło wykryte na nagłówku.
+2. **Kontener** (`PceContainer`): otwarcie (nagłówek → stopka → indeks), lista wpisów, strumień odczytu wpisu
+   z przewijaniem po fragmentach, utworzenie kontenera z plików i katalogów (bez TAR, puste katalogi jako wpisy,
+   kompresja zstd auto per wpis, zapis do `.part` i podmiana jak dziś). Szyfrowanie bloków równolegle, jeśli pomiar
+   pokaże zysk. Testy: round‑trip rozmiarów 0…3 bloki+7, katalog z pustymi podkatalogami, nazwy z 1.14.x
+   (kropka na końcu, Unicode, długie ścieżki), obcięcie i zamiana bloków wpisu, podmiana fragmentów między wpisami.
+3. **Zmiany w miejscu**: usunięcie wpisów (trzy kroki z flushem: indeks bez wpisu → przeniesienie ogona w dziurę
+   i indeks → indeks za danymi i obcięcie), dopisanie wpisów, zmiana nazwy wpisu (sam indeks), domykanie wolnego
+   miejsca po przerwanej operacji przy następnym zapisie. Testy: rozmiar pliku po usunięciu = poprzedni − wpis (± indeks),
+   usunięcie pierwszego/środkowego/ostatniego/wszystkich, kilka naraz, wpis większy niż ogon; **wstrzyknięta awaria po
+   każdym zapisie i flushu** (strumień testowy ucinający zapis w zadanym punkcie) — po każdej plik się otwiera, a wpisy
+   poza usuwanym mają poprawną treść; losowe sekwencje dodaj/usuń porównywane z modelem w pamięci (jak `Monkey/`).
+4. **Panel**: `.pce` w nowym układzie otwierany bez pliku tymczasowego (adapter systemu plików jak dla archiwów zamiast
+   `CopyContentAsTar` + `PceBrowse`); F5 z kontenera czyta tylko bloki wpisu, F8 usuwa w miejscu, F5/F6 do kontenera
+   dopisuje, F6/Shift+F6 w środku zmienia nazwę. Usunięcie z `.pce` jest trwałe (bez kosza i bez Ctrl+Z) — okno
+   potwierdzenia mówi to wprost. F3 na wpisie czyta strumień wpisu. Pliki `PCE1` zostają na dzisiejszej drodze.
+5. **Operacje**: `EncryptOperation` zapisuje nowy układ; `DecryptOperation` czyta oba. Zmiana w pliku `PCE1` →
+   pytanie o jednorazowe przepisanie na nowy układ (`.part` + podmiana, Ctrl+Z nie dotyczy). Polecenie „Zmień hasło”
+   (Pliki): przepisanie nagłówka z kopią starego do czasu flushu.
+6. **Teksty i dokumentacja**: `Strings/en-US` i `pl-PL` (potwierdzenie trwałego usunięcia, pytanie o przepisanie,
+   „plik z nowszej wersji”, zmiana hasła), README, `site/index.html`, listingi Sklepu tylko jeśli opisują `.pce`.
+7. **Pomiary i VM**: `PceBenchmarkTests` — utworzenie 1 GiB, usunięcie 10 MiB z kontenera 10 GiB (cel: poniżej 1 s
+   bez Argon2), lista kontenera 10 000 wpisów, wyjęcie jednego pliku. Na maszynie testowej: F8 w `.pce` z widocznym
+   spadkiem rozmiaru, ubicie procesu w trakcie usuwania dużego wpisu i ponowne otwarcie, plik `PCE1` z 1.14.x
+   (odczyt, przepisanie), kontener na FAT32/exFAT/ReFS (`build/test-volumes.ps1`) i na udziale sieciowym.
+
+Decyzje 2026-11-19: F8 w `.pce` pyta zawsze (niezależnie od ustawienia potwierdzeń); „Zmień hasło” zostaje w tym
+etapie.
+
+Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
+- `PceContainerFormat` (nagłówek 94 B z zawiniętym kluczem głównym, stopka 48 B, indeks z kluczem HKDF, wpisy
+  i fragmenty), `PceBlockStreams` (zapis bloków wpisu; odczyt z przewijaniem po fragmentach), `PceStorage`
+  (plik przez pozycyjne odczyty i zapisy; w testach pamięć z awarią na wybranym wywołaniu), `PceContainer`
+  (`Create`, `Open`, `Entries`, `OpenRead`, `Add`, `Delete`, `Rename`, `ChangePassword`, `Repair`, `LayoutVersion`),
+  `PceSource.FromPath` (plik albo katalog jako wpisy, puste katalogi osobno).
+- Różnice względem pierwszego projektu (opisane w docs/szyfrowanie.md): AAD indeksu to sama stopka; dopisywanie idzie
+  za stopkę, a miejsce po starym indeksie jest domykane jak dziura; po przerwanym dopisywaniu czytnik szuka wstecz
+  ostatniej poprawnej stopki; druga kopia nagłówka przed stopką (decyzja 2026-11-19), zmiana hasła zapisuje ją pierwszą.
+- Testy `PceContainerTests` (42 przypadki, w tym nagłówek odtwarzany z kopii i awaria w każdym punkcie zmiany hasła): rozmiary 0…3 bloki+7, lista i odczyt jednego bloku przez przewijanie, zstd auto/zawsze,
+  złe hasło z samego nagłówka, zmiana każdego bajtu nagłówka oraz bajtów indeksu i stopki, zmieniony/zamieniony/cudzy
+  blok, obcięcie, flaga z nowszej wersji, każdy bajt nagłówka uszkodzony osobno i w obu kopiach, usunięcie pierwszego/środkowego/ostatniego/katalogu/wszystkiego z dokładnym
+  spadkiem rozmiaru, limit przeniesionych bajtów, dopisanie z zastąpieniem, nieudane i anulowane dopisanie, zmiana
+  nazwy (także z rosnącym indeksem), zmiana hasła bez dotykania danych, strumień sprzed zmiany, złe ścieżki, awaria na
+  każdym zapisie/flushu/obcięciu dla 6 rodzajów zmian (stan „jak jest” i „jak po ostatnim flushu”), 5 losowych
+  sekwencji po 60 zmian z modelem. Test awarii sprawdzony mutacją (bez pierwszego zapisu indeksu pada).
+- Pomiar (`PceBenchmarkTests`, WSL): usunięcie 10 MiB ze środka 2058 MiB — 0,11 s; tabela w docs/szyfrowanie.md.
+- Nie zrobione z kroków 1–3: szyfrowanie bloków równolegle (utworzenie idzie ≈710 MiB/s jednym wątkiem, do oceny po
+  pomiarze na VM), testy nazw z kropką na końcu i długich ścieżek na Windows, model awarii z zapisami utrwalonymi
+  w innej kolejności niż wykonane, fuzzing nowego układu w `Fuzz/`.
+- Krok 5, rdzeń (2026-11-19): `PceFile.Encrypt` zapisuje kontener, więc Zaszyfruj (`EncryptOperation`, bez zmian
+  w kodzie operacji) tworzy pliki w nowym układzie; `Peek`, `Decrypt`, `CopyContent`, `CopyContentAsTar` czytają oba
+  układy, więc Odszyfruj i dzisiejsze przeglądanie (Enter → tymczasowy TAR) działają na nowych plikach bez zmian
+  w Presentation. `PceFile.Upgrade` (PCE1 → kontener, strumieniowo, `.part` i podmiana) i `PceFile.ChangePassword`.
+  Stary zapis został jako `PceFile.EncryptLegacy` (internal, do testów plików z 1.13–1.14). Odczyt TAR z PCE1 jest
+  teraz iteratorem (`TarItems`), wspólnym dla odszyfrowania i przepisania. Anulowanie w trakcie ostatniego bloku
+  dopisywania też anuluje.
+- Testy: `PceFileLayoutTests` (9): plik i folder przez nowy układ, pusty folder, kilka nazw najwyższego poziomu, TAR do
+  przeglądania, przepisanie PCE1 (plik, folder, pusty folder; bez kompresji i z nią), nieudane przepisanie, zmiana hasła
+  w obu układach. Testy formatu PCE1 przełączone na `EncryptLegacy`; `Regression_damaged_folder_container…` psuje teraz
+  blok w nowym układzie. Core w WSL: 898 zielonych, 170 pominiętych (windowsowe), 0 błędów; Presentation: 438 zielonych.
+  Na Windows jeszcze nie uruchamiane.
+- Nie zrobione z kroku 5: polecenie „Zmień hasło” w menu (okno, teksty — razem z krokiem 6, bo wymaga buildu WinUI),
+  pytanie o przepisanie PCE1 przy zmianie w panelu (należy do kroku 4).
+- Krok 4 (2026-11-19): kontener `.pce` jest dla paneli archiwum. `Core/Archives/PceArchive` (rozpoznanie układu,
+  otwarcie hasłem z `ArchivePasswords`, czytnik wpisów); `ArchiveCatalog` listuje z samego indeksu, `ArchiveReaders`
+  czyta pojedynczy wpis (F3, F5 z kontenera, szukanie w treści), `ArchiveUpdateOperation` zmienia kontener w miejscu
+  (`ChangePce`: F8 → `Delete`, Shift+F6 → `Rename`, F7 → wpis katalogu, F5/F6 do środka → `Add` z kompresją auto;
+  konflikty nazw jak w zip). Enter / Ctrl+PgDn na kontenerze (`HandleEncryptedAsync`): hasło → `ArchivePasswords` →
+  granica archiwum (`ArchivePath.OpenExplicitly`) → panel wchodzi w plik bez pliku tymczasowego; jeden zaszyfrowany
+  folder otwiera się od razu na swojej zawartości, Backspace pokazuje poziom kontenera, kolejny wychodzi z pliku.
+  Ponowny Enter na otwartym wcześniej kontenerze znów idzie przez obsługę `.pce` (poprawka w `PanelViewModel`).
+  F8 w kontenerze pyta zawsze, pytaniem o trwałe usunięcie (istniejąca ścieżka archiwów), bez kosza i Ctrl+Z.
+- Pliki `PCE1` w panelu: przeglądane jak dotąd przez tymczasowy TAR, ale zmiany są odrzucane z wyjaśnieniem
+  (`Texts.PceOldLayoutReadOnly`) — wcześniej F8/F7/F5 zmieniały tymczasowy TAR i ginęły bez śladu. Pytanie
+  „przepisać na nowy układ?” wymaga nowego okna (WinUI), więc idzie z krokiem 6; `PceFile.Upgrade` czeka gotowe.
+- Czytnik otwiera plik ze współdzieleniem zapisu (jeden piszący, czytający obok): odświeżenie panelu w trakcie zmiany
+  widzi ostatni zatwierdzony indeks zamiast błędu „plik w użyciu”.
+- Testy: Presentation +3 w `EncryptTests` (F8 pyta jak o trwałe usunięcie i plik maleje dokładnie o rozmiar wpisu;
+  F5 do środka, F7 i zmiana nazwy w miejscu; stary `.pce` odmawia zmian i zostaje bajt w bajt), 2 istniejące
+  dostosowane (ścieżka `skany.pce\skany` zamiast `skany.tar`, brak nowego folderu `pce-*` w `%TEMP%`).
+  WSL: Core 898 zielonych (170 pominiętych), Presentation 442 zielone (3 pominięte), trzy przebiegi pod rząd.
+  Projekt App (WinUI) nie był zmieniany w krokach 1–5. Na Windows i w GUI nic z etapu 23 nie było jeszcze uruchamiane.
+- Nie zrobione z kroku 4: sprawdzenie w GUI (pasek ścieżki, karta, kolor `.pce`, postęp przy dużym F5 do środka),
+  przywracanie karty wewnątrz `.pce` po restarcie (granica archiwum istnieje tylko w sesji — karta wróci do folderu
+  z plikiem), kopiowanie kontener → kontener (jak archiwum → archiwum: odmowa).
+- Krok 6 (2026-11-19): `IDialogService.AskChangePasswordAsync` i `ConfirmPceUpgradeAsync` z oknami w `DialogService`;
+  Pliki → „Zmień hasło pliku .pce…” (`MainViewModel.ChangePcePasswordAsync`: plik pod kursorem, złe obecne hasło → pytanie
+  ponownie, stary plik przy okazji przepisywany, zapamiętane hasła podmieniane, potwierdzenie w oknie informacji —
+  wiersz stanu zamazywało odświeżenie panelu). Zmiana w starym `.pce` (F8, F7, Shift+F6, F5 do środka) pyta o
+  przepisanie (`UpgradeOldPceAsync`): po zgodzie `PceFile.Upgrade`, panele pokazujące tymczasowy TAR przechodzą w to
+  samo miejsce w kontenerze z kursorem na tej samej nazwie, a polecenie użytkownik powtarza (komunikat w wierszu
+  stanu); odmowa nie zmienia niczego. Teksty en-US i pl-PL (menu, oba okna, opis formatu i kompresji w oknie
+  Zaszyfruj), README (sekcje Encryption i opis formatu), listingi Sklepu po jednym zdaniu; `site/index.html` nie
+  wspomina o `.pce`, bez zmian. Testy Presentation +3 (pytanie o przepisanie z odmową i zgodą, zmiana hasła po złym
+  haśle przy otwartym kontenerze, zmiana hasła starego pliku).
+- Krok 7, część (VM PC-DEV 192.168.1.27 przez przekaźnik, 2026-11-19): build `dotnet build -p:Platform=x64` bez
+  ostrzeżeń; testy na Windows: Core 990 zielonych / 83 pominięte, Presentation 445 / 8 pominiętych (przed ostatnią
+  zmianą tekstów; po niej Presentation tylko w WSL: 451 zielonych). W GUI (angielski interfejs): Ctrl+E folderu →
+  `skany.pce` 2 904 412 B; Enter + hasło → zawartość bez pliku tymczasowego; F8 na pliku 2 000 000 B → pytanie o trwałe
+  usunięcie → plik 904 380 B (mniej o 2 000 032: dane i dwa tagi); paleta „passw” → Zmień hasło → rozmiar bez zmian,
+  okno potwierdzenia; stary `stare.pce` (PCE1 z WSL): Enter, F8 → pytanie o przepisanie → panel w `stare.pce\stare`
+  z kursorem na tym samym pliku → F8 → 4 405 B. Zrzuty `docs/stage23-*.png`. settings.json na VM przywrócony,
+  dane testowe w `C:\work\pce23`.
+- Krok 7, reszta (VM, 2026-11-19):
+  - **Pomiary** (`PceBenchmarkTests`, Release, `PC_PCE_BENCH_GIB=5`): kontener 10 250 MiB tworzony 20,3 s (506 MiB/s
+    z Argon2 i zrzutem na dysk); otwarcie 0,09 s; **usunięcie 10 MiB ze środka 0,13 s** z otwarciem (cel był < 1 s),
+    plik mniejszy o 10 240 KiB; odczyt ostatniego bajtu wpisu 5 GiB 0,09 s; 10 000 małych plików: utworzenie 13,3 s,
+    lista 0,10 s, usunięcie co drugiego 0,64 s. Szyfrowanie bloków równolegle: niezrobione.
+  - **Oba układy obok siebie** (nowy pomiar `Decrypting_a_container_keeps_pace_with_the_first_layout`, 1 GiB, po trzy
+    przebiegi): odszyfrowanie kontenera jest szybsze niż PCE1 — donikąd 0,41–0,55 s wobec 0,69–0,72 s, do pliku
+    1,00–1,07 s wobec 1,41–1,59 s; w WSL bez różnicy. Wcześniejsze 2,40 s z `One_gigabyte_runs_at_disk_speed` było
+    skutkiem kolejności w tamtym teście (odszyfrowanie tuż po zapisaniu 2 GiB, w trakcie zrzutu bufora), nie kosztem
+    odczytu — w kodzie odszyfrowania nic nie zmieniałem. Szyfrowanie jest naprawdę wolniejsze: 2,27–2,36 s wobec
+    1,19–1,37 s, bo kontener zrzuca dane na dysk przed zapisaniem indeksu, a PCE1 zostawiał je w buforze systemu.
+  - **Ubijanie procesu** (narzędzie spoza repo: kontener 6,46 GB, usuwanie pierwszego wpisu 3 GiB trwa 5,9 s;
+    `Stop-Process -Force` po 150, 400, 800, 1200, 1700, 2300, 3000 i 4000 ms): za każdym razem plik się otwiera,
+    wszystkie pozostałe wpisy (201 lub 202) czytają się bajt w bajt; do 1200 ms wpis jeszcze jest i plik jest nietknięty,
+    od 1700 ms wpisu nie ma, plik ma jeszcze 6,46 GB, a naprawa przy otwarciu do zapisu obcina go do 3,24 GB.
+    Ubicie procesu nie jest zanikiem zasilania: bufor systemu i tak trafia na dysk; kolejność zapisów przy utracie
+    zasilania sprawdza tylko model w `PceContainerTests`.
+  - **Inne systemy plików** (`Volumes/PceContainerVolumeTests`, `PC_TEST_VOLUMES` = T: FAT32, U: exFAT, V: ReFS,
+    X: FAT16 i udział `\\localhost\C$\…`): utworzenie, usunięcie z dokładnym spadkiem rozmiaru, dopisanie, zmiana nazwy
+    i hasła, ponowne otwarcie — 5 z 5 zielonych. **Pełny dysk** (W:, `PC_TEST_FULL_VOLUME`): dopisanie większe niż
+    wolne miejsce kończy się błędem i plik wraca bajt w bajt; **usunięcie przy zerze wolnego miejsca się nie udaje**
+    (najpierw trzeba dopisać jeden indeks, ok. 4,3 KiB) i zostawia kontener otwieralny z całą zawartością; po
+    zwolnieniu 64 KiB to samo usunięcie przechodzi. To ograniczenie formatu, opisane w docs/szyfrowanie.md.
+  - **GUI po polsku**: okna Zaszyfruj, Usuń trwale, Zmień hasło, „Przepisać plik .pce?”; F5 pliku 6,29 GB do
+    kontenera pokazuje kartę postępu („Zmiana archiwum: 1 element”) i kończy się plikiem 6 294 456 412 B (dane + 6000
+    tagów), F8 na nim oddaje miejsce od razu. Tekst kompresji „automatycznie…” nie mieścił się w polu — skrócony
+    (po tej zmianie bez ponownego buildu na VM). Zrzuty `docs/stage23-*.png`. settings.json przywrócony (en-US),
+    duży plik i narzędzia usunięte, dyski testowe T: U: V: W: X: zostały podłączone.
+- Przed wydaniem 1.15.0: wersja w `Directory.Build.props` i manifeście, notatki wydania z ostrzeżeniem o zgodności
+  wstecz, commit (drzewo ma też niecommitowane zmiany 1.14.10 z innej sesji).
+
+Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
+nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
+
 ## 5. Skróty klawiszowe
 
 | Klawisz | Działanie |
@@ -855,7 +1024,7 @@ domyślny i nie wymaga 7-Zip.
 | F3 | podgląd |
 | F4 | edycja |
 | F5 | kopiuj |
-| F6 | przenieś / zmień nazwę (Shift+F6 zmiana nazwy w miejscu) |
+| F6 | przenieś / zmień nazwę (Shift+F6 zmiana nazwy w miejscu); cel z maską (`*.bak`) zmienia nazwy, także w F5 |
 | F7 | nowy katalog |
 | F8, Del | usuń do kosza; Shift+F8 / Shift+Del na stałe |
 | Alt+F4 | zamknij |
@@ -871,6 +1040,8 @@ domyślny i nie wymaga 7-Zip.
 | Ctrl+F3 / F4 / F5 / F6 | sortuj po nazwie / rozszerzeniu / dacie / rozmiarze; ponownie odwraca kierunek |
 | Ctrl+H | pokaż ukryte |
 | Ctrl+Z | cofnij ostatnią operację na plikach (z potwierdzeniem) |
+| Ctrl+Shift+T | przywróć ostatnio zamkniętą kartę |
+| Ctrl+Shift+P | paleta poleceń |
 | Ctrl+S | filtr: nazwa, rozszerzenia, data modyfikacji/utworzenia, rozmiar; Esc zdejmuje |
 | Alt+F7 | szukaj (1.x) |
 | Alt+F5 / Alt+F9 | pakuj (zip, 7z, tar, tar.gz) / rozpakuj zaznaczone archiwa |

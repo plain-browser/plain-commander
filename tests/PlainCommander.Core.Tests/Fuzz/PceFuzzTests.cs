@@ -221,7 +221,7 @@ public sealed class PceFuzzTests : IDisposable
         var content = System.Text.Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Plain Commander zstd ", 200)));
         var source = _s.File("text.txt", System.Text.Encoding.UTF8.GetString(content));
         var pce = source + PceFormat.Extension;
-        PceFile.Encrypt(source, pce, Password, Cheap with { ChunkSize = 256 }, PceCompression.Always, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(source, pce, Password, Cheap with { ChunkSize = 256 }, PceCompression.Always, null, TestContext.Current.CancellationToken);
         var valid = File.ReadAllBytes(pce);
         var damaged = _s.P("damaged.pce");
         FuzzKit.Check(
@@ -335,7 +335,7 @@ public sealed class PceFuzzTests : IDisposable
         _s.Dir("src/empty");
         _s.File("src/" + new string('n', 120) + "/long.txt", "long name");
         var folderPce = _s.P("folder.pce");
-        PceFile.Encrypt(_s.P("src"), folderPce, Password, Cheap with { ChunkSize = 4096 }, PceCompression.None, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(_s.P("src"), folderPce, Password, Cheap with { ChunkSize = 4096 }, PceCompression.None, null, TestContext.Current.CancellationToken);
         using var tarStream = new MemoryStream();
         PceFile.CopyContent(folderPce, Password, tarStream, null, TestContext.Current.CancellationToken);
         var tar = tarStream.ToArray();

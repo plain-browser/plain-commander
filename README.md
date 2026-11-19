@@ -18,7 +18,7 @@ the last file operation with `Ctrl+Z`.
 
 ![Plain Commander: two panels, marked files, drive buttons with OneDrive, an encrypted .pce container in violet](docs/screenshot-main.png)
 
-> **Status:** the application is in active development (current release: 1.14.x). It is usable every day. Install it from the
+> **Status:** the application is in active development (current release: 1.15.x). It is usable every day. Install it from the
 > [Microsoft Store](https://apps.microsoft.com/detail/9NJMJ1VQ1X87), or from GitHub with a developer certificate; see [Installation](#installation).
 
 ---
@@ -57,7 +57,7 @@ the last file operation with `Ctrl+Z`.
 | **Operation queue** | Copy, move, delete, pack and unpack run in the background in a queue with progress, pause, cancel, per-file conflict choices ("overwrite / skip / keep both / only if newer", with "apply to all"), and retry/skip on errors. |
 | **Undo (`Ctrl+Z`)** | Reverses copy, move, rename, Recycle Bin deletes, new files and folders, attribute changes, packing and encryption, after telling you exactly what will happen. Nothing is ever deleted for good or overwritten by an undo. |
 | **Archives as folders** | 7z, zip, rar (including rar5 and multi-part), iso, cab, wim, tar, tar.gz, tar.zst, rpm, deb, dmg and more open like directories, with passwords. Write support for zip, 7z, tar and tar.gz. |
-| **Own encryption format, `.pce`** | AES-256-GCM with an Argon2id key, authenticated, about disk speed (more than 700 MiB/s measured). Open an encrypted container like an archive: browse it, copy single files out. 7z and zip (AES-256) are available for other programs. |
+| **Own encryption format, `.pce`** | AES-256-GCM with an Argon2id key, authenticated, about disk speed (more than 700 MiB/s measured). Open an encrypted container like an archive: browse it, copy single files out or in, delete inside it and the file shrinks at once. 7z and zip (AES-256) are available for other programs. |
 | **Servers and clouds** | FTP, FTPS, SFTP and S3-compatible storage (Amazon S3, MinIO, Cloudflare R2, Wasabi, Backblaze B2) as ordinary folders, with resumable transfers. Local-network computers and shares, OneDrive (personal and work accounts) one click away. |
 | **Compare and synchronize** | Directory compare with a diff view, two-way synchronization with a preview, text and binary file compare. |
 | **Bulk rename** | Masks, counters, search and replace, case, transliteration to Latin letters, with a preview and undo. |
@@ -153,16 +153,24 @@ permanent deletes, operations on servers and inside archives, and operations don
 
 - **AES-256-GCM**, authenticated, with a key derived from the password by **Argon2id** (64 MiB, 3 passes, 4 lanes);
   ChaCha20-Poly1305 is used on machines without AES hardware.
-- The file is cut into 1 MiB blocks, each authenticated against the header; **truncation, reordering, appended data
-  and bit flips are detected**. A wrong password is recognised immediately, before any data is read.
-- The name, size, time and attributes of the original are stored inside; optionally the container gets a **random file
-  name** so that even the name is hidden.
-- **zstd compression** is applied before encryption only when a sample of the data says it pays (not for photos,
-  video or archives); you can force it on or off.
+- Every file inside is encrypted on its own, in 1 MiB blocks under its own key; an encrypted index holds the names,
+  sizes and times. **Truncation, reordering, swapped blocks and bit flips are detected**. A wrong password is
+  recognised immediately, before any data is read.
+- Nothing but the total size is visible from outside; optionally the container gets a **random file name** so that
+  even its name says nothing.
+- **Changed in place:** deleting a file from a container moves at most as many bytes as that file took and cuts the
+  container by exactly that much; adding, renaming and changing the password do not rewrite the rest either. An
+  interrupted change (crash, power loss) leaves a container that opens.
+- **zstd compression** is applied before encryption, file by file, only when a sample of the file says it pays (not for
+  photos, video or archives); you can force it on or off.
 - Fast: more than 700 MiB/s on a test machine, including key derivation.
 - **Use:** `Enter` or `Ctrl+PgDn` on a `.pce` file and the password opens its content *like an archive*: walk through
-  folders, copy single files or folders out with `F5`, `Backspace` returns to the folder holding the container.
-  *Files → Decrypt* writes everything to disk. The password is remembered for the session, in memory only.
+  folders, copy files or folders out and in with `F5`, make folders with `F7`, rename with `Shift+F6`, delete with `F8`
+  (always asked, there is no Recycle Bin inside). Nothing is decrypted to disk for browsing. *Files → Decrypt* writes
+  everything to disk; *Files → Change .pce password* replaces the password without re-encrypting. The password is
+  remembered for the session, in memory only.
+- **Files from versions before 1.15** open as before, read-only; the first change (or a password change) offers to
+  rewrite the file in the current layout. Versions before 1.15 do not open files written by 1.15 or later.
 - `.pce` files are drawn in violet in the panels.
 
 **7z and zip** are offered for exchange with other programs: AES-256, with 7z also hiding the names. (Plain Commander
@@ -230,7 +238,7 @@ Every command is in the menus too (`F2` or the menu bar); `F1` shows this list i
 | `Ctrl+PgDn` | Enter folder or archive; try any file as an archive; browse a `.pce` |
 | `Alt+F1` / `Alt+F2` | Drive menu, left / right |
 | `F3` / `F4` | View / edit |
-| `F5` / `F6` | Copy / move (`Shift+F6`: rename in place) |
+| `F5` / `F6` | Copy / move (`Shift+F6`: rename in place); a target such as `*.bak` or `old_*.*` renames on the way |
 | `F7` | New folder |
 | `F8`, `Del` | Delete to Recycle Bin (`Shift+F8`, `Shift+Del`: permanently) |
 | `Alt+F5` / `Alt+F9` | Pack / unpack |
@@ -256,6 +264,8 @@ Every command is in the menus too (`F2` or the menu bar); `F1` shows this list i
 | `Ctrl+H` | Show hidden files |
 | `Ctrl+R` | Refresh |
 | `Ctrl+T` / `Ctrl+W` / `Ctrl+Tab` | New tab / close tab / next tab |
+| `Ctrl+Shift+T` | Reopen the tab closed last |
+| `Ctrl+Shift+P` | Command palette: type a command name |
 | `Ctrl+F` / `Ctrl+Shift+F` | Server connections / disconnect |
 | `Alt+Enter` | Properties |
 | `Alt+F8` | Command line |
@@ -347,10 +357,13 @@ Notes for the curious:
   a cancelled or failed run leaves nothing half-written.
 - **Operations** are small objects (`IOperation`) running in a queue off the UI thread; each reports progress, honours
   pause and cancel, asks conflicts and errors through a prompt interface and records what it did in an **undo journal**.
-- **`.pce` format:** a plain header (magic `PCE1`, flags, KDF and cipher ids, Argon2 parameters, salt, block size,
-  nonce prefix) used as additional authenticated data for every block; blocks `[length][ciphertext][tag]` with the nonce
-  made of a prefix and a counter, the last block marked; block 0 carries the metadata, so a wrong password fails
-  at once. A folder travels as a TAR stream inside.
+- **`.pce` format:** a plain header (magic `PCE2`, KDF and cipher ids, Argon2 parameters, salt, block size, and a random
+  master key wrapped with the password key); entry data in blocks `[ciphertext][tag]`, each entry under its own random
+  key with the block number and a "last" flag as the nonce; one encrypted index (paths, sizes, times, entry keys,
+  extents) under a key derived from the master key and a fresh salt; a second copy of the header and a footer at the
+  end. A change appends a new index before anything it replaces is reused, so the last committed state always opens.
+  The first layout (`PCE1`: one stream, a folder as a TAR inside) is still read. Details (in Polish):
+  [docs/szyfrowanie.md](docs/szyfrowanie.md).
 - **Stack:** .NET 10 (C# 14), WinUI 3 / Windows App SDK, CommunityToolkit.Mvvm, CsWin32, Serilog, SharpCompress,
   SSH.NET, FluentFTP, AWS SDK for S3, Konscious Argon2; tests with xunit v3 and AwesomeAssertions. Package versions
   live in one place: `Directory.Packages.props`.

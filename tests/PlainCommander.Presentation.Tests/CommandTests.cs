@@ -94,16 +94,48 @@ public sealed class CommandTests : IDisposable
     }
 
     [Fact]
-    public async Task Unsupported_target_is_reported_not_thrown()
+    public async Task F5_with_a_mask_copies_under_new_names()
     {
         _tree.File("left/a.txt");
+        _tree.File("left/b.log");
         await Open();
-        Cursor(_vm.Left, "a.txt");
-        _dialogs.TransferAnswer = "*.bak";
+        _vm.Left.MarkAll();
+        _dialogs.TransferAnswer = Path.Combine(_right, "*.bak");
+
+        await _vm.CopyAsync();
+
+        _dialogs.Errors.Should().BeEmpty();
+        Directory.GetFiles(_right).Select(Path.GetFileName).Should().BeEquivalentTo("a.bak", "b.bak");
+    }
+
+    [Fact]
+    public async Task F6_with_a_mask_and_no_folder_renames_in_place()
+    {
+        _tree.File("left/a.txt");
+        _tree.File("left/b.txt");
+        await Open();
+        _vm.Left.MarkAll();
+        _dialogs.TransferAnswer = "old_*.*";
+
+        await _vm.MoveAsync();
+
+        _dialogs.Errors.Should().BeEmpty();
+        Directory.GetFiles(_left).Select(Path.GetFileName).Should().BeEquivalentTo("old_a.txt", "old_b.txt");
+    }
+
+    [Fact]
+    public async Task A_mask_that_gives_two_items_one_name_is_refused_before_anything_is_copied()
+    {
+        _tree.File("left/a.txt");
+        _tree.File("left/a.log");
+        await Open();
+        _vm.Left.MarkAll();
+        _dialogs.TransferAnswer = Path.Combine(_right, "*.bak");
 
         await _vm.CopyAsync();
 
         _dialogs.Errors.Should().ContainSingle();
+        Directory.EnumerateFileSystemEntries(_right).Should().BeEmpty();
     }
 
     [Fact]

@@ -239,6 +239,17 @@
   <data name="Menu_FilesUnpack.Text" xml:space="preserve"><value>Unpack…</value></data>
   <data name="Menu_FilesEncrypt.Text" xml:space="preserve"><value>Encrypt…</value></data>
   <data name="Menu_FilesDecrypt.Text" xml:space="preserve"><value>Decrypt…</value></data>
+  <data name="Menu_FilesChangePassword.Text" xml:space="preserve"><value>Change .pce password…</value></data>
+  <data name="ChPw_Title" xml:space="preserve"><value>Change password</value></data>
+  <data name="ChPw_Prompt" xml:space="preserve"><value>New password for “{0}”:</value></data>
+  <data name="ChPw_Current" xml:space="preserve"><value>Current password</value></data>
+  <data name="ChPw_New" xml:space="preserve"><value>New password</value></data>
+  <data name="ChPw_Button" xml:space="preserve"><value>Change password</value></data>
+  <data name="ChPw_RewriteNote" xml:space="preserve"><value>This file comes from an earlier version: it will also be rewritten as a whole in the current layout (which takes a while), and versions before 1.15 will no longer open it.</value></data>
+  <data name="Upg_Title" xml:space="preserve"><value>Rewrite the .pce file?</value></data>
+  <data name="Upg_Question" xml:space="preserve"><value>“{0}” comes from an earlier version and can only be read as it is. Rewrite it in the current layout, in which files are added and deleted in place?</value></data>
+  <data name="Upg_Note" xml:space="preserve"><value>The content and the password stay the same. The file is written anew (this takes as long as encrypting it), and Plain Commander versions before 1.15 will no longer open it.</value></data>
+  <data name="Upg_Button" xml:space="preserve"><value>Rewrite</value></data>
   <data name="Dlg_PackPasswordZip" xml:space="preserve"><value>Password (AES-256; Windows Explorer cannot open such a zip, 7-Zip and WinRAR can)</value></data>
   <data name="Enc_Title" xml:space="preserve"><value>Encrypt</value></data>
   <data name="Enc_One" xml:space="preserve"><value>Encrypt “{0}” into a password-protected copy:</value></data>
@@ -247,11 +258,11 @@
   <data name="Enc_Format7z" xml:space="preserve"><value>7z — AES-256, file names hidden too</value></data>
   <data name="Enc_FormatZip" xml:space="preserve"><value>zip — AES-256</value></data>
   <data name="Enc_FormatPce" xml:space="preserve"><value>pce — Plain Commander: AES-256-GCM, Argon2id (fastest)</value></data>
-  <data name="Enc_NotePce" xml:space="preserve"><value>Plain Commander's own format: authenticated encryption (AES-256-GCM, password key through Argon2id), zstd compression only when it pays; disk speed. The file name and time are hidden inside. Opens only in Plain Commander: Enter and the password open the content like an archive (F5 copies a file or folder out), Files → Decrypt writes everything to disk.</value></data>
+  <data name="Enc_NotePce" xml:space="preserve"><value>Plain Commander's own format: authenticated encryption (AES-256-GCM, password key through Argon2id), zstd compression only when it pays; disk speed. The file name and time are hidden inside. Opens only in Plain Commander: Enter and the password open the content like an archive (F5 copies files out or in, F8 deletes and the file shrinks at once), Files → Decrypt writes everything to disk.</value></data>
   <data name="Enc_Folder" xml:space="preserve"><value>Save in folder</value></data>
   <data name="Enc_HideName" xml:space="preserve"><value>Hide the file name (random .pce name)</value></data>
   <data name="Enc_Compress" xml:space="preserve"><value>Compression</value></data>
-  <data name="Enc_CompressAuto" xml:space="preserve"><value>automatic — a sample of the first megabyte decides (recommended)</value></data>
+  <data name="Enc_CompressAuto" xml:space="preserve"><value>automatic — a sample of each file's start decides (recommended)</value></data>
   <data name="Enc_CompressAlways" xml:space="preserve"><value>always (zstd)</value></data>
   <data name="Enc_CompressNever" xml:space="preserve"><value>never</value></data>
   <data name="Enc_NoSevenZip" xml:space="preserve"><value>7z and zip need the 7-Zip library, which is missing here.</value></data>
@@ -309,6 +320,10 @@
   <data name="Cmp_Hint" xml:space="preserve"><value>Marked are files and folders that are only in that panel, newer there, or have the same time but a different size. Then F5 copies exactly the changes.</value></data>
   <data name="Cmd_NewTab.Text" xml:space="preserve"><value>New tab</value></data>
   <data name="Cmd_CloseTab.Text" xml:space="preserve"><value>Close tab</value></data>
+  <data name="Cmd_ReopenTab.Text" xml:space="preserve"><value>Reopen closed tab</value></data>
+  <data name="Cmd_Palette.Text" xml:space="preserve"><value>Command palette…</value></data>
+  <data name="Palette_Placeholder" xml:space="preserve"><value>Type a command name</value></data>
+  <data name="Palette_None" xml:space="preserve"><value>No command matches.</value></data>
   <data name="Cmd_NextTab.Text" xml:space="preserve"><value>Next tab</value></data>
   <data name="Menu_FilesMultiRename.Text" xml:space="preserve"><value>Multi-rename…</value></data>
   <data name="Mr_Title" xml:space="preserve"><value>Multi-rename</value></data>

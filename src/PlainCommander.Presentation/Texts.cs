@@ -400,6 +400,32 @@ internal static class Texts
         ? "Tej operacji nie ma wewnątrz archiwum. W archiwum można usuwać (F8), dodawać pliki z dysku (F5/F6 z drugiego panelu), zmieniać nazwy (Shift+F6), tworzyć katalogi (F7) i wypakowywać (F5)."
         : "This is not available inside an archive. In an archive you can delete (F8), add files from disk (F5/F6 from the other panel), rename (Shift+F6), create folders (F7) and extract (F5).";
 
+    public static string ChangePasswordNothing => Polish
+        ? "Ustaw kursor na zaszyfrowanym pliku .pce, którego hasło chcesz zmienić."
+        : "Put the cursor on the encrypted .pce file whose password you want to change.";
+
+    public static string ChangePasswordNotHere => Polish
+        ? "Hasło można zmienić plikom .pce na dysku (nie na serwerze ani w archiwum)."
+        : "The password can be changed for .pce files on disk (not on a server or inside an archive).";
+
+    public static string ChangingPassword(string name) => Polish ? $"Zmiana hasła „{name}”…" : $"Changing the password of “{name}”…";
+
+    public static string ChangePasswordTitle => Polish ? "Zmiana hasła" : "Change password";
+
+    public static string PasswordChanged(string name) => Polish
+        ? $"Hasło pliku „{name}” zostało zmienione. Stare hasło już go nie otwiera."
+        : $"The password of “{name}” was changed. The old password no longer opens it.";
+
+    public static string PceUpgrading(string name) => Polish ? $"Przepisywanie „{name}” na nowy układ…" : $"Rewriting “{name}” in the current layout…";
+
+    public static string PceUpgraded(string name) => Polish
+        ? $"„{name}” przepisany — powtórz polecenie."
+        : $"“{name}” rewritten — repeat the command.";
+
+    public static string PceOldLayoutReadOnly => Polish
+        ? "Ten plik .pce pochodzi ze starszej wersji i w panelu jest tylko do odczytu: można go przeglądać, kopiować z niego i odszyfrować. Zmieniać w miejscu można pliki zaszyfrowane od wersji 1.15."
+        : "This .pce file comes from an earlier version and is read-only in the panel: it can be browsed, copied from and decrypted. Files encrypted since version 1.15 can be changed in place.";
+
     public static string ArchiveFormatReadOnly => Polish
         ? "To archiwum jest tylko do odczytu: zmieniać można archiwa zip, 7z, tar i tar.gz, a rar, iso i inne tylko przeglądać i wypakowywać."
         : "This archive is read-only: zip, 7z, tar and tar.gz can be changed; rar, iso and others can only be browsed and extracted.";
@@ -453,6 +479,20 @@ internal static class Texts
     public static string RemoteOtherServer => Polish
         ? "Kopiowanie bezpośrednio między dwoma serwerami nie jest obsługiwane. Najpierw skopiuj pliki na dysk."
         : "Copying directly between two servers is not supported. Copy the files to disk first.";
+
+    public static string NoClosedTab => Polish ? "W tym panelu nie zamknięto jeszcze żadnej karty." : "No tab has been closed in this panel yet.";
+
+    public static string MaskGivesNoName(string mask, string name) => Polish
+        ? $"Maska „{mask}” nie daje żadnej nazwy dla „{name}”."
+        : $"The mask “{mask}” gives no name for “{name}”.";
+
+    public static string MaskGivesSameName(string mask, string name) => Polish
+        ? $"Maska „{mask}” daje kilku elementom tę samą nazwę „{name}”."
+        : $"The mask “{mask}” gives several items the same name “{name}”.";
+
+    public static string MaskOnlyOnDisk => Polish
+        ? "Maska nazwy dla kilku elementów działa tylko przy kopiowaniu i przenoszeniu na dysku. Z archiwum albo serwerem użyj jej dla jednego elementu albo zmień nazwy po skopiowaniu (Ctrl+M)."
+        : "A name mask for several items works only when copying and moving on disk. With an archive or a server use it for one item, or rename after copying (Ctrl+M).";
 
     public static string RemoteAndArchive => Polish
         ? "Między archiwum a serwerem pliki muszą przejść przez dysk: najpierw je wypakuj albo pobierz."

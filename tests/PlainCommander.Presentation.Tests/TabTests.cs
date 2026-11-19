@@ -58,6 +58,63 @@ public sealed class TabTests : IDisposable
     }
 
     [Fact]
+    public async Task A_closed_tab_comes_back_in_its_place_with_its_cursor()
+    {
+        using var vm = Create();
+        var panel = vm.Left;
+        await panel.NavigateAsync(_a);
+        panel.CurrentIndex = panel.Items.ToList().FindIndex(static i => i.Name == "two.txt");
+        panel.NewTab();
+        await panel.NavigateAsync(_b);
+        panel.NewTab();
+        await panel.NavigateAsync(_tree.Root);
+        panel.CanReopenTab.Should().BeFalse();
+
+        await panel.CloseTabAsync(0);
+        await panel.CloseTabAsync(0);
+        panel.Tabs.Should().ContainSingle();
+        panel.CanReopenTab.Should().BeTrue();
+
+        (await panel.ReopenTabAsync()).Should().BeTrue();
+        panel.Tabs.Select(t => t.Title).Should().Equal("beta", Path.GetFileName(_tree.Root));
+        panel.ActiveTabIndex.Should().Be(0);
+        panel.Path.Should().Be(_b);
+        panel.Tabs.Select(t => t.IsActive).Should().Equal(true, false);
+
+        (await panel.ReopenTabAsync()).Should().BeTrue();
+        panel.Tabs.Select(t => t.Title).Should().Equal("alpha", "beta", Path.GetFileName(_tree.Root));
+        panel.Path.Should().Be(_a);
+        panel.CurrentItem!.Name.Should().Be("two.txt");
+
+        (await panel.ReopenTabAsync()).Should().BeFalse("nothing is left to bring back");
+    }
+
+    [Fact]
+    public async Task Reopening_the_active_tab_that_was_closed_restores_it_and_a_gone_folder_falls_back()
+    {
+        using var vm = Create();
+        var panel = vm.Left;
+        var gone = _tree.Dir(Path.Combine("beta", "gone"));
+        await panel.NavigateAsync(_a);
+        panel.NewTab();
+        await panel.NavigateAsync(gone);
+
+        await vm.CloseTabAsync();
+        panel.Path.Should().Be(_a);
+        Directory.Delete(gone);
+
+        await vm.ReopenTabAsync();
+        panel.Tabs.Should().HaveCount(2);
+        panel.ActiveTabIndex.Should().Be(1);
+        panel.Path.Should().Be(_b, "the nearest folder that still exists");
+
+        await vm.CloseTabAsync();
+        await vm.ReopenTabAsync();
+        await vm.ReopenTabAsync();
+        panel.Status.Should().Be(Texts.NoClosedTab);
+    }
+
+    [Fact]
     public async Task Closing_tabs_keeps_one_and_picks_a_neighbour()
     {
         using var vm = Create();

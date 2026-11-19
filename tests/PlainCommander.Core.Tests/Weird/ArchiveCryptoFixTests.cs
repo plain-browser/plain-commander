@@ -108,7 +108,7 @@ public sealed class ArchiveCryptoFixTests : IDisposable
     {
         var source = _s.File("k.txt", "secret");
         var pce = source + PceFormat.Extension;
-        PceFile.Encrypt(source, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(source, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
         var bytes = File.ReadAllBytes(pce);
         if (offset == 8)
         {
@@ -129,7 +129,7 @@ public sealed class ArchiveCryptoFixTests : IDisposable
     {
         var source = _s.File("p.txt", "secret");
         var pce = source + PceFormat.Extension;
-        PceFile.Encrypt(source, pce, Password, PceOptions.Fast with { Kdf = PceKdf.Pbkdf2Sha512, Pbkdf2Iterations = 1000 }, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(source, pce, Password, PceOptions.Fast with { Kdf = PceKdf.Pbkdf2Sha512, Pbkdf2Iterations = 1000 }, PceCompression.None, null, Token);
         var bytes = File.ReadAllBytes(pce);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), 40_000_000);
         File.WriteAllBytes(pce, bytes);
@@ -152,7 +152,7 @@ public sealed class ArchiveCryptoFixTests : IDisposable
     {
         var source = _s.File("e.txt", "x");
         var target = source + PceFormat.Extension;
-        var act = () => PceFile.Encrypt(source, target, string.Empty, PceOptions.Fast, PceCompression.None, null, Token);
+        var act = () => PceFile.EncryptLegacy(source, target, string.Empty, PceOptions.Fast, PceCompression.None, null, Token);
         act.Should().Throw<ArgumentException>();
         File.Exists(target).Should().BeFalse();
     }
@@ -163,7 +163,7 @@ public sealed class ArchiveCryptoFixTests : IDisposable
         var folder = _s.Dir("docs");
         File.WriteAllBytes(Path.Combine(folder, "big.bin"), new byte[300 * 1024]);
         var pce = folder + PceFormat.Extension;
-        PceFile.Encrypt(folder, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(folder, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
         var bytes = File.ReadAllBytes(pce);
         bytes[^100] ^= 1;
         File.WriteAllBytes(pce, bytes);
@@ -183,7 +183,7 @@ public sealed class ArchiveCryptoFixTests : IDisposable
         _s.File(Path.Combine("merge", "a.txt"), "a1");
         _s.File(Path.Combine("merge", "sub", "b.txt"), "b1");
         var pce = folder + PceFormat.Extension;
-        PceFile.Encrypt(folder, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(folder, pce, Password, PceOptions.Fast, PceCompression.None, null, Token);
         File.WriteAllText(Path.Combine(folder, "a.txt"), "changed");
         _s.File(Path.Combine("merge", "sub", "own.txt"), "own");
 

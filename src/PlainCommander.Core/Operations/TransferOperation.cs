@@ -74,7 +74,8 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         _target.Directory,
         _target.NewName,
         _parallelism,
-        _presetConflict);
+        _presetConflict,
+        Mask: _target.Mask);
 
     public Task<OperationResult> RunAsync(OperationContext context)
     {
@@ -96,7 +97,7 @@ public sealed class TransferOperation : IOperation, IElevatable, Undo.IUndoable
         {
             // Native forms from here on: names ending in a dot or space survive only behind \\?\ (ExactPath).
             var full = ExactPath.Native(Path.TrimEndingDirectorySeparator(ExactPath.Full(source)));
-            var destination = ExactPath.Native(Path.Combine(_target.Directory, _target.NewName ?? Path.GetFileName(full)));
+            var destination = ExactPath.Native(Path.Combine(_target.Directory, _target.NameFor(Path.GetFileName(full))));
 
             if (await TryFastMoveAsync(runner, full, destination).ConfigureAwait(false))
             {

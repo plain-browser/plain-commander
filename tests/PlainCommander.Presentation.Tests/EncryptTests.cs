@@ -133,11 +133,193 @@ public sealed class EncryptTests : IDisposable
 
         _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == "skany.pce");
         _dialogs.DecryptPasswords.Enqueue("tajne");
+        var temp = Path.Combine(Path.GetTempPath(), "PlainCommander");
+        var decryptedBefore = Directory.Exists(temp) ? Directory.GetDirectories(temp, "pce-*").Length : 0;
         await _vm.Left.EnterCurrentDirectoryAsync();
 
         _vm.Left.IsInArchive.Should().BeTrue();
-        _vm.Left.Path.Should().EndWith("skany.tar");
+        _vm.Left.Path.Should().EndWith(Path.Combine("skany.pce", "skany"), "a container holding one folder opens on that folder's content");
         _vm.Left.Items.Select(i => i.Name).Should().Contain("1.png");
+        (Directory.Exists(temp) ? Directory.GetDirectories(temp, "pce-*").Length : 0).Should().Be(decryptedBefore, "nothing is decrypted to disk for browsing");
+
+        await _vm.Left.GoUpAsync();
+        _vm.Left.Path.Should().EndWith("skany.pce");
+        _vm.Left.Items.Where(i => !i.Entry.IsParentLink).Select(i => i.Name).Should().Equal("skany");
+    }
+
+    private async Task<string> EncryptedFolderOpenInLeftAsync()
+    {
+        _tree.File(Path.Combine("skany", "1.png"), 300_000);
+        _tree.File(Path.Combine("skany", "2.png"), 40_000);
+        _tree.File(Path.Combine("skany", "glebiej", "3.png"), 50_000);
+        await _vm.Left.NavigateAsync(_tree.Root);
+        _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == "skany");
+        _dialogs.EncryptAnswer = new EncryptAnswer(".pce", "tajne", Folder: _tree.Root);
+        await _vm.EncryptAsync();
+        await Until(() => _vm.Left.Items.Any(i => i.Name == "skany.pce"));
+        _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == "skany.pce");
+        _dialogs.DecryptPasswords.Enqueue("tajne");
+        await _vm.Left.EnterCurrentDirectoryAsync();
+        _vm.Left.IsInArchive.Should().BeTrue();
+        return Path.Combine(_tree.Root, "skany.pce");
+    }
+
+    private void Cursor(string name) => _vm.Left.CurrentIndex = _vm.Left.Items.ToList().FindIndex(i => i.Name == name);
+
+    [Fact]
+    public async Task F8_inside_a_pce_always_asks_as_for_a_permanent_delete_and_the_file_shrinks_by_what_went()
+    {
+        var pce = await EncryptedFolderOpenInLeftAsync();
+        var before = new FileInfo(pce).Length;
+        long first, deeper;
+        using (var container = Core.Crypto.PceContainer.Open(pce, "tajne"))
+        {
+            first = container.Find("skany/1.png")!.StoredSize;
+            deeper = container.Find("skany/glebiej/3.png")!.StoredSize;
+        }
+
+        first.Should().BePositive();
+        Cursor("1.png");
+
+        _dialogs.DeleteAnswer = false;
+        await _vm.DeleteAsync(permanent: false);
+        _dialogs.LastDeletePermanent.Should().BeTrue("there is no Recycle Bin inside the file, and the question says so");
+        new FileInfo(pce).Length.Should().Be(before, "answering no changes nothing");
+
+        _dialogs.DeleteAnswer = true;
+        await _vm.DeleteAsync(permanent: false);
+
+        await Until(() => _vm.Left.Items.All(i => i.Name != "1.png"));
+        new FileInfo(pce).Length.Should().Be(before - first, "the file shrinks by exactly what the entry took");
+        _vm.Left.Items.Select(i => i.Name).Should().Contain(["2.png", "glebiej"]);
+
+        Cursor("glebiej");
+        await _vm.DeleteAsync(permanent: true);
+        await Until(() => _vm.Left.Items.All(i => i.Name != "glebiej"));
+        new FileInfo(pce).Length.Should().Be(before - first - deeper);
+    }
+
+    [Fact]
+    public async Task Files_are_added_to_a_pce_a_folder_is_made_and_an_entry_renamed_in_place()
+    {
+        var pce = await EncryptedFolderOpenInLeftAsync();
+        var extra = _tree.File("nowy.bin", 70_000);
+        await _vm.Right.NavigateAsync(_tree.Root);
+        _vm.Activate(_vm.Right);
+        _vm.Right.CurrentIndex = _vm.Right.Items.ToList().FindIndex(i => i.Name == "nowy.bin");
+        _dialogs.TransferAnswer = _vm.Left.Path;
+
+        await _vm.CopyAsync();
+
+        await Until(() => _vm.Left.Items.Any(i => i.Name == "nowy.bin"));
+        File.Exists(extra).Should().BeTrue("F5 leaves the source");
+        _vm.Activate(_vm.Left);
+
+        _dialogs.NameAnswer = "podfolder";
+        await _vm.MakeDirectoryAsync();
+        await Until(() => _vm.Left.Items.Any(i => i.Name == "podfolder" && i.IsDirectory));
+
+        Cursor("2.png");
+        _dialogs.NameAnswer = "dwa.png";
+        await _vm.RenameCurrentAsync();
+        await Until(() => _vm.Left.Items.Any(i => i.Name == "dwa.png"));
+        _vm.Left.Items.Select(i => i.Name).Should().NotContain("2.png");
+
+        using var container = Core.Crypto.PceContainer.Open(pce, "tajne");
+        container.Entries.Select(e => e.Path).Should().BeEquivalentTo("skany/1.png", "skany/dwa.png", "skany/glebiej/3.png", "skany/nowy.bin", "skany/podfolder");
+        container.Find("skany/nowy.bin")!.Size.Should().Be(70_000);
+    }
+
+    [Fact]
+    public async Task A_change_inside_a_pce_from_an_earlier_version_offers_to_rewrite_it_and_then_works_in_place()
+    {
+        var folder = _tree.Dir("stare");
+        _tree.File(Path.Combine("stare", "a.txt"), 5);
+        _tree.File(Path.Combine("stare", "sub", "b.txt"), 7);
+        var pce = Path.Combine(_tree.Root, "stare.pce");
+        Core.Crypto.PceFile.EncryptLegacy(folder, pce, "tajne", Core.Crypto.PceOptions.Fast, Core.Crypto.PceCompression.None, null, TestContext.Current.CancellationToken);
+        var before = File.ReadAllBytes(pce);
+        await _vm.Left.NavigateAsync(_tree.Root);
+        Cursor("stare.pce");
+        _dialogs.DecryptPasswords.Enqueue("tajne");
+        await _vm.Left.EnterCurrentDirectoryAsync();
+        Cursor("sub");
+        await _vm.Left.OpenAsync(_vm.Left.CurrentItem!);
+        Cursor("b.txt");
+
+        _dialogs.UpgradeAnswer = false;
+        await _vm.DeleteAsync(permanent: true);
+
+        _dialogs.UpgradeQuestions.Should().Equal("stare.pce");
+        _vm.Left.Items.Select(i => i.Name).Should().Contain("b.txt");
+        File.ReadAllBytes(pce).Should().Equal(before, "declining changes nothing, not even the temporary copy");
+
+        _dialogs.UpgradeAnswer = true;
+        await _vm.DeleteAsync(permanent: true);
+
+        Core.Crypto.PceContainer.LayoutVersion(pce).Should().Be(2);
+        _vm.Left.Path.Should().Be(Path.Combine(pce, "stare", "sub"), "the panel shows the same place, now inside the file itself");
+        _vm.Left.CurrentItem!.Name.Should().Be("b.txt");
+        _vm.Left.Status.Should().Be(Texts.PceUpgraded("stare.pce"));
+        _vm.Left.Items.Select(i => i.Name).Should().Contain("b.txt", "the command itself is repeated by the user");
+
+        await _vm.DeleteAsync(permanent: true);
+
+        await Until(() => _vm.Left.Items.All(i => i.Name != "b.txt"));
+        _dialogs.UpgradeQuestions.Should().HaveCount(2, "a container is not asked about again");
+        using var container = Core.Crypto.PceContainer.Open(pce, "tajne");
+        container.Entries.Select(e => e.Path).Should().Equal("stare/a.txt");
+    }
+
+    [Fact]
+    public async Task Change_password_asks_again_after_a_wrong_one_and_the_open_container_keeps_working()
+    {
+        var pce = await EncryptedFolderOpenInLeftAsync();
+        await _vm.Right.NavigateAsync(_tree.Root);
+        _vm.Activate(_vm.Right);
+        _vm.Right.CurrentIndex = _vm.Right.Items.ToList().FindIndex(i => i.Name == "skany.pce");
+        var size = new FileInfo(pce).Length;
+        _dialogs.ChangePasswordAnswers.Enqueue(new ChangePasswordAnswer("nie to", "nowe"));
+        _dialogs.ChangePasswordAnswers.Enqueue(new ChangePasswordAnswer("tajne", "nowe"));
+
+        await _vm.ChangePcePasswordAsync();
+
+        _dialogs.ChangePasswordQuestions.Should().Equal((false, false), (true, false));
+        _dialogs.Errors.Should().BeEmpty();
+        _dialogs.Infos.Should().Equal(Texts.PasswordChanged("skany.pce"));
+        new FileInfo(pce).Length.Should().Be(size);
+        var old = () => Core.Crypto.PceContainer.Open(pce, "tajne").Dispose();
+        old.Should().Throw<Core.Crypto.PceWrongPasswordException>();
+        Core.Crypto.PceContainer.Open(pce, "nowe").Dispose();
+
+        // The left panel is inside the container: it goes on without asking for the new password.
+        _vm.Activate(_vm.Left);
+        Cursor("2.png");
+        await _vm.DeleteAsync(permanent: true);
+        await Until(() => _vm.Left.Items.All(i => i.Name != "2.png"));
+        _dialogs.DecryptWrongFlags.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Change_password_rewrites_a_pce_from_an_earlier_version_and_wants_a_pce_under_the_cursor()
+    {
+        var plain = _tree.File("a.txt", 5);
+        var pce = plain + ".pce";
+        Core.Crypto.PceFile.EncryptLegacy(plain, pce, "tajne", Core.Crypto.PceOptions.Fast, Core.Crypto.PceCompression.None, null, TestContext.Current.CancellationToken);
+        await _vm.Left.NavigateAsync(_tree.Root);
+        Cursor("a.txt");
+
+        await _vm.ChangePcePasswordAsync();
+
+        _dialogs.Errors.Should().ContainSingle().Which.Should().Be(Texts.ChangePasswordNothing);
+        Cursor("a.txt.pce");
+        _dialogs.ChangePasswordAnswers.Enqueue(new ChangePasswordAnswer("tajne", "nowe"));
+
+        await _vm.ChangePcePasswordAsync();
+
+        _dialogs.ChangePasswordQuestions.Should().Equal((false, true));
+        Core.Crypto.PceContainer.LayoutVersion(pce).Should().Be(2);
+        Core.Crypto.PceFile.Peek(pce, "nowe").Metadata.Name.Should().Be("a.txt");
     }
 
     [Fact]

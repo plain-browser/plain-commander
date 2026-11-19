@@ -42,6 +42,8 @@ public sealed record ArchiveEdit
 /// renamed or added, and only a complete new archive replaces the old one, so a failure or Cancel changes nothing.
 /// 7z goes through 7-Zip, which copies kept entries without recompressing them (unless their solid block changes);
 /// rar, iso and the rest stay read-only. Time stamps of untouched entries are kept.
+/// A .pce container is the exception to rewriting: it is changed in place (<see cref="Crypto.PceContainer"/>), so
+/// removing entries shrinks the file by what they took without touching the rest.
 /// </summary>
 public sealed class ArchiveUpdateOperation : IOperation
 {
@@ -60,8 +62,8 @@ public sealed class ArchiveUpdateOperation : IOperation
 
     public OperationKind Kind => OperationKind.ArchiveUpdate;
 
-    /// <summary>Zip, tar, tar.gz and 7z can be changed; everything else the panels can open is read-only.</summary>
-    public static bool CanEdit(string archiveFile) => ArchivePackOperation.CanWrite(archiveFile);
+    /// <summary>Zip, tar, tar.gz, 7z and .pce containers can be changed; everything else the panels can open is read-only.</summary>
+    public static bool CanEdit(string archiveFile) => ArchivePackOperation.CanWrite(archiveFile) || PceArchive.IsContainer(archiveFile);
 
     public Task<OperationResult> RunAsync(OperationContext context)
     {
@@ -188,9 +190,10 @@ public sealed class ArchiveUpdateOperation : IOperation
 
         // 7-Zip copies kept entries as they are and only reports the new files.
         // An encrypted zip changes through 7-Zip too: the managed writer could not read (or re-encrypt) its entries.
-        var sevenZip = ArchivePackOperation.IsSevenZip(_archive) || (ArchivePackOperation.IsZip(_archive) && IsEncryptedZip(_archive));
+        var pce = PceArchive.IsContainer(_archive);
+        var sevenZip = !pce && (ArchivePackOperation.IsSevenZip(_archive) || (ArchivePackOperation.IsZip(_archive) && IsEncryptedZip(_archive)));
         var addedBytes = additions.Where(a => !a.Item.IsDirectory).Sum(a => a.Item.Size);
-        var tracker = sevenZip
+        var tracker = sevenZip || pce
             ? new ProgressTracker(context.Progress, addedBytes, additions.Count)
             : new ProgressTracker(context.Progress, catalog.FilesUnder(string.Empty).Sum(n => n.Size) + addedBytes, catalog.Count + additions.Count);
         tracker.Report(force: true);
@@ -204,7 +207,9 @@ public sealed class ArchiveUpdateOperation : IOperation
             : key.StartsWith(renameFrom + "/", StringComparison.OrdinalIgnoreCase) ? renameTo + key[renameFrom.Length..]
             : key;
 
-        var rewritten = sevenZip
+        var rewritten = pce
+            ? await runner.Run(_archive, () => ChangePce(context, runner, tracker, additions, addedBytes, newFolder, deleted, renameFrom, renameTo)).ConfigureAwait(false)
+            : sevenZip
             ? await runner.Run(_archive, () => RewriteSevenZip(runner, tracker, additions, newFolder, Dropped, Renamed)).ConfigureAwait(false)
             : await runner.RunAsync(_archive, () => RewriteManagedAsync(format, runner, tracker, additions, newFolder, Dropped, Renamed)).ConfigureAwait(false);
 
@@ -294,6 +299,73 @@ public sealed class ArchiveUpdateOperation : IOperation
             {
                 File.Delete(temp); // never leave half an archive behind; the original is untouched
             }
+        }
+    }
+
+    /// <summary>
+    /// A .pce container: entries are removed, renamed and added in the file itself. Each step is complete on its
+    /// own (the container commits it), so a failure in a later one leaves the earlier ones done.
+    /// </summary>
+    private void ChangePce(
+        OperationContext context,
+        StepRunner runner,
+        ProgressTracker tracker,
+        List<(PlannedItem Item, string Key)> additions,
+        long addedBytes,
+        string? newFolder,
+        List<string> deleted,
+        string? renameFrom,
+        string? renameTo)
+    {
+        try
+        {
+            using var container = PceArchive.Open(_archive, writable: true);
+            if (deleted.Count > 0)
+            {
+                container.Delete(deleted, runner.Token);
+            }
+
+            if (renameFrom is not null)
+            {
+                container.Rename(renameFrom, renameTo!);
+            }
+
+            var sources = new List<Crypto.PceSource>();
+            if (newFolder is not null)
+            {
+                sources.Add(new Crypto.PceSource(newFolder, true, null, DateTime.UtcNow, FileAttributes.None));
+            }
+
+            foreach (var (item, key) in additions)
+            {
+                var source = item.Source;
+                sources.Add(item.IsDirectory
+                    ? new Crypto.PceSource(key, true, null, Directory.GetLastWriteTimeUtc(source), item.Attributes)
+                    : new Crypto.PceSource(
+                        key,
+                        false,
+                        () => new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16, FileOptions.SequentialScan),
+                        File.GetLastWriteTimeUtc(source),
+                        item.Attributes));
+            }
+
+            if (sources.Count > 0)
+            {
+                tracker.StartItem(_archive, addedBytes);
+                long reported = 0;
+                container.Add(sources, Crypto.PceCompression.Auto, total =>
+                {
+                    tracker.AddBytes(total - reported);
+                    reported = total;
+                    context.Pause.WaitAsync(runner.Token).GetAwaiter().GetResult();
+                }, runner.Token);
+                tracker.FinishItem();
+            }
+        }
+        finally
+        {
+            ArchiveCatalog.Forget(ExactPath.Display(_archive));
+            ArchiveCatalog.Forget(_archive);
         }
     }
 

@@ -21,6 +21,9 @@ public sealed record PackAnswer(string Target, string? Password = null);
 /// <param name="Folder">Where the encrypted copies go; null or empty for next to each original.</param>
 public sealed record EncryptAnswer(string Extension, string Password, bool HideName = false, Core.Crypto.PceCompression Compression = Core.Crypto.PceCompression.Auto, string? Folder = null);
 
+/// <summary>Files → Change password: the password the .pce file has now and the one it gets.</summary>
+public sealed record ChangePasswordAnswer(string Current, string New);
+
 /// <summary>Alt+F9: the folder to unpack into and whether each archive gets a folder of its own.</summary>
 public sealed record UnpackAnswer(string Target, bool OwnFolders);
 
@@ -44,6 +47,17 @@ public interface IDialogService
 
     /// <summary>Enter on a .pce file or Files → Decrypt: the password, asked again when wrong. Null when cancelled.</summary>
     Task<string?> AskDecryptPasswordAsync(string file, bool wrong);
+
+    /// <summary>Files → Change password on a .pce file: the current password and the new one. Null when cancelled.</summary>
+    /// <param name="wrong">The current password given before did not open the file.</param>
+    /// <param name="rewrite">The file comes from an earlier version and will be rewritten as a whole; later changes are instant.</param>
+    Task<ChangePasswordAnswer?> AskChangePasswordAsync(string file, bool wrong, bool rewrite);
+
+    /// <summary>
+    /// A change inside a .pce file from an earlier version: true to rewrite the file in the current layout, which
+    /// can be changed in place. Versions before 1.15 will not open it afterwards.
+    /// </summary>
+    Task<bool> ConfirmPceUpgradeAsync(string name);
 
     /// <summary>Ctrl+Z: true to reverse <paramref name="operationTitle"/>; <paramref name="details"/> say what will happen.</summary>
     Task<bool> ConfirmUndoAsync(string operationTitle, string details);

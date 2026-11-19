@@ -32,14 +32,16 @@ public static class ArchiveReaders
     /// True when 7-Zip reads this archive. Compressed tarballs stay with the managed reader, which walks the tar
     /// inside the gzip/bzip2/xz stream (7-Zip would show one ".tar" entry).
     /// </summary>
-    public static bool UsesSevenZip(string archiveFile) => SevenZipLibrary.IsAvailable && !ArchiveCatalog.IsStreamOnly(archiveFile);
+    public static bool UsesSevenZip(string archiveFile) =>
+        SevenZipLibrary.IsAvailable && !ArchiveCatalog.IsStreamOnly(archiveFile) && !PceArchive.IsContainer(archiveFile);
 
     /// <summary>Whether 7z.dll is loaded (formats beyond zip/tar/7z/rar, writing 7z).</summary>
     public static bool SevenZipAvailable => SevenZipLibrary.IsAvailable;
 
     /// <param name="wanted">Keys of the files to read; null for all. Others may be skipped without decompressing.</param>
     public static IArchiveEntryReader Open(string archiveFile, IReadOnlySet<string>? wanted = null) =>
-        UsesSevenZip(archiveFile)
+        PceArchive.IsContainer(archiveFile) ? PceArchive.Read(archiveFile, wanted)
+            : UsesSevenZip(archiveFile)
             ? new SevenZipEntryReader(archiveFile, wanted)
             : new DamageAsIOReader(archiveFile, Damaged.Guard(archiveFile, () => new ManagedEntryReader(archiveFile, wanted)));
 

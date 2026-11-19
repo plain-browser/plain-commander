@@ -234,6 +234,8 @@ public sealed partial class MainWindow : Window
             [(VirtualKeyModifiers.Control, VirtualKey.W)] = new(() => Run(ViewModel.CloseTabAsync)),
             [(VirtualKeyModifiers.Control, VirtualKey.Tab)] = new(() => Run(() => ViewModel.NextTabAsync(1))),
             [(VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, VirtualKey.Tab)] = new(() => Run(() => ViewModel.NextTabAsync(-1))),
+            [(VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, VirtualKey.T)] = new(() => Run(ViewModel.ReopenTabAsync)),
+            [(VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, VirtualKey.P)] = new(ShowPalette),
             [(VirtualKeyModifiers.Control, VirtualKey.Enter)] = new(InsertName),
             [(VirtualKeyModifiers.Control, VirtualKey.P)] = new(() => { ViewModel.InsertCurrentPath(); FocusCommandLine(); }),
             [(VirtualKeyModifiers.Menu, VirtualKey.F8)] = new(FocusCommandLine),

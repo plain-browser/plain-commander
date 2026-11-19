@@ -1,8 +1,15 @@
 using PlainCommander.Core.FileSystem;
 namespace PlainCommander.Core.Operations;
 
-/// <summary>Where F5/F6 put things: a folder, plus a new name when exactly one item is copied "as".</summary>
-public sealed record TransferTarget(string Directory, string? NewName);
+/// <summary>
+/// Where F5/F6 put things: a folder, plus a new name when exactly one item is copied "as", or a name mask
+/// ("*.bak") that gives every item its new name.
+/// </summary>
+public sealed record TransferTarget(string Directory, string? NewName, string? Mask = null)
+{
+    /// <summary>The name an item called <paramref name="sourceName"/> gets in the target folder.</summary>
+    public string NameFor(string sourceName) => NewName ?? (Mask is null ? sourceName : RenameMask.Apply(Mask, sourceName));
+}
 
 /// <summary>Interprets the target typed in the copy/move dialog.</summary>
 public static class TargetResolver
@@ -11,7 +18,8 @@ public static class TargetResolver
     /// - An existing folder, or text ending with a separator or "*.*", means "into this folder".
     /// - Otherwise, with one source, the last segment is the new name ("copy as", rename).
     /// - With several sources it is a folder that will be created.
-    /// Relative input is relative to the source panel's folder. Rename masks such as "*.bak" are not supported yet.
+    /// - A last segment with "*" or "?" is a name mask (<see cref="RenameMask"/>): the folder is what stands before it.
+    /// Relative input is relative to the source panel's folder.
     /// </remarks>
     public static TransferTarget Resolve(string input, string currentDirectory, int sourceCount)
     {
@@ -29,9 +37,11 @@ public static class TargetResolver
             text = text[..^name.Length];
             intoFolder = true;
         }
-        else if (name.Contains('*', StringComparison.Ordinal) || name.Contains('?', StringComparison.Ordinal))
+        else if (RenameMask.IsMask(name))
         {
-            throw new NotSupportedException("Rename masks are not supported yet.");
+            var folder = text[..^name.Length];
+            var directory = ExactPath.Full(folder.Length == 0 ? currentDirectory : Path.IsPathRooted(folder) ? folder : Path.Combine(currentDirectory, folder));
+            return new TransferTarget(KeepRoot(directory), null, name);
         }
 
         var full = ExactPath.Full(Path.IsPathRooted(text) ? text : Path.Combine(currentDirectory, text));

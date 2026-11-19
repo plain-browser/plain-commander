@@ -442,6 +442,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (PceArchive.IsContainer(file))
+        {
+            // A container is entered like an archive: listed from its index, entries read one at a time and
+            // changed in place. Nothing is decrypted to disk for browsing.
+            ArchivePasswords.Remember(file, verified.Value.Password);
+            ArchivePath.OpenExplicitly(file);
+            var start = file;
+            try
+            {
+                // One encrypted folder opens on its content, as it always did; Backspace shows the container's own level.
+                start = await Task.Run(() => ArchiveCatalog.Open(file).List(string.Empty).Take(2).ToList() is [{ IsDirectory: true } only] ? only.FullPath : file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // the navigation below reports it
+            }
+
+            if (!await panel.NavigateAsync(start))
+            {
+                ArchivePath.ForgetExplicit(file);
+            }
+
+            return;
+        }
+
+        ArchivePath.ForgetExplicit(file); // an older .pce file under a name a container had: browsed through a temporary TAR
+
         var dir = Path.Combine(Path.GetTempPath(), "PlainCommander", "pce-" + Guid.NewGuid().ToString("N"));
         // The stored name is data from the file: a path in it ("..\..\x", "C:\x") must not move the TAR out of the temp folder.
         var tar = Path.Combine(dir, (PceFile.PlainName(verified.Value.Metadata.Name) ?? Path.GetFileNameWithoutExtension(item.Name)) + ".tar");
@@ -898,6 +925,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public Task CloseTabAsync() => ActivePanel.CloseActiveTabAsync();
 
     public Task NextTabAsync(int step = 1) => ActivePanel.NextTabAsync(step);
+
+    /// <summary>Ctrl+Shift+T: the tab closed last in the active panel comes back.</summary>
+    public async Task ReopenTabAsync()
+    {
+        if (!await ActivePanel.ReopenTabAsync())
+        {
+            ActivePanel.Status = Texts.NoClosedTab;
+        }
+    }
 
     /// <summary>Enter on a folder with Ctrl: it opens in a new tab of this panel.</summary>
     public async Task OpenCurrentInNewTabAsync()
@@ -1407,6 +1443,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return null;
         }
 
+        if (PceBrowse.OriginOf(location.ArchiveFile) is { } origin)
+        {
+            // What the panel shows is a temporary copy of an older .pce file: a change there would never reach the
+            // file. The file can be rewritten as a container; the command is then repeated by the user.
+            await UpgradeOldPceAsync(location.ArchiveFile, origin);
+            return null;
+        }
+
         if (!ArchiveUpdateOperation.CanEdit(location.ArchiveFile))
         {
             await _dialogs.ShowErrorAsync(Texts.ArchiveFormatReadOnly);
@@ -1414,6 +1458,116 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         return location;
+    }
+
+    /// <summary>
+    /// Asks whether to rewrite an older .pce file as a container and does it; the panels that showed its temporary
+    /// copy then show the same place inside the file itself.
+    /// </summary>
+    private async Task UpgradeOldPceAsync(string temporaryTar, string origin)
+    {
+        var name = Path.GetFileName(origin);
+        if (!_pcePasswords.TryGetValue(origin, out var password))
+        {
+            await _dialogs.ShowErrorAsync(Texts.PceOldLayoutReadOnly);
+            return;
+        }
+
+        if (!await _dialogs.ConfirmPceUpgradeAsync(name))
+        {
+            return;
+        }
+
+        ActivePanel.Status = Texts.PceUpgrading(name);
+        string start;
+        try
+        {
+            start = await Task.Run(() =>
+            {
+                PceFile.Upgrade(origin, password, null, CancellationToken.None);
+                var (header, metadata) = PceFile.Peek(origin, password);
+                return header.IsFolder ? ArchivePath.Join(origin, metadata.Name) : origin; // the TAR held a folder's content, or the one file
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await _dialogs.ShowErrorAsync(Texts.EncryptedBroken(name, ex));
+            return;
+        }
+
+        ArchivePasswords.Remember(origin, password);
+        ArchivePath.OpenExplicitly(origin);
+        foreach (var panel in new[] { Left, Right })
+        {
+            if (ArchiveFileSystem.Locate(panel.Path) is { } shown && string.Equals(shown.ArchiveFile, temporaryTar, StringComparison.OrdinalIgnoreCase))
+            {
+                var target = shown.Inner.Length == 0 ? start : start + Path.DirectorySeparatorChar + shown.Inner.Replace('/', Path.DirectorySeparatorChar);
+                await panel.NavigateAsync(target, panel.CurrentItem?.Name);
+            }
+        }
+
+        ActivePanel.Status = Texts.PceUpgraded(name);
+    }
+
+    /// <summary>
+    /// Files → Change password: the .pce file under the cursor gets a new password. A container only has its key
+    /// wrapped again; a file from an earlier version is rewritten as a container first.
+    /// </summary>
+    public async Task ChangePcePasswordAsync()
+    {
+        var panel = ActivePanel;
+        if (panel.IsRemote || panel.IsInArchive || panel.IsNetworkList)
+        {
+            await _dialogs.ShowErrorAsync(Texts.ChangePasswordNotHere);
+            return;
+        }
+
+        if (panel.CurrentItem is not { IsEncrypted: true } item)
+        {
+            await _dialogs.ShowErrorAsync(Texts.ChangePasswordNothing);
+            return;
+        }
+
+        var file = item.Entry.FullPath;
+        var rewrite = !PceArchive.IsContainer(file);
+        var wrong = false;
+        while (true)
+        {
+            var answer = await _dialogs.AskChangePasswordAsync(file, wrong, rewrite);
+            if (answer is null || string.IsNullOrEmpty(answer.New))
+            {
+                return;
+            }
+
+            panel.Status = Texts.ChangingPassword(item.Name);
+            try
+            {
+                await Task.Run(() => PceFile.ChangePassword(file, answer.Current, answer.New, null, CancellationToken.None));
+            }
+            catch (PceWrongPasswordException)
+            {
+                wrong = true;
+                continue;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await _dialogs.ShowErrorAsync(Texts.EncryptedBroken(item.Name, ex));
+                await Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
+                return;
+            }
+
+            // Whoever remembered the old password would be asked again, or worse, shown "wrong password".
+            _pcePasswords[file] = answer.New;
+            if (ArchivePasswords.Remembered(file) is not null)
+            {
+                ArchivePasswords.Remember(file, answer.New);
+            }
+
+            ArchiveCatalog.Forget(file);
+            await Task.WhenAll(Left.RefreshAfterChangeAsync(), Right.RefreshAfterChangeAsync());
+            await _dialogs.ShowInfoAsync(Texts.ChangePasswordTitle, Texts.PasswordChanged(item.Name)); // the status line is overwritten by the refresh
+            return;
+        }
     }
 
     /// <summary>Inner path of an entry the panel lists inside an archive ("/"-separated).</summary>
@@ -1998,7 +2152,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (ArchiveFileSystem.Locate(target.Directory) is not null)
+        var intoArchive = ArchiveFileSystem.Locate(target.Directory) is not null;
+        if (await WithMaskAsync(target, items, onDisk: !intoArchive && source is not { IsInArchive: true }) is not { } named)
+        {
+            return;
+        }
+
+        target = named;
+        if (intoArchive)
         {
             await AddToArchiveAsync(kind, source, items, target);
             return;
@@ -2009,6 +2170,53 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ? new ArchiveExtractOperation(paths, target)
             : new TransferOperation(kind, paths, target, Settings.CopyParallelism);
         await Operations.Enqueue(operation, Texts.OperationTitle(operation.Kind, items.Count), result => AfterOperationAsync(source, result));
+    }
+
+    /// <summary>
+    /// A name mask in the target ("*.bak"): checks the names it gives and, for a single item, turns it into the
+    /// plain new name every kind of transfer understands. Several items keep the mask, which only the copy and
+    /// move on disk apply. Returns null after telling the user what is wrong.
+    /// </summary>
+    private async Task<TransferTarget?> WithMaskAsync(TransferTarget target, IReadOnlyList<FileItem> items, bool onDisk)
+    {
+        if (target.Mask is not { } mask)
+        {
+            return target;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var first = string.Empty;
+        foreach (var item in items)
+        {
+            var old = Path.GetFileName(Path.TrimEndingDirectorySeparator(item.Entry.FullPath));
+            var name = RenameMask.Apply(mask, old);
+            if (name.Trim(' ', '.').Length == 0)
+            {
+                await _dialogs.ShowErrorAsync(Texts.MaskGivesNoName(mask, old));
+                return null;
+            }
+
+            if (!seen.Add(name))
+            {
+                await _dialogs.ShowErrorAsync(Texts.MaskGivesSameName(mask, name));
+                return null;
+            }
+
+            first = first.Length == 0 ? name : first;
+        }
+
+        if (items.Count == 1)
+        {
+            return target with { NewName = first, Mask = null };
+        }
+
+        if (!onDisk)
+        {
+            await _dialogs.ShowErrorAsync(Texts.MaskOnlyOnDisk);
+            return null;
+        }
+
+        return target;
     }
 
     /// <summary>
@@ -2048,9 +2256,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            if (await WithMaskAsync(target, items, onDisk: false) is not { } named)
+            {
+                return;
+            }
+
+            target = named;
             var download = new RemoteDownloadOperation(Remote, paths, target, move);
             await Operations.Enqueue(download, Texts.OperationTitle(download.Kind, items.Count), result => AfterOperationAsync(source, result));
             return;
+        }
+
+        if (!to.IsRoot && RenameMask.IsMask(to.Name) && !input.EndsWith('/') && !input.EndsWith('\\'))
+        {
+            // a name mask on a server: one item gets its new name here, several are not renamed on the way
+            if (await WithMaskAsync(new TransferTarget(string.Empty, null, to.Name), items, onDisk: false) is not { NewName: { } masked })
+            {
+                return;
+            }
+
+            to = to.Parent!.Child(masked);
         }
 
         // the target is on a server: a folder, or a folder plus a new name

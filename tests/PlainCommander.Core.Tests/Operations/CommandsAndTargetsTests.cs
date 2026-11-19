@@ -39,10 +39,59 @@ public sealed class CommandsAndTargetsTests : IDisposable
     }
 
     [Fact]
-    public void Rename_masks_are_rejected_for_now()
+    public void A_name_mask_keeps_the_folder_before_it()
     {
-        var act = () => TargetResolver.Resolve("*.bak", _s.Root, 2);
-        act.Should().Throw<NotSupportedException>();
+        TargetResolver.Resolve("*.bak", _s.Root, 2).Should().Be(new TransferTarget(_s.Root, null, "*.bak"));
+        TargetResolver.Resolve(Path.Combine("sub", "new_*.*"), _s.Root, 1).Should().Be(new TransferTarget(_s.P("sub"), null, "new_*.*"));
+        TargetResolver.Resolve(Path.Combine(_s.P("other"), "?.txt"), _s.Root, 3).Should().Be(new TransferTarget(_s.P("other"), null, "?.txt"));
+    }
+
+    [Theory]
+    [InlineData("*.bak", "report.txt", "report.bak")]
+    [InlineData("*.bak", "archive.tar.gz", "archive.tar.bak")]
+    [InlineData("*.bak", "folder", "folder.bak")]
+    [InlineData("new_*.*", "a.txt", "new_a.txt")]
+    [InlineData("*_old.*", "a.txt", "a_old.txt")]
+    [InlineData("*_old.*", "folder", "folder_old")]
+    [InlineData("??-*.*", "abcd.txt", "ab-cd.txt")]
+    [InlineData("???.*", "a.txt", "a.txt")]
+    [InlineData("copy.*", "a.txt", "copy.txt")]
+    [InlineData("*", "a.txt", "a")]
+    [InlineData("*.?", "a.txt", "a.t")]
+    [InlineData("*.bak", ".gitignore", ".gitignore.bak")]
+    public void A_name_mask_builds_the_new_name(string mask, string name, string expected)
+    {
+        RenameMask.Apply(mask, name).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task Copy_with_a_mask_renames_every_item()
+    {
+        _s.File(Path.Combine("src", "a.txt"), "A");
+        _s.File(Path.Combine("src", "b.log"), "B");
+        _s.File(Path.Combine("src", "dir", "inner.txt"), "I");
+        var result = await Run.Async(new TransferOperation(
+            TransferKind.Copy,
+            [_s.P("src", "a.txt"), _s.P("src", "b.log"), _s.P("src", "dir")],
+            new TransferTarget(_s.P("dst"), null, "*.bak")));
+        result.Errors.Should().BeEmpty();
+        File.ReadAllText(_s.P("dst", "a.bak")).Should().Be("A");
+        File.ReadAllText(_s.P("dst", "b.bak")).Should().Be("B");
+        File.ReadAllText(_s.P("dst", "dir.bak", "inner.txt")).Should().Be("I");
+        File.Exists(_s.P("src", "a.txt")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Move_with_a_mask_renames_in_the_same_folder()
+    {
+        _s.File(Path.Combine("src", "a.txt"), "A");
+        _s.File(Path.Combine("src", "b.txt"), "B");
+        var result = await Run.Async(new TransferOperation(
+            TransferKind.Move,
+            [_s.P("src", "a.txt"), _s.P("src", "b.txt")],
+            new TransferTarget(_s.P("src"), null, "old_*.*")));
+        result.Errors.Should().BeEmpty();
+        Directory.GetFiles(_s.P("src")).Select(Path.GetFileName).Should().BeEquivalentTo("old_a.txt", "old_b.txt");
     }
 
     [Fact]

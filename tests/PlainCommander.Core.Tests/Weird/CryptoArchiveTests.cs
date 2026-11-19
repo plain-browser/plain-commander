@@ -36,7 +36,7 @@ public sealed class CryptoArchiveTests : IDisposable
         var source = _s.P(name);
         File.WriteAllBytes(source, content);
         var target = source + PceFormat.Extension;
-        PceFile.Encrypt(source, target, password, options ?? Fast, compress, null, Token);
+        PceFile.EncryptLegacy(source, target, password, options ?? Fast, compress, null, Token);
         return target;
     }
 
@@ -161,7 +161,7 @@ public sealed class CryptoArchiveTests : IDisposable
     public void Empty_password_is_refused_on_both_sides()
     {
         var source = _s.File("a.txt", "a");
-        var encrypt = () => PceFile.Encrypt(source, _s.P("a.txt.pce"), string.Empty, Fast, PceCompression.None, null, Token);
+        var encrypt = () => PceFile.EncryptLegacy(source, _s.P("a.txt.pce"), string.Empty, Fast, PceCompression.None, null, Token);
         encrypt.Should().Throw<ArgumentException>();
 
         var pce = Encrypted("b.txt", Bytes(5));
@@ -303,7 +303,7 @@ public sealed class CryptoArchiveTests : IDisposable
         var folder = _s.Dir("fold");
         File.WriteAllBytes(Path.Combine(folder, "a.bin"), Bytes(3 * Chunk));
         var fpce = _s.P("fold.pce");
-        PceFile.Encrypt(folder, fpce, Password, Fast, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(folder, fpce, Password, Fast, PceCompression.None, null, Token);
         var fgood = File.ReadAllBytes(fpce);
         var fflip = fgood.ToArray();
         fflip[BlockStarts(fgood)[2] + 50] ^= 1;
@@ -456,7 +456,7 @@ public sealed class CryptoArchiveTests : IDisposable
         File.WriteAllText(Path.Combine(root, "#%&{}[]'!@$^.txt"), "symbols");
 
         var pce = _s.P("odd.pce");
-        PceFile.Encrypt(root, pce, Password, Fast, PceCompression.Auto, null, Token);
+        PceFile.EncryptLegacy(root, pce, Password, Fast, PceCompression.Auto, null, Token);
         var back = _s.P("out", "odd");
         PceFile.Decrypt(pce, Password, back, null, Token);
 
@@ -475,7 +475,7 @@ public sealed class CryptoArchiveTests : IDisposable
     {
         var root = _s.Dir("nothing");
         var pce = _s.P("nothing.pce");
-        PceFile.Encrypt(root, pce, Password, Fast, PceCompression.Auto, null, Token);
+        PceFile.EncryptLegacy(root, pce, Password, Fast, PceCompression.Auto, null, Token);
         var back = _s.P("out", "nothing");
         PceFile.Decrypt(pce, Password, back, null, Token);
         Directory.Exists(back).Should().BeTrue();
@@ -500,7 +500,7 @@ public sealed class CryptoArchiveTests : IDisposable
         }
 
         var pce = _s.P("links.pce");
-        PceFile.Encrypt(root, pce, Password, Fast, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(root, pce, Password, Fast, PceCompression.None, null, Token);
         var back = _s.P("out", "links");
         PceFile.Decrypt(pce, Password, back, null, Token);
         File.ReadAllText(Path.Combine(back, "file-link.txt")).Should().Be("real", "a file link is packed as its target's content");
@@ -724,7 +724,7 @@ public sealed class CryptoArchiveTests : IDisposable
         File.WriteAllBytes(source, Bytes(4 * Mebibyte));
         var target = _s.P("src.bin.pce");
         using var cts = new CancellationTokenSource();
-        var act = () => PceFile.Encrypt(source, target, Password, Fast, PceCompression.None, total =>
+        var act = () => PceFile.EncryptLegacy(source, target, Password, Fast, PceCompression.None, total =>
         {
             if (total > 0)
             {
@@ -753,7 +753,7 @@ public sealed class CryptoArchiveTests : IDisposable
         Directory.Delete(folder, recursive: true);
         var pce = folder + ".pce";
         var bytes = File.ReadAllBytes(pce);
-        bytes[BlockStarts(bytes)[3] + 40] ^= 1; // block 3 is inside big.bin
+        bytes[94 + 3 * (Chunk + 16) + 40] ^= 1; // the fourth block of big.bin, which is the first entry of the container
         File.WriteAllBytes(pce, bytes);
 
         var prompts = new ScriptedPrompts(errors: [ErrorChoice.Skip]);

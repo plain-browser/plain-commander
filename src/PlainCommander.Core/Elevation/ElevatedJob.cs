@@ -30,7 +30,8 @@ public sealed record ElevatedJob(
     string? Name = null,
     int Parallelism = 1,
     ConflictChoice? PresetConflict = null,
-    bool Resume = false)
+    bool Resume = false,
+    string? Mask = null)
 {
     /// <summary>The single-step commands (F7, Shift+F4, Shift+F6) answer with a path instead of an operation result.</summary>
     public bool IsCommand => Kind is ElevatedJobKind.CreateDirectory or ElevatedJobKind.CreateFile or ElevatedJobKind.Rename;
@@ -59,7 +60,7 @@ public sealed record ElevatedJob(
             ElevatedJobKind.Copy or ElevatedJobKind.Move => new TransferOperation(
                 Kind == ElevatedJobKind.Copy ? TransferKind.Copy : TransferKind.Move,
                 sources,
-                new TransferTarget(Directory ?? throw new InvalidOperationException("A transfer needs a target."), sources.Count == 1 ? Name : null),
+                new TransferTarget(Directory ?? throw new InvalidOperationException("A transfer needs a target."), sources.Count == 1 ? Name : null, Mask),
                 Parallelism,
                 PresetConflict,
                 skipIdentical: Resume),

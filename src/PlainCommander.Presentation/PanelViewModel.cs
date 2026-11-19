@@ -923,7 +923,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         }
 
         var file = item.Entry.FullPath;
-        if (RemotePath.IsRemote(file) || ArchiveFileSystem.Locate(file) is not null)
+        // A .pce container that was opened before is an archive boundary itself (its root), not a file inside one.
+        if (RemotePath.IsRemote(file) || ArchiveFileSystem.Locate(file) is { } inside && !(inside.IsRoot && item.IsEncrypted))
         {
             return; // a file inside an archive or on a server
         }
@@ -966,7 +967,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (item.IsEncrypted && EncryptedHandler is { } handler && !RemotePath.IsRemote(entry.FullPath) && ArchiveFileSystem.Locate(entry.FullPath) is null)
+        if (item.IsEncrypted && EncryptedHandler is { } handler && !RemotePath.IsRemote(entry.FullPath) && ArchiveFileSystem.Locate(entry.FullPath) is not { IsRoot: false })
         {
             await handler(item, false);
             return;
@@ -1374,9 +1375,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
         var wasActive = index == ActiveTabIndex;
         var leaving = Path;
-        if (!wasActive)
+        CaptureActiveTab(); // closing the active tab: its cursor and marks, for Ctrl+Shift+T
+
+        var closed = Tabs[index];
+        closed.IsActive = false;
+        _closedTabs.Add((closed, index));
+        if (_closedTabs.Count > ClosedTabsKept)
         {
-            CaptureActiveTab();
+            _closedTabs.RemoveAt(0);
         }
 
         Tabs.RemoveAt(index);
@@ -1393,6 +1399,36 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     }
 
     public Task CloseActiveTabAsync() => CloseTabAsync(ActiveTabIndex);
+
+    private const int ClosedTabsKept = 10;
+
+    /// <summary>Tabs closed in this session, oldest first, with the place each had in the strip.</summary>
+    private readonly List<(PanelTab Tab, int Index)> _closedTabs = [];
+
+    public bool CanReopenTab => _closedTabs.Count > 0;
+
+    /// <summary>
+    /// Ctrl+Shift+T: the tab closed last comes back where it was, with its folder, view, cursor and marks, and
+    /// becomes active. A folder that is gone meanwhile opens at its nearest existing parent.
+    /// </summary>
+    public async Task<bool> ReopenTabAsync()
+    {
+        if (_closedTabs.Count == 0)
+        {
+            return false;
+        }
+
+        var (tab, index) = _closedTabs[^1];
+        _closedTabs.RemoveAt(_closedTabs.Count - 1);
+        var leaving = Path;
+        CaptureActiveTab();
+        Tabs[ActiveTabIndex].IsActive = false;
+        ActiveTabIndex = Math.Clamp(index, 0, Tabs.Count);
+        tab.IsActive = true;
+        Tabs.Insert(ActiveTabIndex, tab);
+        await ShowTabAsync(tab, leaving);
+        return true;
+    }
 
     private async Task ShowTabAsync(PanelTab tab, string fallback)
     {

@@ -40,6 +40,7 @@ public sealed partial class MainWindow
             new("Menu_FilesUnpack", "Alt+F9", () => Run(ViewModel.UnpackAsync)),
             new("Menu_FilesEncrypt", "Ctrl+E", () => Run(ViewModel.EncryptAsync)),
             new("Menu_FilesDecrypt", null, () => Run(ViewModel.DecryptAsync)),
+            new("Menu_FilesChangePassword", null, () => Run(ViewModel.ChangePcePasswordAsync)),
             new("Menu_FilesAttachImage", null, () => Run(ViewModel.AttachImageAsync)),
             new("Menu_FilesDetachDrive", null, () => Run(ViewModel.DetachDriveAsync)),
             new("Menu_FilesPermissions", null, () => Run(ViewModel.ChangePermissionsAsync)),
@@ -65,6 +66,7 @@ public sealed partial class MainWindow
         ]),
         ("Menu_Commands",
         [
+            new(PaletteKey, "Ctrl+Shift+P", ShowPalette),
             new("Cmd_Undo", "Ctrl+Z", () => Run(ViewModel.UndoAsync)),
             MenuEntry.Separator,
             new("Cmd_Search", "Alt+F7", OpenSearch),
@@ -73,6 +75,7 @@ public sealed partial class MainWindow
             MenuEntry.Separator,
             new("Cmd_NewTab", "Ctrl+T", () => { ViewModel.NewTab(); ActivePanelView.FocusList(); }),
             new("Cmd_CloseTab", "Ctrl+W", () => Run(ViewModel.CloseTabAsync)),
+            new("Cmd_ReopenTab", "Ctrl+Shift+T", () => Run(ViewModel.ReopenTabAsync)),
             new("Cmd_NextTab", "Ctrl+Tab", () => Run(() => ViewModel.NextTabAsync(1))),
             MenuEntry.Separator,
             new("Cmd_EditPath", "Ctrl+L", () => ActivePanelView.BeginPathEdit()),
@@ -258,6 +261,40 @@ public sealed partial class MainWindow
         }
 
         flyout.ShowAt(TopMenu, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
+    }
+
+    private const string PaletteKey = "Cmd_Palette";
+
+    /// <summary>
+    /// Ctrl+Shift+P: every command of the menus in one list that narrows as you type. The picked command runs
+    /// once the palette has closed and focus is back in the panel, exactly as if it came from the menu.
+    /// </summary>
+    private async void ShowPalette()
+    {
+        var entries = new List<MenuEntry>();
+        var commands = new List<PaletteCommand>();
+        foreach (var (key, items) in MenuTable())
+        {
+            var group = Loc.TryGet(key + "/Text") ?? Loc.Get(key);
+            foreach (var entry in items.Where(static e => !e.IsSeparator && e.Run is not null && e.Key != PaletteKey))
+            {
+                var title = MenuText(entry).TrimEnd('…');
+                if (entry.CheckedPath is { } path && CheckedValue(path))
+                {
+                    title += " ✓";
+                }
+
+                entries.Add(entry);
+                commands.Add(new PaletteCommand(title, group, entry.Shortcut));
+            }
+        }
+
+        var picked = await _dialogs.PickCommandAsync(Loc.Get("Palette_Placeholder"), Loc.Get("Palette_None"), commands);
+        ActivePanelView.FocusList();
+        if (picked is { } index)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => entries[index].Run!.Invoke());
+        }
     }
 
     /// <summary>F1: every shortcut, from the menu table plus the panel keys that have no menu entry.</summary>

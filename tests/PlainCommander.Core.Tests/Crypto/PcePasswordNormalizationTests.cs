@@ -32,7 +32,7 @@ public sealed class PcePasswordNormalizationTests : IDisposable
     {
         var source = _s.P(name);
         File.WriteAllText(source, "secret " + name);
-        PceFile.Encrypt(source, source + PceFormat.Extension, password, options, PceCompression.None, null, Token);
+        PceFile.EncryptLegacy(source, source + PceFormat.Extension, password, options, PceCompression.None, null, Token);
         return source + PceFormat.Extension;
     }
 

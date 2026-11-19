@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PlainCommander.Core.Tests" />
+    <InternalsVisibleTo Include="PlainCommander.Presentation.Tests" />
   </ItemGroup>
 </Project>

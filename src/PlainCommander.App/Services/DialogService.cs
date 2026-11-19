@@ -224,6 +224,63 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         return await ShowAsync(dialog) == ContentDialogResult.Primary ? box.Password : null;
     });
 
+    /// <summary>Files → Change password: the current password and the new one twice; the button waits until the new ones match.</summary>
+    public Task<ChangePasswordAnswer?> AskChangePasswordAsync(string file, bool wrong, bool rewrite) => OnUiAsync(async () =>
+    {
+        var body = new StackPanel { Spacing = 10, MinWidth = 420 };
+        body.Children.Add(new TextBlock { Text = Loc.Format("ChPw_Prompt", Path.GetFileName(file)), TextWrapping = TextWrapping.Wrap });
+        if (wrong)
+        {
+            body.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Error, Message = Loc.Get("Dlg_ArchivePasswordWrong") });
+        }
+
+        var current = new PasswordBox { Header = Loc.Get("ChPw_Current") };
+        var password = new PasswordBox { Header = Loc.Get("ChPw_New") };
+        var repeat = new PasswordBox { Header = Loc.Get("Dlg_PackPasswordRepeat") };
+        body.Children.Add(current);
+        body.Children.Add(password);
+        body.Children.Add(repeat);
+        if (rewrite)
+        {
+            body.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Informational, Message = Loc.Get("ChPw_RewriteNote") });
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("ChPw_Title"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("ChPw_Button"),
+            CloseButtonText = Loc.Get("Dlg_Cancel"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        void Refresh() => dialog.IsPrimaryButtonEnabled = current.Password.Length > 0 && password.Password.Length > 0 && password.Password == repeat.Password;
+
+        current.PasswordChanged += (_, _) => Refresh();
+        password.PasswordChanged += (_, _) => Refresh();
+        repeat.PasswordChanged += (_, _) => Refresh();
+        current.Loaded += (_, _) => _ui.TryEnqueue(DispatcherQueuePriority.Low, () => current.Focus(FocusState.Programmatic));
+        Refresh();
+        return await ShowAsync(dialog) == ContentDialogResult.Primary ? new ChangePasswordAnswer(current.Password, password.Password) : null;
+    });
+
+    /// <summary>A change inside a .pce file from an earlier version: rewrite it in the current layout, or leave it.</summary>
+    public Task<bool> ConfirmPceUpgradeAsync(string name) => OnUiAsync(async () =>
+    {
+        var body = new StackPanel { Spacing = 8, MaxWidth = 480 };
+        body.Children.Add(new TextBlock { Text = Loc.Format("Upg_Question", name), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Informational, Message = Loc.Get("Upg_Note") });
+        var dialog = new ContentDialog
+        {
+            Title = Loc.Get("Upg_Title"),
+            Content = body,
+            PrimaryButtonText = Loc.Get("Upg_Button"),
+            CloseButtonText = Loc.Get("Dlg_Cancel"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        return await ShowAsync(dialog) == ContentDialogResult.Primary;
+    });
+
     /// <summary>Ctrl+Z: what will be reversed and how; "Cofnij" is the default button.</summary>
     public Task<bool> ConfirmUndoAsync(string operationTitle, string details) => OnUiAsync(async () =>
     {
@@ -1001,6 +1058,105 @@ internal sealed class DialogService : IDialogService, IOperationPrompts, PlainCo
         };
         await ShowAsync(dialog);
         return true;
+    });
+
+    /// <summary>
+    /// Ctrl+Shift+P: a box to type in and the matching commands under it. Up/Down (and PgUp/PgDn) move the choice
+    /// while the caret stays in the box, Enter or a click picks, Esc closes. Returns the index of the picked command.
+    /// </summary>
+    public Task<int?> PickCommandAsync(string placeholder, string noneText, IReadOnlyList<PaletteCommand> commands) => OnUiAsync(async () =>
+    {
+        const double width = 480; // a ContentDialog gives its content at most 500
+        var secondary = Ui.Resource<Microsoft.UI.Xaml.Media.Brush>("PcTextSecondaryBrush");
+        var mono = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas");
+        var box = new TextBox { PlaceholderText = placeholder, Width = width };
+        var list = new ListView { Width = width, Height = 372, SelectionMode = ListViewSelectionMode.Single, IsItemClickEnabled = true, IsTabStop = false };
+        var none = new TextBlock { Text = noneText, Foreground = secondary, Margin = new Thickness(12, 8, 0, 0), Visibility = Visibility.Collapsed };
+        int? picked = null;
+        ContentDialog? dialog = null;
+
+        ListViewItem Row(int index)
+        {
+            var command = commands[index];
+            var grid = new Grid { ColumnSpacing = 12 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis };
+            text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = command.Title });
+            text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "   " + command.Group, Foreground = secondary, FontSize = 12 });
+            grid.Children.Add(text);
+            if (command.Shortcut is { } shortcut)
+            {
+                var keys = new TextBlock { Text = shortcut, FontFamily = mono, FontSize = 12, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(keys, 1);
+                grid.Children.Add(keys);
+            }
+
+            // not a tab stop: the caret stays in the box, the keys below move the selection
+            return new ListViewItem { Content = grid, Tag = index, IsTabStop = false, HorizontalContentAlignment = HorizontalAlignment.Stretch, MinHeight = 34 };
+        }
+
+        void Refill()
+        {
+            list.Items.Clear();
+            foreach (var index in CommandPalette.Filter(commands, box.Text))
+            {
+                list.Items.Add(Row(index));
+            }
+
+            none.Visibility = list.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            list.SelectedIndex = list.Items.Count > 0 ? 0 : -1;
+        }
+
+        void Move(int step)
+        {
+            if (list.Items.Count == 0)
+            {
+                return;
+            }
+
+            list.SelectedIndex = Math.Clamp(list.SelectedIndex + step, 0, list.Items.Count - 1);
+            list.ScrollIntoView(list.SelectedItem);
+        }
+
+        void Pick(object? row)
+        {
+            if (row is ListViewItem { Tag: int index })
+            {
+                picked = index;
+                dialog?.Hide();
+            }
+        }
+
+        box.TextChanged += (_, _) => Refill();
+        box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);
+        box.PreviewKeyDown += (_, e) =>
+        {
+            switch (e.Key)
+            {
+                case Windows.System.VirtualKey.Down: Move(1); break;
+                case Windows.System.VirtualKey.Up: Move(-1); break;
+                case Windows.System.VirtualKey.PageDown: Move(10); break;
+                case Windows.System.VirtualKey.PageUp: Move(-10); break;
+                case Windows.System.VirtualKey.Enter: Pick(list.SelectedItem); break;
+                default: return;
+            }
+
+            e.Handled = true;
+        };
+        // the rows are their own containers; depending on the path the click reports the row or its content
+        list.ItemClick += (_, e) => Pick(e.ClickedItem as ListViewItem ?? list.Items.OfType<ListViewItem>().FirstOrDefault(r => ReferenceEquals(r.Content, e.ClickedItem)));
+        Refill();
+
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(box);
+        var results = new Grid();
+        results.Children.Add(list);
+        results.Children.Add(none);
+        body.Children.Add(results);
+        dialog = new ContentDialog { Content = body };
+        await ShowAsync(dialog);
+        return picked;
     });
 
     public Task<bool> ConfirmUploadBackAsync(string name, string server) => OnUiAsync(async () =>

@@ -30,7 +30,7 @@ public sealed class PceTests : IDisposable
         File.WriteAllBytes(source, content);
         File.SetLastWriteTimeUtc(source, new DateTime(2024, 5, 6, 7, 8, 9, DateTimeKind.Utc));
         var target = source + PceFormat.Extension;
-        PceFile.Encrypt(source, target, password, Fast, compress, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(source, target, password, Fast, compress, null, TestContext.Current.CancellationToken);
         return target;
     }
 
@@ -101,7 +101,7 @@ public sealed class PceTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "a.txt"), string.Concat(Enumerable.Repeat("tekst ", 5000)));
         File.WriteAllText(Path.Combine(folder, "b.txt"), string.Concat(Enumerable.Repeat("inny ", 5000)));
         var pce = _s.P("docs.pce");
-        PceFile.Encrypt(folder, pce, "tajne", Fast, PceCompression.Auto, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(folder, pce, "tajne", Fast, PceCompression.Auto, null, TestContext.Current.CancellationToken);
         PceFile.Peek(pce, "tajne").Header.IsCompressed.Should().BeTrue();
         var target = _s.P("out", "docs");
         PceFile.Decrypt(pce, "tajne", target, null, TestContext.Current.CancellationToken);
@@ -131,7 +131,7 @@ public sealed class PceTests : IDisposable
         var source = _s.File("c.txt", "chacha content");
         var target = source + PceFormat.Extension;
         var options = Fast with { Kdf = PceKdf.Pbkdf2Sha512, Pbkdf2Iterations = 1000, Cipher = PceCipherKind.ChaCha20Poly1305 };
-        PceFile.Encrypt(source, target, "tajne", options, PceCompression.None, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(source, target, "tajne", options, PceCompression.None, null, TestContext.Current.CancellationToken);
 
         var (header, _) = PceFile.Peek(target, "tajne");
         header.Kdf.Should().Be(PceKdf.Pbkdf2Sha512);
@@ -230,7 +230,7 @@ public sealed class PceTests : IDisposable
         Directory.CreateDirectory(Path.Combine(folder, "empty"));
         var pce = _s.P("skany.pce");
         long last = 0;
-        PceFile.Encrypt(folder, pce, "tajne", Fast, PceCompression.None, total => last = total, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(folder, pce, "tajne", Fast, PceCompression.None, total => last = total, TestContext.Current.CancellationToken);
         last.Should().Be(70_000 + 6);
 
         var (header, metadata) = PceFile.Peek(pce, "tajne");
@@ -251,7 +251,7 @@ public sealed class PceTests : IDisposable
         var folder = _s.Dir("f");
         File.WriteAllText(Path.Combine(folder, "a.txt"), "A");
         var pce = _s.P("f.pce");
-        PceFile.Encrypt(folder, pce, "tajne", Fast, PceCompression.None, null, TestContext.Current.CancellationToken);
+        PceFile.EncryptLegacy(folder, pce, "tajne", Fast, PceCompression.None, null, TestContext.Current.CancellationToken);
         var tar = _s.P("f.tar");
         using (var output = File.Create(tar))
         {

@@ -48,7 +48,18 @@ public sealed class ArchiveCatalog
         }
 
         var catalog = new ArchiveCatalog(archiveFile);
-        if (ArchiveReaders.UsesSevenZip(archiveFile))
+        if (PceArchive.IsContainer(archiveFile))
+        {
+            // The index is all that is read: listing costs the key derivation, whatever the container holds.
+            using var container = PceArchive.Open(archiveFile);
+            foreach (var entry in container.Entries)
+            {
+                catalog.Add(new ArchiveNode(entry.Path, entry.IsDirectory, entry.IsDirectory ? 0 : entry.Size, new DateTimeOffset(entry.ModifiedUtc)));
+            }
+
+            catalog.Format = PceArchive.FormatName;
+        }
+        else if (ArchiveReaders.UsesSevenZip(archiveFile))
         {
             using var archive = SevenZip.SevenZipArchive.Open(archiveFile);
             foreach (var item in archive.Items)

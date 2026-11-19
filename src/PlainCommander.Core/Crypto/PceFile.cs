@@ -32,7 +32,11 @@ public sealed class PceContent : IDisposable
     }
 }
 
-/// <summary>Files and folders in and out of .pce containers. Folders travel as a TAR inside; zstd is applied before encryption when asked or when a sample says it pays.</summary>
+/// <summary>
+/// Files and folders in and out of .pce files, whichever of the two layouts a file has. New files are written as
+/// containers (<see cref="PceContainer"/>: entries with an index); files from before that ("PCE1": one stream, a
+/// folder as a TAR inside) are still read, and <see cref="Upgrade"/> rewrites one as a container.
+/// </summary>
 public static class PceFile
 {
     private const int BufferSize = 1 << 20;
@@ -74,12 +78,38 @@ public static class PceFile
     }
 
     /// <summary>
-    /// Encrypts a file or a folder (TAR inside) to <paramref name="target"/>, which is created or truncated. When it
-    /// fails or is cancelled, the unfinished target is deleted; it is never sealed as a complete container.
+    /// Encrypts a file or a folder to <paramref name="target"/>, which is created or truncated: a container whose
+    /// entries are the file, or the folder's files under the folder's name. When it fails or is cancelled, the
+    /// unfinished target is deleted.
     /// </summary>
-    /// <param name="compression">zstd before encrypting: never, when a sample says it pays, or always.</param>
+    /// <param name="compression">zstd before encrypting, decided per file: never, when its first block says it pays, or always.</param>
     /// <param name="progress">Called with the plain bytes consumed so far.</param>
     public static void Encrypt(string source, string target, string password, PceOptions? options, PceCompression compression, Action<long>? progress, CancellationToken token)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+        ArgumentException.ThrowIfNullOrEmpty(target);
+        ArgumentException.ThrowIfNullOrEmpty(password);
+        var done = false;
+        try
+        {
+            using var container = PceContainer.Create(target, password, options);
+            container.Add(PceSource.FromPath(source), compression, progress, token);
+            done = true;
+        }
+        finally
+        {
+            if (!done)
+            {
+                TryDelete(target);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes the first layout ("PCE1"): one stream, a folder as a TAR inside. The app no longer writes it; tests
+    /// use this to make the files earlier versions left behind.
+    /// </summary>
+    internal static void EncryptLegacy(string source, string target, string password, PceOptions? options, PceCompression compression, Action<long>? progress, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
         ArgumentException.ThrowIfNullOrEmpty(target);
@@ -217,7 +247,10 @@ public static class PceFile
         }
     }
 
-    /// <summary>Opens the container: throws <see cref="PceWrongPasswordException"/> or <see cref="PceFormatException"/> at once.</summary>
+    /// <summary>
+    /// Opens a file of the first layout as one stream: throws <see cref="PceWrongPasswordException"/> or
+    /// <see cref="PceFormatException"/> at once. A container is opened with <see cref="PceContainer.Open(string, string, bool, PceOptions?)"/>.
+    /// </summary>
     public static PceContent Open(string file, string password)
     {
         var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, BufferSize, FileOptions.SequentialScan);
@@ -241,8 +274,53 @@ public static class PceFile
     /// <summary>Header and metadata only (checks the password): what is inside and what it was called.</summary>
     public static (PceHeader Header, PceMetadata Metadata) Peek(string file, string password)
     {
+        if (IsContainer(file))
+        {
+            using var container = PceContainer.Open(file, password);
+            return Describe(container, file);
+        }
+
         using var content = Open(file, password);
         return (content.Header, content.Metadata);
+    }
+
+    private static bool IsContainer(string file) => PceContainer.LayoutVersion(file) == 2;
+
+    /// <summary>
+    /// A container in the terms of the first layout: one file when that is all it holds; otherwise a folder, named
+    /// after the one top-level name its entries share, or after the .pce file when they share none.
+    /// </summary>
+    private static (PceHeader Header, PceMetadata Metadata) Describe(PceContainer container, string file)
+    {
+        var root = Root(container);
+        var single = root is not null && container.Entries is [{ IsDirectory: false } only] && only.Path.Length == root.Length ? only : null;
+        var flags = PceLayout.NfcPassword
+            | (single is null ? PceLayout.Folder : PceLayout.None)
+            | (container.Entries.Any(static e => e.Compressed) ? PceLayout.Zstd : PceLayout.None);
+        var modified = single?.ModifiedUtc
+            ?? (container.Entries.Count > 0 ? container.Entries.Max(static e => e.ModifiedUtc) : File.GetLastWriteTimeUtc(file));
+        return (
+            container.Header.ForKdf() with { Flags = flags },
+            new PceMetadata(root ?? Path.GetFileNameWithoutExtension(file), single?.Size ?? -1, modified, single?.Attributes ?? FileAttributes.None));
+    }
+
+    /// <summary>The first path segment when every entry starts with it; null for an empty container or several top-level names.</summary>
+    private static string? Root(PceContainer container)
+    {
+        string? root = null;
+        foreach (var entry in container.Entries)
+        {
+            var slash = entry.Path.IndexOf('/', StringComparison.Ordinal);
+            var first = slash < 0 ? entry.Path : entry.Path[..slash];
+            if (root is not null && !string.Equals(root, first, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            root ??= first;
+        }
+
+        return root;
     }
 
     /// <summary>
@@ -254,63 +332,191 @@ public static class PceFile
     /// <param name="progress">Called with the plain bytes written so far.</param>
     public static void Decrypt(string file, string password, string target, Action<long>? progress, CancellationToken token)
     {
-        using var content = Open(file, password);
         var counter = new Counter(progress);
-        if (content.Header.IsFolder)
+        if (IsContainer(file))
         {
-            if (File.Exists(target))
+            using var container = PceContainer.Open(file, password);
+            var (header, metadata) = Describe(container, file);
+            if (header.IsFolder)
             {
-                throw new IOException($"\"{target}\" is a file, not a folder.");
+                // Entries of one top-level folder land in the target without that folder's name, as its content.
+                var strip = Root(container) is { } root ? root.Length + 1 : 0;
+                IntoFolder(target, temp => Extract(container, strip, temp, counter, token));
             }
-
-            var parent = Path.GetDirectoryName(Path.GetFullPath(target));
-            if (parent is not null)
+            else
             {
-                Directory.CreateDirectory(parent);
-            }
-
-            var temp = TempNames.ReserveFolder(target);
-            try
-            {
-                ReadTar(content.Content, temp, counter, token);
-                if (Directory.Exists(target))
-                {
-                    MergeInto(temp, target);
-                }
-                else
-                {
-                    Directory.Move(temp, target);
-                }
-            }
-            finally
-            {
-                if (Directory.Exists(temp))
-                {
-                    try
-                    {
-                        Directory.Delete(temp, recursive: true);
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        // a leftover temporary folder is better than hiding the original error
-                    }
-                }
+                using var entry = container.OpenRead(container.Entries[0]);
+                WriteFile(entry, target, metadata, counter, token);
             }
 
             return;
         }
 
+        using var content = Open(file, password);
+        if (content.Header.IsFolder)
+        {
+            IntoFolder(target, temp => ReadTar(content.Content, temp, counter, token));
+        }
+        else
+        {
+            WriteFile(content.Content, target, content.Metadata, counter, token);
+        }
+    }
+
+    private static void WriteFile(Stream content, string target, PceMetadata metadata, Counter counter, CancellationToken token)
+    {
         using (var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
         {
-            Pump(content.Content, output, counter, token);
+            Pump(content, output, counter, token);
         }
 
-        File.SetLastWriteTimeUtc(target, content.Metadata.ModifiedUtc);
-        var attributes = content.Metadata.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.Archive);
+        File.SetLastWriteTimeUtc(target, metadata.ModifiedUtc);
+        var attributes = metadata.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.Archive);
         if (attributes != 0 && OperatingSystem.IsWindows())
         {
             File.SetAttributes(target, File.GetAttributes(target) | attributes);
         }
+    }
+
+    /// <summary>A folder's content is written to a new folder next to <paramref name="target"/> and moved in when all of it is there.</summary>
+    private static void IntoFolder(string target, Action<string> fill)
+    {
+        if (File.Exists(target))
+        {
+            throw new IOException($"\"{target}\" is a file, not a folder.");
+        }
+
+        var parent = Path.GetDirectoryName(Path.GetFullPath(target));
+        if (parent is not null)
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        var temp = TempNames.ReserveFolder(target);
+        try
+        {
+            fill(temp);
+            if (Directory.Exists(target))
+            {
+                MergeInto(temp, target);
+            }
+            else
+            {
+                Directory.Move(temp, target);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(temp))
+            {
+                try
+                {
+                    Directory.Delete(temp, recursive: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // a leftover temporary folder is better than hiding the original error
+                }
+            }
+        }
+    }
+
+    /// <summary>Every entry under <paramref name="target"/>, its path shortened by <paramref name="strip"/> characters; a path that would leave the folder is refused.</summary>
+    private static void Extract(PceContainer container, int strip, string target, Counter counter, CancellationToken token)
+    {
+        var root = Path.GetFullPath(target);
+        foreach (var entry in container.Entries)
+        {
+            token.ThrowIfCancellationRequested();
+            if (entry.Path.Length <= strip)
+            {
+                continue; // the top-level folder itself: it is the target
+            }
+
+            var destination = Destination(root, entry.Path[strip..]);
+            if (entry.IsDirectory)
+            {
+                Directory.CreateDirectory(destination);
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            using (var input = container.OpenRead(entry))
+            using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
+            {
+                Pump(input, output, counter, token);
+            }
+
+            File.SetLastWriteTimeUtc(destination, entry.ModifiedUtc);
+        }
+    }
+
+    /// <summary>
+    /// Rewrites a file of the first layout as a container with the same content and password, in a new file that
+    /// replaces the old one when it is complete. A container is left as it is. Returns whether anything was rewritten.
+    /// </summary>
+    /// <param name="progress">Called with the plain bytes carried over so far.</param>
+    public static bool Upgrade(string file, string password, Action<long>? progress, CancellationToken token)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(file);
+        if (IsContainer(file))
+        {
+            return false;
+        }
+
+        string? temp = null;
+        try
+        {
+            using (var content = Open(file, password))
+            {
+                var name = PlainName(content.Metadata.Name) ?? throw new PceFormatException($"The stored name \"{content.Metadata.Name}\" is not a valid file name.");
+                var compression = content.Header.IsCompressed ? PceCompression.Auto : PceCompression.None;
+                temp = TempNames.ReserveFile(file);
+                using var container = PceContainer.Create(temp, password);
+                try
+                {
+                    if (content.Header.IsFolder)
+                    {
+                        container.Add(
+                            TarItems(content.Content).Select(item => new PceSource(name + "/" + item.Name, item.IsDirectory, item.IsDirectory ? null : () => item.Body, item.ModifiedUtc, FileAttributes.None)),
+                            compression,
+                            progress,
+                            token);
+                        if (container.Entries.Count == 0)
+                        {
+                            container.Add([new PceSource(name, true, null, content.Metadata.ModifiedUtc, content.Metadata.Attributes)], PceCompression.None, null, token);
+                        }
+                    }
+                    else
+                    {
+                        container.Add([new PceSource(name, false, () => new Slice(content.Content, null), content.Metadata.ModifiedUtc, content.Metadata.Attributes)], compression, progress, token);
+                    }
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new PceFormatException("Damaged folder content (an entry name is not a path).", ex);
+                }
+            }
+
+            File.Move(temp, file, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            if (temp is not null && File.Exists(temp))
+            {
+                TryDelete(temp);
+            }
+        }
+    }
+
+    /// <summary>Replaces the password of a .pce file. A file of the first layout is rewritten as a container first.</summary>
+    public static void ChangePassword(string file, string password, string newPassword, Action<long>? progress, CancellationToken token)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(newPassword);
+        Upgrade(file, password, progress, token);
+        using var container = PceContainer.Open(file, password, writable: true);
+        container.ChangePassword(newPassword);
     }
 
     /// <summary>A fully decrypted folder over an existing one: files moved in (replacing same names), folders merged.</summary>
@@ -346,6 +552,20 @@ public static class PceFile
     /// <summary>The plain content (a file's bytes, or the folder's TAR) into <paramref name="output"/>.</summary>
     public static void CopyContent(string file, string password, Stream output, Action<long>? progress, CancellationToken token)
     {
+        if (IsContainer(file))
+        {
+            using var container = PceContainer.Open(file, password);
+            if (container.Entries is not [{ IsDirectory: false } only])
+            {
+                CopyContentAsTar(file, password, output, progress, token);
+                return;
+            }
+
+            using var entry = container.OpenRead(only);
+            Pump(entry, output, new Counter(progress), token);
+            return;
+        }
+
         using var content = Open(file, password);
         Pump(content.Content, output, new Counter(progress), token);
     }
@@ -356,8 +576,35 @@ public static class PceFile
     /// </summary>
     public static void CopyContentAsTar(string file, string password, Stream output, Action<long>? progress, CancellationToken token)
     {
-        using var content = Open(file, password);
         var counter = new Counter(progress);
+        if (IsContainer(file))
+        {
+            using var container = PceContainer.Open(file, password);
+            var strip = Describe(container, file).Header.IsFolder && Root(container) is { } root ? root.Length + 1 : 0;
+            using var tar = new TarWriter(output, new TarWriterOptions(CompressionType.None, finalizeArchiveOnClose: true) { LeaveStreamOpen = true });
+            foreach (var entry in container.Entries)
+            {
+                token.ThrowIfCancellationRequested();
+                if (entry.Path.Length <= strip)
+                {
+                    continue;
+                }
+
+                if (entry.IsDirectory)
+                {
+                    tar.WriteDirectory(entry.Path[strip..], entry.ModifiedUtc);
+                    continue;
+                }
+
+                using var input = container.OpenRead(entry);
+                using var counting = new CountingStream(new Slice(input, entry.Size), counter, token);
+                tar.Write(entry.Path[strip..], counting, entry.ModifiedUtc);
+            }
+
+            return;
+        }
+
+        using var content = Open(file, password);
         if (content.Header.IsFolder)
         {
             Pump(content.Content, output, counter, token);
@@ -422,27 +669,60 @@ public static class PceFile
     }
 
     /// <summary>
-    /// Reads the TAR the writer above produced (ustar headers, GNU "././@LongLink" for long names) straight from
-    /// the decrypting stream, which cannot seek. Entries are written under <paramref name="target"/>; a name that
-    /// would leave it is refused.
+    /// Writes the entries of the TAR under <paramref name="target"/>; a name that would leave it is refused.
     /// </summary>
     private static void ReadTar(Stream content, string target, Counter counter, CancellationToken token)
     {
         var root = Path.GetFullPath(target);
-        var header = new byte[512];
         var buffer = new byte[BufferSize];
+        foreach (var item in TarItems(content))
+        {
+            token.ThrowIfCancellationRequested();
+            var destination = Destination(root, item.Name);
+            if (item.IsDirectory)
+            {
+                Directory.CreateDirectory(destination);
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
+            {
+                int read;
+                while ((read = item.Body.Read(buffer)) > 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    output.Write(buffer, 0, read);
+                    counter.Add(read);
+                }
+            }
+
+            File.SetLastWriteTimeUtc(destination, item.ModifiedUtc);
+        }
+    }
+
+    /// <summary>A file or a folder in the TAR; <see cref="Body"/> must be read before the next item is asked for.</summary>
+    private readonly record struct TarItem(bool IsDirectory, string Name, DateTime ModifiedUtc, Stream Body);
+
+    /// <summary>
+    /// Walks the TAR the first layout holds (ustar headers, GNU "././@LongLink" for long names) straight from the
+    /// decrypting stream, which cannot seek. Whatever of an item's content was not read is skipped before the next.
+    /// </summary>
+    private static IEnumerable<TarItem> TarItems(Stream content)
+    {
+        var header = new byte[512];
+        var buffer = new byte[1 << 16];
         string? longName = null;
         while (true)
         {
-            token.ThrowIfCancellationRequested();
             if (!ReadExactly(content, header))
             {
-                return; // end of stream without the end-of-archive marker: tolerated like tar does
+                yield break; // end of stream without the end-of-archive marker: tolerated like tar does
             }
 
             if (header.All(static b => b == 0))
             {
-                return; // end-of-archive marker
+                yield break; // end-of-archive marker
             }
 
             var size = ParseOctal(header.AsSpan(124, 12));
@@ -469,38 +749,66 @@ public static class PceFile
                     Skip(content, padding, buffer);
                     continue;
                 case '5':
-                    Directory.CreateDirectory(Destination(root, name));
+                    yield return new TarItem(true, name, modified, Stream.Null);
                     Skip(content, size + padding, buffer);
                     continue;
                 case '0' or '\0' or '7':
-                    var destination = Destination(root, name);
-                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                    using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
-                    {
-                        var left = size;
-                        while (left > 0)
-                        {
-                            var read = content.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
-                            if (read <= 0)
-                            {
-                                throw new PceFormatException("The folder content is cut short.");
-                            }
-
-                            token.ThrowIfCancellationRequested();
-                            output.Write(buffer, 0, read);
-                            counter.Add(read);
-                            left -= read;
-                        }
-                    }
-
-                    File.SetLastWriteTimeUtc(destination, modified);
-                    Skip(content, padding, buffer);
+                    var body = new Slice(content, size);
+                    yield return new TarItem(false, name, modified, body);
+                    Skip(content, body.Left + padding, buffer);
                     continue;
                 default:
                     Skip(content, size + padding, buffer); // links and other kinds are not written by us
                     continue;
             }
         }
+    }
+
+    /// <summary>
+    /// The next <c>length</c> bytes of a stream (all of it when null), which stays open. Reports the length, so the
+    /// TAR writer can take a stream that cannot seek; a stream that ends early is damage.
+    /// </summary>
+    private sealed class Slice(Stream inner, long? length) : Stream
+    {
+        public long Left { get; private set; } = length ?? 0;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length ?? throw new NotSupportedException();
+        public override long Position { get => (length ?? 0) - Left; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (length is null)
+            {
+                return inner.Read(buffer);
+            }
+
+            if (Left == 0)
+            {
+                return 0;
+            }
+
+            var read = inner.Read(buffer[..(int)Math.Min(buffer.Length, Left)]);
+            if (read <= 0)
+            {
+                throw new PceFormatException("The content is cut short.");
+            }
+
+            Left -= read;
+            return read;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static string FullName(byte[] header)
@@ -595,7 +903,7 @@ public static class PceFile
     /// Content that authenticated but does not decompress (zstd's own exception, Deflate's InvalidDataException) is
     /// damage like any other: reported as <see cref="PceFormatException"/>, which the operations treat per file.
     /// </summary>
-    private sealed class CorruptAsFormatStream(Stream inner) : Stream
+    internal sealed class CorruptAsFormatStream(Stream inner) : Stream
     {
         public override bool CanRead => true;
         public override bool CanSeek => false;

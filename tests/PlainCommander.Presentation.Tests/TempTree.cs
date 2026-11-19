@@ -106,6 +106,26 @@ internal sealed class FakeDialogs : IDialogService
         return Task.FromResult(DecryptPasswords.Count > 0 ? DecryptPasswords.Dequeue() : null);
     }
 
+    public Queue<ChangePasswordAnswer?> ChangePasswordAnswers { get; } = new();
+
+    public List<(bool Wrong, bool Rewrite)> ChangePasswordQuestions { get; } = [];
+
+    public Task<ChangePasswordAnswer?> AskChangePasswordAsync(string file, bool wrong, bool rewrite)
+    {
+        ChangePasswordQuestions.Add((wrong, rewrite));
+        return Task.FromResult(ChangePasswordAnswers.Count > 0 ? ChangePasswordAnswers.Dequeue() : null);
+    }
+
+    public bool UpgradeAnswer { get; set; }
+
+    public List<string> UpgradeQuestions { get; } = [];
+
+    public Task<bool> ConfirmPceUpgradeAsync(string name)
+    {
+        UpgradeQuestions.Add(name);
+        return Task.FromResult(UpgradeAnswer);
+    }
+
     public Task<bool> ConfirmDeleteOriginalsAsync(int count)
     {
         DeleteOriginalsQuestions++;
