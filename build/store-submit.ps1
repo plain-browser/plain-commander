@@ -48,7 +48,7 @@ Write-Host "Product: $($app.primaryName) ($ProductId)"
 $pending = $app.pendingApplicationSubmission
 if ($Status) {
   # Read-only: nothing below this block runs.
-  $lines = @("Product: $($app.primaryName) ($ProductId)")
+  $lines = @()
   $published = $app.lastPublishedApplicationSubmission
   $lines += if ($published) { "Published submission: $($published.id)" } else { 'Published submission: none' }
   if (-not $pending) {
@@ -74,7 +74,7 @@ if ($Status) {
     catch { $lines += "  (the packages of the open submission could not be read: $($_.Exception.Message))" }
   }
   $lines | ForEach-Object { Write-Host $_ }
-  if ($env:GITHUB_STEP_SUMMARY) { ($lines -join "`n`n") >> $env:GITHUB_STEP_SUMMARY }
+  if ($env:GITHUB_STEP_SUMMARY) { ((@("Product: $($app.primaryName) ($ProductId)") + $lines) -join "`n`n") >> $env:GITHUB_STEP_SUMMARY }
   return
 }
 if ($pending) {
