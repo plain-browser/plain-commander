@@ -1,24 +1,27 @@
 # Sends the Store packages to Partner Center as a new submission (Microsoft Store submission API) and starts certification.
 #   pwsh -File build/store-submit.ps1 -ProductId 9NJMJ1VQ1X87 -Packages a-x64-store.msix,b-ARM64-store.msix
 #     [-ReleaseNotesFile docs/store/whats-new-en.txt] [-NoCommit] [-ReplacePending]
+#   pwsh -File build/store-submit.ps1 -ProductId 9NJMJ1VQ1X87 -Status      (only reads: what is published, what is open)
 # Credentials of the Microsoft Entra application added in Partner Center (Account settings -> User management ->
 # Microsoft Entra applications, role Manager) come from the environment: STORE_TENANT_ID, STORE_CLIENT_ID, STORE_CLIENT_SECRET.
 # The new submission is a copy of the last published one (listing, price, notes for certification); only the packages
 # and, with -ReleaseNotesFile, the "What's new" text of the en-us listing change.
 # -NoCommit leaves the submission as a draft in Partner Center. -ReplacePending deletes a submission that is still open.
+# -Status changes nothing: it prints the published submission and the state of the open one, if any.
 param(
   [Parameter(Mandatory)][string]$ProductId,
-  [Parameter(Mandatory)][string[]]$Packages,
+  [string[]]$Packages,
   [string]$ReleaseNotesFile,
   [switch]$NoCommit,
-  [switch]$ReplacePending)
+  [switch]$ReplacePending,
+  [switch]$Status)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 foreach ($name in 'STORE_TENANT_ID', 'STORE_CLIENT_ID', 'STORE_CLIENT_SECRET') {
   if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing environment variable $name" }
 }
-$files = @($Packages | ForEach-Object { Get-Item $_ })
-if ($files.Count -eq 0) { throw 'No packages given' }
+$files = @($Packages | Where-Object { $_ } | ForEach-Object { Get-Item $_ })
+if (-not $Status -and $files.Count -eq 0) { throw 'No packages given' }
 
 $token = (Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$($env:STORE_TENANT_ID)/oauth2/token" -Body @{
     grant_type = 'client_credentials'; client_id = $env:STORE_CLIENT_ID; client_secret = $env:STORE_CLIENT_SECRET
@@ -43,6 +46,37 @@ function Invoke-Store([string]$Method, [string]$Path, $Body) {
 $app = Invoke-Store Get ''
 Write-Host "Product: $($app.primaryName) ($ProductId)"
 $pending = $app.pendingApplicationSubmission
+if ($Status) {
+  # Read-only: nothing below this block runs.
+  $lines = @("Product: $($app.primaryName) ($ProductId)")
+  $published = $app.lastPublishedApplicationSubmission
+  $lines += if ($published) { "Published submission: $($published.id)" } else { 'Published submission: none' }
+  if (-not $pending) {
+    $lines += 'Open submission: none (nothing is waiting in Partner Center; a new submission can be sent)'
+  }
+  else {
+    $state = Invoke-Store Get "/submissions/$($pending.id)/status"
+    $lines += "Open submission: $($pending.id)"
+    $lines += "Status: $($state.status)"
+    foreach ($kind in 'errors', 'warnings') {
+      foreach ($entry in @($state.statusDetails.$kind)) {
+        if ($entry) { $lines += "  ${kind}: $($entry.code): $($entry.details)" }
+      }
+    }
+    foreach ($report in @($state.statusDetails.certificationReports)) {
+      if ($report) { $lines += "  certification report of $($report.date): $($report.reportUrl)" }
+    }
+    try {
+      $open = Invoke-Store Get "/submissions/$($pending.id)"
+      $names = @($open.applicationPackages | Where-Object { $_.fileStatus -ne 'PendingDelete' } | ForEach-Object { "$($_.fileName) $($_.version)" })
+      if ($names) { $lines += "  packages: $($names -join ', ')" }
+    }
+    catch { $lines += "  (the packages of the open submission could not be read: $($_.Exception.Message))" }
+  }
+  $lines | ForEach-Object { Write-Host $_ }
+  if ($env:GITHUB_STEP_SUMMARY) { ($lines -join "`n`n") >> $env:GITHUB_STEP_SUMMARY }
+  return
+}
 if ($pending) {
   if (-not $ReplacePending) {
     throw "Submission $($pending.id) is still open in Partner Center. Finish or delete it there, or run again with -ReplacePending."

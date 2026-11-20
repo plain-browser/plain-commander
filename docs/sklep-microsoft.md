@@ -95,6 +95,11 @@ przez API Partner Center (kopia ostatniego opublikowanego: listing, cena i notat
 **Approve and deploy**. Ręcznie: Actions → store → Run workflow (pole „Send the packages to the Store”; „draft” zostawia zgłoszenie
 jako szkic w Partner Center, „replace_pending” usuwa zgłoszenie, które tam jeszcze wisi).
 
+Stan zgłoszenia bez wysyłania czegokolwiek: `gh workflow run store.yml -f status=true` (albo pole „status” w Actions).
+Przebieg niczego nie buduje i niczego nie zmienia w Partner Center; po zatwierdzeniu środowiska `store` wypisuje
+w podsumowaniu, które zgłoszenie jest opublikowane i w jakim stanie jest otwarte (błędy, ostrzeżenia, raporty
+certyfikacji, pakiety). Ma własną kolejkę, więc nie czeka za zgłoszeniem, które stoi na zatwierdzeniu.
+
 **Jednorazowa konfiguracja:**
 
 1. Partner Center → Account settings → **Tenants**: powiązać albo utworzyć dzierżawę Microsoft Entra ID.

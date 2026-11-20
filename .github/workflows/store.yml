@@ -19,14 +19,35 @@ on:
         description: Delete a submission that is still open in Partner Center
         type: boolean
         default: false
+      status:
+        description: Only read the state of the Store submission (builds and sends nothing; waits for approval)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: store
+  # a status check must not queue behind a submission that waits for approval
+  group: ${{ inputs.status && 'store-status' || 'store' }}
 env:
   STORE_PRODUCT_ID: 9NJMJ1VQ1X87
 jobs:
+  status:
+    if: github.event_name == 'workflow_dispatch' && inputs.status
+    runs-on: ubuntu-latest
+    environment:
+      name: store
+      url: https://apps.microsoft.com/detail/9NJMJ1VQ1X87
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: State of the Store submission
+        shell: pwsh
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: ./build/store-submit.ps1 -ProductId $env:STORE_PRODUCT_ID -Status
   build:
+    if: github.event_name == 'push' || !inputs.status
     runs-on: windows-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -89,7 +110,7 @@ jobs:
           retention-days: 30
   submit:
     needs: build
-    if: github.event_name == 'push' || inputs.submit
+    if: github.event_name == 'push' || (inputs.submit && !inputs.status)
     runs-on: ubuntu-latest
     environment:
       name: store
