@@ -386,8 +386,11 @@ na serwerze. Katalog kontenera usuwa się i przenosi jak katalog (jego obiekty).
   po 16 MiB (większe, gdy plik przekracza 10 000 części), szyfrowane i wysyłane po 8 naraz. AES‑GCM robi ponad
   1 GiB/s na rdzeń; ogranicza łącze.
 - Pobieranie: czytanie po kolei pobiera z wyprzedzeniem coraz więcej (od 64 KiB do 8 MiB na żądanie), skok pobiera
-  tylko blok, na który trafił — F3 i wyjęcie fragmentu nie ściągają reszty. Kilka strumieni naraz: do zmierzenia
-  w kroku 7 etapu 24 (na razie jeden).
+  tylko blok, na który trafił — F3 i wyjęcie fragmentu nie ściągają reszty. Gdy czytanie po kolei
+  dojdzie do pełnych okien, kolejne okna idą po 8 naraz (do 64 MiB w pamięci na czytany plik); skok porzuca okna
+  w drodze. Pomiar po sieci 1 Gb/s (RustFS): 10 GiB w górę 111 MiB/s, w dół 113 MiB/s w 8 strumieniach i 97 MiB/s
+  w jednym; wyniki w PLAN.md, etap 24 krok 7. Serwer potrzebuje na to pamięci: RustFS z limitem 512 MB dławił się
+  przy 8 równoległych odczytach.
 - Małe pliki w paczkach: 10 000 plików to kilkanaście PUT‑ów, nie 10 000 (czas i opłaty za żądania).
 - Zrzut na dysk i trzy zapisy indeksu z pliku nie mają tu odpowiednika: jedna zmiana to jeden PUT indeksu.
 

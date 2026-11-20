@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
@@ -281,7 +282,7 @@ public sealed class PceObjectContainer : IPceContainer
                 throw new ArgumentException("A folder has no content.", nameof(entry));
             }
 
-            var blocks = new PceBlockReader(new ObjectExtents(_store, entry, _split.ReadAhead), _header.Cipher, entry, _header.ChunkSize);
+            var blocks = new PceBlockReader(new ObjectExtents(_store, entry, _split.ReadAhead, _split.Parallelism), _header.Cipher, entry, _header.ChunkSize);
             if (entry.Compressed)
             {
                 return new PceFile.CorruptAsFormatStream(new DecompressionStream(blocks, leaveOpen: false));
@@ -350,7 +351,7 @@ public sealed class PceObjectContainer : IPceContainer
     internal IPceStoredBytes OpenStored(PceEntry entry)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return new ObjectExtents(_store, entry, _split.ReadAhead);
+        return new ObjectExtents(_store, entry, _split.ReadAhead, _split.Parallelism);
     }
 
     /// <summary>
@@ -1226,25 +1227,31 @@ public sealed class PceObjectContainer : IPceContainer
     /// <summary>
     /// An entry's extents in data objects, read by range. Reading on from where the last request ended fetches
     /// more each time (up to the read-ahead limit), so a whole file costs few requests; a jump fetches only what
-    /// was asked for, so a look at the end of a large file costs one small one.
+    /// was asked for, so a look at the end of a large file costs one small one. Once a sequential read has grown
+    /// to full windows, the next windows are fetched several at once: a large file comes down in as many streams
+    /// as it went up in.
     /// </summary>
     private sealed class ObjectExtents : IPceStoredBytes
     {
         private const int FirstAhead = 1 << 16;
         private readonly IPceObjectStore _store;
         private readonly int _readAhead;
+        private readonly int _streams;
         private readonly string[] _names;
         private readonly long[] _offsets;
         private readonly long[] _starts; // position of each extent in the entry's stored stream
+        private readonly Queue<(long Start, int Length, byte[] Buffer, Task Fetch)> _coming = new();
+        private long _comingEnd;
         private byte[] _window = [];
         private long _windowStart;
         private int _windowLength;
         private int _ahead;
 
-        public ObjectExtents(IPceObjectStore store, PceEntry entry, int readAhead)
+        public ObjectExtents(IPceObjectStore store, PceEntry entry, int readAhead, int streams)
         {
             _store = store;
             _readAhead = readAhead;
+            _streams = Math.Max(1, streams);
             _names = new string[entry.Extents.Count];
             _offsets = new long[entry.Extents.Count];
             _starts = new long[entry.Extents.Count + 1];
@@ -1275,22 +1282,49 @@ public sealed class PceObjectContainer : IPceContainer
                     throw new PceFormatException("The encrypted container is cut short.");
                 }
 
-                var extent = Array.BinarySearch(_starts, 0, _names.Length, start);
-                if (extent < 0)
+                if (_coming.Count > 0)
                 {
-                    extent = ~extent - 1;
+                    if (_coming.Peek().Start == start)
+                    {
+                        var next = _coming.Dequeue();
+                        Release(_window);
+                        _window = [];
+                        _windowLength = 0;
+                        try
+                        {
+                            next.Fetch.GetAwaiter().GetResult();
+                        }
+                        catch
+                        {
+                            Release(next.Buffer);
+                            throw;
+                        }
+
+                        _window = next.Buffer;
+                        _windowStart = next.Start;
+                        _windowLength = next.Length;
+                        FetchAhead();
+                        continue;
+                    }
+
+                    Abandon(); // a jump: what is on its way is not what is wanted
                 }
 
-                while (_starts[extent + 1] <= start)
+                var sequential = start == _windowStart + _windowLength;
+                _ahead = sequential ? Math.Min(Math.Max(_ahead * 2, FirstAhead), _readAhead) : 0;
+                if (sequential && _streams > 1 && _ahead == _readAhead)
                 {
-                    extent++;
+                    _comingEnd = start;
+                    FetchAhead();
+                    continue;
                 }
 
-                _ahead = start == _windowStart + _windowLength ? Math.Min(Math.Max(_ahead * 2, FirstAhead), _readAhead) : 0;
+                var extent = ExtentAt(start);
                 var want = (int)Math.Min(Math.Max(target.Length, _ahead), _starts[extent + 1] - start);
                 if (_window.Length < want)
                 {
-                    _window = new byte[want];
+                    Release(_window);
+                    _window = ArrayPool<byte>.Shared.Rent(want);
                 }
 
                 _windowLength = 0;
@@ -1306,6 +1340,73 @@ public sealed class PceObjectContainer : IPceContainer
 
         public void Dispose()
         {
+            Abandon();
+            Release(_window);
+            _window = [];
+            _windowLength = 0;
+        }
+
+        private int ExtentAt(long position)
+        {
+            var extent = Array.BinarySearch(_starts, 0, _names.Length, position);
+            if (extent < 0)
+            {
+                extent = ~extent - 1;
+            }
+
+            while (_starts[extent + 1] <= position)
+            {
+                extent++;
+            }
+
+            return extent;
+        }
+
+        private void FetchAhead()
+        {
+            while (_coming.Count < _streams && _comingEnd < _starts[^1])
+            {
+                var extent = ExtentAt(_comingEnd);
+                var length = (int)Math.Min(_readAhead, _starts[extent + 1] - _comingEnd);
+                var buffer = ArrayPool<byte>.Shared.Rent(length);
+                var name = _names[extent];
+                var offset = _offsets[extent] + (_comingEnd - _starts[extent]);
+                var store = _store;
+                var fetch = Task.Run(() =>
+                {
+                    if (store.Read(name, offset, buffer.AsSpan(0, length)) != length)
+                    {
+                        throw new PceFormatException("The encrypted container is damaged (a part is cut short).");
+                    }
+                });
+                _coming.Enqueue((_comingEnd, length, buffer, fetch));
+                _comingEnd += length;
+            }
+        }
+
+        private void Abandon()
+        {
+            while (_coming.Count > 0)
+            {
+                var (_, _, buffer, fetch) = _coming.Dequeue();
+                _ = fetch.ContinueWith(
+                    t =>
+                    {
+                        _ = t.Exception;
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+
+        private static void Release(byte[] buffer)
+        {
+            if (buffer.Length > 0)
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
     }
 }

@@ -1012,7 +1012,7 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–6 zrobione; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–7 zrobione 2026-11-20; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
@@ -1120,6 +1120,32 @@ w pliku. Kroki w kolejności, każdy z testami.
 7. **Pomiary**: wysłanie i pobranie 1 GiB i 10 GiB (cel: prędkość łącza przy 8 strumieniach), usunięcie 10 MiB
    z 10 GiB (cel: poniżej 1 s bez Argon2), 10 000 małych plików, otwarcie. RustFS w sieci lokalnej; prawdziwy AWS,
    jeśli będzie konto.
+   **Zrobione 2026-11-20**: `S3PceBenchmarkTests` (zmienne `PC_PCE_S3`, `PC_PCE_S3_BENCH=<plik wyników>`,
+   `PC_PCE_S3_BENCH_GIB=1,10`; treść generowana, nic nie trafia na dysk lokalny, pobrane bajty porównywane).
+   Dopisane pobieranie kilkoma strumieniami: gdy odczyt po kolei urośnie do pełnych okien (8 MiB), kolejne okna
+   idą po `Parallelism` naraz (`ObjectExtents.FetchAhead`); skok porzuca okna w drodze.
+   Pomiar z komputera z Windows (12 wątków, build Release) po sieci 1 Gb/s do RustFS na Unraidzie:
+
+   | Operacja | 1 GiB | 10 GiB |
+   |---|---|---|
+   | wysłanie, 8 części naraz | 9,7 s, 106 MiB/s | 92,4 s, 111 MiB/s |
+   | pobranie, 8 strumieni | 9,2 s, 112 MiB/s | 90,7 s, 113 MiB/s |
+   | pobranie, 1 strumień | 10,4 s, 99 MiB/s | 105,6 s, 97 MiB/s |
+   | dodanie 10 MiB do kontenera | 0,23 s | 0,28 s |
+   | usunięcie tych 10 MiB (bez Argon2) | 0,21 s | 0,28 s |
+   | ostatni 1 MiB dużego pliku | 0,01 s | 0,01 s |
+   | usunięcie dużego pliku ze sprzątaniem | 0,45 s | 1,20 s |
+
+   10 000 plików po 2 KiB: dodanie 3,6 s (jedna paczka i indeks), otwarcie 0,27 s, jeden plik 0,02 s, wszystkie
+   po kolei 15,7 s (żądanie na plik), usunięcie jednego 0,05 s, katalogu z 500 plikami 0,05 s. Utworzenie
+   kontenera (Argon2id, `head`, pierwszy indeks) 0,44 s.
+   Cele spełnione: łącze 1 Gb/s jest wąskim gardłem (ok. 112 MiB/s) w obie strony, usunięcie 10 MiB z 10 GiB
+   poniżej 1 s. Na tym łączu 8 strumieni daje przy pobieraniu ok. 15% więcej niż jeden; zysk na szybszym łączu
+   albo dalekim serwerze nie był mierzony. Jedno okno 8 MiB to 80–140 ms.
+   Pułapka pomiaru: RustFS z limitem 512 MB pamięci przy 8 równoległych odczytach zakresów dobijał do limitu
+   (481 z 512 MB) i pobieranie spadało do 10–23 MiB/s; z limitem 2 GB zużywał do ok. 740 MB i wyniki są jak wyżej.
+   Po pomiarach limit wrócił do 512 MB (do testów wystarcza). Nie mierzone: prawdziwy AWS (brak konta), serwer
+   bez zapisu warunkowego, łącze szybsze niż 1 Gb/s.
 
 Decyzja 2026-11-19: F5 pliku `.pce` z dysku do S3 pyta — forma rozłożona (domyślnie) albo zwykła kopia pliku (jeden
 obiekt, na S3 tylko do odczytu).

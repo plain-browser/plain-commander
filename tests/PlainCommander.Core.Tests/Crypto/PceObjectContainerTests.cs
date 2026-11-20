@@ -219,6 +219,40 @@ public sealed class PceObjectContainerTests
     }
 
     [Fact]
+    public void A_long_read_fetches_windows_ahead_and_a_jump_in_the_middle_still_reads_the_right_bytes()
+    {
+        var content = Bytes(700_000, 3); // several objects of three parts each, dozens of 16 KiB windows
+        var store = Built(("film.bin", content));
+        using var container = Open(store);
+        using var stream = container.OpenRead(container.Find("film.bin")!);
+        var head = new byte[200_000];
+        stream.ReadExactly(head);
+        head.Should().Equal(content[..200_000]);
+        store.Log.Clear();
+
+        // windows already on their way are for the old place: they are dropped, not served
+        stream.Position = 450_001;
+        var middle = new byte[120_000];
+        stream.ReadExactly(middle);
+        middle.Should().Equal(content[450_001..570_001]);
+        stream.Position = 10;
+        var rest = new MemoryStream();
+        stream.CopyTo(rest);
+        rest.ToArray().Should().Equal(content[10..]);
+    }
+
+    [Fact]
+    public void A_reader_with_one_stream_reads_the_same_as_one_with_many()
+    {
+        var content = Bytes(300_000, 5);
+        var store = Built(("film.bin", content));
+        using var single = PceObjectContainer.Open(store, Password, false, "box.pce", Fast, Sizes with { Parallelism = 1 });
+        Read(single, "film.bin").Should().Equal(content);
+        using var many = PceObjectContainer.Open(store, Password, false, "box.pce", Fast, Sizes with { Parallelism = 8 });
+        Read(many, "film.bin").Should().Equal(content);
+    }
+
+    [Fact]
     public void Deleting_a_large_entry_is_one_new_index_and_its_objects_go_at_once()
     {
         var store = Built(("a.bin", Bytes(5000)), ("duży.bin", Bytes(150_000)), ("b.bin", Bytes(6000, 1)));
