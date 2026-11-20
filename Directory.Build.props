@@ -10,7 +10,7 @@
     <!-- packages.lock.json pins every package (also transitive) by version and hash; CI refuses anything else. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode Condition="'$(GITHUB_ACTIONS)' == 'true'">true</RestoreLockedMode>
-    <Version>1.15.0</Version>
+    <Version>1.16.0</Version>
     <Authors>Plain Commander contributors</Authors>
     <Product>Plain Commander</Product>
     <Copyright>© 2026 Plain Commander contributors</Copyright>

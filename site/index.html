@@ -92,9 +92,9 @@ footer a{color:var(--fg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/></svg>
           Pobierz ze Sklepu Microsoft
         </a>
-        <a class="btn secondary" href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.15.0-x64.msix">
+        <a class="btn secondary" href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.16.0-x64.msix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          MSIX z GitHuba 1.15.0 (x64)
+          MSIX z GitHuba 1.16.0 (x64)
         </a>
       </div>
       <p class="req">Pakiet MSIX, 35 MB, zawiera własny runtime. Windows 11 22H2 lub nowszy. Sklep instaluje wersję x64 i ARM64, bez certyfikatu.</p>
@@ -129,7 +129,7 @@ footer a{color:var(--fg2)}
     <h2>Instalacja</h2>
     <p class="sub">Najprościej: <a href="https://apps.microsoft.com/detail/9NJMJ1VQ1X87">Plain Commander w Sklepie Microsoft</a> (x64 i ARM64, aktualizacje ze Sklepu, bez certyfikatu). Wersja ze Sklepu nie ma przycisku „Jako administrator”, bo Sklep nie dopuszcza uprawnienia <code>allowElevation</code>. Poniżej wersja z GitHuba: pakiet MSIX podpisany certyfikatem deweloperskim, który trzeba raz dodać do zaufanych.</p>
     <ol class="steps">
-      <li><h3>Pobierz dwa pliki</h3><p><a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.15.0-x64.msix">PlainCommander-1.15.0-x64.msix</a> oraz certyfikat <a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-dev.cer">PlainCommander-dev.cer</a>.</p></li>
+      <li><h3>Pobierz dwa pliki</h3><p><a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-1.16.0-x64.msix">PlainCommander-1.16.0-x64.msix</a> oraz certyfikat <a href="https://github.com/plain-browser/plain-commander/releases/latest/download/PlainCommander-dev.cer">PlainCommander-dev.cer</a>.</p></li>
       <li><h3>Zaufaj certyfikatowi (raz, jako administrator)</h3><p>Kliknij plik <code>.cer</code> prawym przyciskiem → Zainstaluj certyfikat → Komputer lokalny → magazyn „Zaufane osoby”. Albo w podniesionym PowerShellu:</p>
 <pre>Import-Certificate -FilePath .\PlainCommander-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople</pre></li>
       <li><h3>Zainstaluj pakiet</h3><p>Dwuklik na <code>.msix</code> otwiera Instalatora aplikacji; kliknij „Zainstaluj”. Plain Commander pojawi się w menu Start. Kolejne wersje instalują się tym samym plikiem, ustawienia zostają.</p></li>
@@ -161,7 +161,7 @@ footer a{color:var(--fg2)}
   </section>
 
   <footer>
-    <span>Plain Commander 1.15.0 · Windows 11 · .NET 10 i WinUI 3</span>
+    <span>Plain Commander 1.16.0 · Windows 11 · .NET 10 i WinUI 3</span>
     <span>Kod źródłowy i zgłoszenia: repozytorium projektu (adres po publikacji)</span>
   </footer>
 </div>

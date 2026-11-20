@@ -1012,7 +1012,14 @@ Stan 2026-11-19 — kroki 1–3 w `Core/Crypto`:
 Wydanie jako 1.15.0 (zmiana formatu zapisu: starsze wersje nie otworzą
 nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
-### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — w toku od 2026-11-19 (kroki 1–7 zrobione 2026-11-20; testy w WSL, S3 na RustFS; aplikacja zbudowana i sprawdzona na VM)
+### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — zrobiony 2026-11-20 (kroki 1–7), wydanie 1.16.0 przygotowane
+
+Wydanie 1.16.0 przygotowane 2026-11-20 (do polecenia: commit, push, `gh release create v1.16.0`, Sklep): wersja
+w `Directory.Build.props`, manifeście i `site/index.html`; notatki `docs/release-notes-1.16.0.md`; tekst Sklepu
+`docs/store/whats-new-en.txt`. Testy na Windows (VM): Core 1117, Presentation 448, bez porażek. Pakiet
+`PlainCommander-1.16.0-x64.msix` zbudowany na VM z drzewa roboczego, podpisany tym samym certyfikatem (385E1FDD…),
+instalacja na 1.15.0 i start sprawdzone (pasek pokazuje v1.16.0); kopie w `release/` i `C:\1` (z notatkami).
+Zgłoszenie 1.15.0 do Sklepu w chwili przygotowania wciąż czekało na zatwierdzenie środowiska `store`.
 Projekt: `docs/szyfrowanie.md`, sekcja „`.pce` na S3”. Powód: obiekt S3 jest niezmienny, więc kontener z etapu 23
 trzymany jako jeden obiekt da się tylko czytać. Rozłożenie (`head`, `index/<generacja>`, `data/<id>`) daje usuwanie
 i zmianę hasła jednym małym żądaniem oraz równoległe wysyłanie. Strumienie wpisów zostają bajt w bajt takie jak
