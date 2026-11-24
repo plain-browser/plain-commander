@@ -136,16 +136,17 @@ if ($NoCommit) {
 }
 
 Invoke-Store Post "/submissions/$($submission.id)/commit" | Out-Null
+# (not called $status: PowerShell variable names ignore case, and -Status is a [switch] parameter)
 # The commit is checked by the Store in the background (package validation); certification starts after it.
 $deadline = (Get-Date).AddMinutes(30)
 do {
   Start-Sleep -Seconds 20
-  $status = Invoke-Store Get "/submissions/$($submission.id)/status"
-  Write-Host "Status: $($status.status)"
-} while ($status.status -eq 'CommitStarted' -and (Get-Date) -lt $deadline)
-foreach ($entry in @($status.statusDetails.errors) + @($status.statusDetails.warnings)) {
+  $outcome = Invoke-Store Get "/submissions/$($submission.id)/status"
+  Write-Host "Status: $($outcome.status)"
+} while ($outcome.status -eq 'CommitStarted' -and (Get-Date) -lt $deadline)
+foreach ($entry in @($outcome.statusDetails.errors) + @($outcome.statusDetails.warnings)) {
   if ($entry) { Write-Host "  $($entry.code): $($entry.details)" }
 }
-if ($status.status -eq 'CommitStarted') { throw 'The Store is still checking the submission after 30 minutes; see Partner Center.' }
-if ($status.status -match 'Failed|Canceled') { throw "Submission $($submission.id) failed: $($status.status)" }
+if ($outcome.status -eq 'CommitStarted') { throw 'The Store is still checking the submission after 30 minutes; see Partner Center.' }
+if ($outcome.status -match 'Failed|Canceled') { throw "Submission $($submission.id) failed: $($outcome.status)" }
 Write-Host "Submission $($submission.id) is in certification. Progress: Partner Center -> Plain Commander."
