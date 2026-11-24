@@ -369,6 +369,107 @@ public sealed class RemotePanelTests : IDisposable
     }
 
     [Fact]
+    public void An_S3_connection_is_set_up_by_service_region_keys_and_bucket()
+    {
+        var secrets = new Dictionary<string, string>();
+        var sites = new List<RemoteSite>();
+        var vm = new ConnectionsViewModel(sites, _vm.Remote, new DictionarySecrets(secrets));
+
+        var row = vm.Add();
+        row.ProtocolIndex = 3;
+        row.IsAws.Should().BeTrue("a new S3 connection starts as Amazon S3");
+        row.Host.Should().Be("s3.amazonaws.com");
+
+        row.Region = "eu-central-1";
+        row.Host.Should().Be("s3.eu-central-1.amazonaws.com", "at Amazon the region makes the address");
+        row.User = "AKIAEXAMPLE";
+        row.Bucket = "/kopie/2026/";
+        row.Bucket.Should().Be("kopie");
+        row.BucketFolder.Should().Be("2026", "a pasted bucket/folder fills both fields");
+        row.BucketFolder = "2026/listopad";
+        sites[0].StartPath.Should().Be("/kopie/2026/listopad");
+        vm.Address.Should().Be("s3://AKIAEXAMPLE@s3.eu-central-1.amazonaws.com:443/kopie/2026/listopad");
+        row.Subtitle.Should().Be("Amazon S3 · kopie", "the list does not show the access key");
+
+        row.Bucket = string.Empty;
+        sites[0].StartPath.Should().BeEmpty("without a bucket the buckets are listed");
+        row.HasBucket.Should().BeFalse();
+    }
+
+    [Fact]
+    public void An_S3_server_of_ones_own_takes_a_pasted_address_apart()
+    {
+        var sites = new List<RemoteSite>();
+        var vm = new ConnectionsViewModel(sites, _vm.Remote, new DictionarySecrets([]));
+        var row = vm.Add();
+        row.ProtocolIndex = 3;
+        row.Region = "eu-west-1";
+
+        row.ProviderIndex = S3Endpoints.ListIndex(S3Provider.Other);
+        row.IsOwnServer.Should().BeTrue();
+        row.Host.Should().BeEmpty("the Amazon address is not this server's");
+        row.Endpoint = "http://192.168.1.10:9000/";
+        (sites[0].Host, sites[0].Port, sites[0].PlainHttp).Should().Be(("192.168.1.10", 9000, true));
+        row.IsUnencrypted.Should().BeTrue();
+
+        row.ProviderIndex = S3Endpoints.ListIndex(S3Provider.CloudflareR2);
+        (sites[0].Host, sites[0].Port, sites[0].PlainHttp, sites[0].Region).Should().Be((string.Empty, 0, false, string.Empty), "what the hidden fields held does not apply to a known service");
+        row.Endpoint = "https://0123abcd.r2.cloudflarestorage.com";
+        sites[0].Host.Should().Be("0123abcd.r2.cloudflarestorage.com");
+        S3RemoteClient.RegionOf(sites[0]).Should().Be("auto");
+
+        row.ProviderIndex = S3Endpoints.ListIndex(S3Provider.Aws);
+        row.Host.Should().Be("s3.amazonaws.com");
+
+        // a site saved by an earlier version: the service is read from its address, the region stays in it
+        var old = new RemoteSite { Protocol = RemoteProtocol.S3, Host = "s3.eu-north-1.amazonaws.com", User = "AKIA" };
+        var oldRow = new ConnectionsViewModel([old], _vm.Remote, new DictionarySecrets([])).Sites[0];
+        oldRow.IsAws.Should().BeTrue();
+        oldRow.Region.Should().Be("eu-north-1");
+        oldRow.ProviderIndex = S3Endpoints.ListIndex(S3Provider.Aws);
+        old.Host.Should().Be("s3.eu-north-1.amazonaws.com", "choosing the same service keeps the address");
+        oldRow.Region = "eu-west-3";
+        old.Host.Should().Be("s3.eu-west-3.amazonaws.com");
+    }
+
+    [Fact]
+    public void The_S3_secret_key_typed_in_the_form_is_kept_and_follows_the_address()
+    {
+        var secrets = new Dictionary<string, string>();
+        var sites = new List<RemoteSite>();
+        var vm = new ConnectionsViewModel(sites, _vm.Remote, new DictionarySecrets(secrets));
+        var row = vm.Add();
+        row.ProtocolIndex = 3;
+        row.ProviderIndex = S3Endpoints.ListIndex(S3Provider.Other);
+
+        vm.SaveSecret(row, "tajny").Should().BeFalse("there is no address to keep it under yet");
+        row.Endpoint = "minio.example.com";
+        row.User = "klucz";
+        vm.SaveSecret(row, "tajny").Should().BeTrue();
+        row.HasPassword.Should().BeTrue();
+        secrets.Should().ContainSingle().Which.Key.Should().Be(RemoteConnections.SecretKey("s3://klucz@minio.example.com:443"));
+
+        row.Port = "9000";
+        secrets.Should().ContainSingle().Which.Should().Be(new KeyValuePair<string, string>(RemoteConnections.SecretKey("s3://klucz@minio.example.com:9000"), "tajny"));
+        row.HasPassword.Should().BeTrue("the secret key followed the new address");
+
+        row.User = "inny";
+        secrets.Should().BeEmpty("another access key has another secret");
+        row.HasPassword.Should().BeFalse();
+
+        // an FTP password never moves to another server
+        var ftp = vm.Add();
+        ftp.ProtocolIndex = 1;
+        ftp.Host = "a.example.org";
+        ftp.User = "jan";
+        secrets[RemoteConnections.SecretKey(ftp.Site.Root)] = "haslo";
+        ftp.Host = "b.example.org";
+        secrets.Keys.Should().ContainSingle().Which.Should().Be(RemoteConnections.SecretKey("ftp://jan@a.example.org:21"));
+        ftp.ProtocolIndex = 3;
+        secrets.Keys.Should().ContainSingle().Which.Should().Be(RemoteConnections.SecretKey("ftp://jan@a.example.org:21"));
+    }
+
+    [Fact]
     public async Task Shift_F2_compares_a_disk_folder_with_the_server_and_synchronizes_both_ways()
     {
         var t0 = new DateTime(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);

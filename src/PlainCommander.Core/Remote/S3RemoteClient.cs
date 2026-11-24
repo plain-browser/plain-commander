@@ -46,33 +46,14 @@ public sealed class S3RemoteClient : IRemoteClient
 
     public bool AtomicUploads => true;
 
-    /// <summary>"s3.eu-central-1.amazonaws.com" → "eu-central-1"; the site's region wins; otherwise us-east-1.</summary>
+    /// <summary>The region to sign for: the site's own wins, else the one in the host name (see <see cref="S3Endpoints.RegionOf"/>).</summary>
     public static string RegionOf(RemoteSite site)
     {
         ArgumentNullException.ThrowIfNull(site);
-        if (!string.IsNullOrWhiteSpace(site.Region))
-        {
-            return site.Region.Trim();
-        }
-
-        var host = site.Host.Trim().ToLowerInvariant();
-        if (host.EndsWith(".amazonaws.com", StringComparison.Ordinal))
-        {
-            foreach (var part in host.Split('.'))
-            {
-                var name = part.StartsWith("s3-", StringComparison.Ordinal) ? part[3..] : part;
-                if (name.Count(c => c == '-') >= 2 && name.Any(char.IsDigit))
-                {
-                    return name; // eu-central-1, us-west-2 …
-                }
-            }
-        }
-
-        return "us-east-1";
+        return string.IsNullOrWhiteSpace(site.Region) ? S3Endpoints.RegionOf(site.Host) : site.Region.Trim();
     }
 
-    public static bool IsAws(RemoteSite site) =>
-        site?.Host.Trim().EndsWith(".amazonaws.com", StringComparison.OrdinalIgnoreCase) == true;
+    public static bool IsAws(RemoteSite site) => site is not null && S3Endpoints.FromHost(site.Host) == S3Provider.Aws;
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {

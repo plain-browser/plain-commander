@@ -409,11 +409,33 @@
   <data name="Con_KeyFile.PlaceholderText" xml:space="preserve"><value>pusty = logowanie hasłem</value></data>
   <data name="Con_Browse.Content" xml:space="preserve"><value>Wybierz…</value></data>
   <data name="Con_Active.Content" xml:space="preserve"><value>Tryb aktywny (zamiast pasywnego)</value></data>
-  <data name="Con_Region.Header" xml:space="preserve"><value>Region</value></data>
-  <data name="Con_Region.PlaceholderText" xml:space="preserve"><value>pusty = z nazwy hosta AWS, inaczej us-east-1</value></data>
   <data name="Con_Http.Content" xml:space="preserve"><value>Bez szyfrowania (HTTP, np. MinIO w sieci lokalnej)</value></data>
-  <data name="Con_S3Hint.Text" xml:space="preserve"><value>S3: host to np. s3.eu-central-1.amazonaws.com albo adres MinIO, R2, Wasabi. Użytkownik to klucz dostępu (access key), hasło to klucz tajny. Kubełki są katalogami najwyższego poziomu.</value></data>
-  <data name="Con_PlainFtp.Message" xml:space="preserve"><value>Zwykły FTP nie szyfruje niczego, także hasła. Jeśli serwer pozwala, wybierz FTPS albo SFTP.</value></data>
+  <data name="Con_S3Service.Text" xml:space="preserve"><value>Usługa</value></data>
+  <data name="Con_S3Provider.Header" xml:space="preserve"><value>Dostawca</value></data>
+  <data name="Con_S3ProviderOther" xml:space="preserve"><value>MinIO lub inny serwer zgodny z S3</value></data>
+  <data name="Con_S3Endpoint.Header" xml:space="preserve"><value>Adres usługi (endpoint)</value></data>
+  <data name="Con_S3EndpointOwn" xml:space="preserve"><value>np. minio.firma.pl albo http://192.168.1.10:9000</value></data>
+  <data name="Con_S3Region.Header" xml:space="preserve"><value>Region</value></data>
+  <data name="Con_S3RegionAws" xml:space="preserve"><value>np. eu-central-1; pusty = us-east-1</value></data>
+  <data name="Con_S3RegionOwn" xml:space="preserve"><value>pusty = us-east-1 (wystarcza większości serwerów)</value></data>
+  <data name="Con_S3Address" xml:space="preserve"><value>Adres: {0}</value></data>
+  <data name="Con_S3Keys.Text" xml:space="preserve"><value>Klucze dostępu</value></data>
+  <data name="Con_S3AccessKey.Header" xml:space="preserve"><value>Klucz dostępu (Access Key ID)</value></data>
+  <data name="Con_S3AccessKey.PlaceholderText" xml:space="preserve"><value>pusty = anonimowo</value></data>
+  <data name="Con_S3Secret.Header" xml:space="preserve"><value>Klucz tajny (Secret Access Key)</value></data>
+  <data name="Con_S3SecretEmpty" xml:space="preserve"><value>pusty = zapytam przy łączeniu</value></data>
+  <data name="Con_S3SecretChange" xml:space="preserve"><value>zapamiętany; wpisz, aby zmienić</value></data>
+  <data name="Con_S3SecretSaved" xml:space="preserve"><value>Klucz tajny jest zapamiętany w Menedżerze poświadczeń Windows.</value></data>
+  <data name="Con_S3SecretNotSaved" xml:space="preserve"><value>Klucz tajny nie jest zapamiętany: zostanie zapytany przy łączeniu.</value></data>
+  <data name="Con_S3Anonymous" xml:space="preserve"><value>Bez klucza dostępu połączenie jest anonimowe (publiczne kubełki).</value></data>
+  <data name="Con_S3Forget.Content" xml:space="preserve"><value>Zapomnij klucz tajny</value></data>
+  <data name="Con_S3Start.Text" xml:space="preserve"><value>Miejsce startowe</value></data>
+  <data name="Con_S3Bucket.Header" xml:space="preserve"><value>Kubełek</value></data>
+  <data name="Con_S3Bucket.PlaceholderText" xml:space="preserve"><value>pusty = lista kubełków</value></data>
+  <data name="Con_S3Folder.Header" xml:space="preserve"><value>Katalog w kubełku</value></data>
+  <data name="Con_S3Folder.PlaceholderText" xml:space="preserve"><value>pusty = początek kubełka</value></data>
+  <data name="Con_S3BucketHint.Text" xml:space="preserve"><value>Wpisz kubełek, jeśli klucz ma dostęp tylko do niego i nie może wyświetlić listy wszystkich.</value></data>
+  <data name="Con_PlainFtp" xml:space="preserve"><value>Zwykły FTP nie szyfruje niczego, także hasła. Jeśli serwer pozwala, wybierz FTPS albo SFTP.</value></data>
   <data name="Con_Forget.Content" xml:space="preserve"><value>Zapomnij hasło</value></data>
   <data name="Con_PasswordSaved" xml:space="preserve"><value>Hasło zapamiętane w Menedżerze poświadczeń Windows.</value></data>
   <data name="Con_PasswordNotSaved" xml:space="preserve"><value>Hasło nie jest zapamiętane: zostanie zapytane przy łączeniu.</value></data>

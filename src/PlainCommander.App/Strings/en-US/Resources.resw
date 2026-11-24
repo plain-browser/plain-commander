@@ -409,11 +409,33 @@
   <data name="Con_KeyFile.PlaceholderText" xml:space="preserve"><value>empty = password login</value></data>
   <data name="Con_Browse.Content" xml:space="preserve"><value>Browse…</value></data>
   <data name="Con_Active.Content" xml:space="preserve"><value>Active mode (instead of passive)</value></data>
-  <data name="Con_Region.Header" xml:space="preserve"><value>Region</value></data>
-  <data name="Con_Region.PlaceholderText" xml:space="preserve"><value>empty = from an AWS host name, else us-east-1</value></data>
   <data name="Con_Http.Content" xml:space="preserve"><value>No encryption (HTTP, e.g. MinIO on the local network)</value></data>
-  <data name="Con_S3Hint.Text" xml:space="preserve"><value>S3: the host is e.g. s3.eu-central-1.amazonaws.com or a MinIO, R2, Wasabi address. The user is the access key, the password the secret key. Buckets are the top-level folders.</value></data>
-  <data name="Con_PlainFtp.Message" xml:space="preserve"><value>Plain FTP encrypts nothing, the password included. If the server allows it, choose FTPS or SFTP.</value></data>
+  <data name="Con_S3Service.Text" xml:space="preserve"><value>Service</value></data>
+  <data name="Con_S3Provider.Header" xml:space="preserve"><value>Provider</value></data>
+  <data name="Con_S3ProviderOther" xml:space="preserve"><value>MinIO or another S3-compatible server</value></data>
+  <data name="Con_S3Endpoint.Header" xml:space="preserve"><value>Service address (endpoint)</value></data>
+  <data name="Con_S3EndpointOwn" xml:space="preserve"><value>e.g. minio.example.com or http://192.168.1.10:9000</value></data>
+  <data name="Con_S3Region.Header" xml:space="preserve"><value>Region</value></data>
+  <data name="Con_S3RegionAws" xml:space="preserve"><value>e.g. eu-central-1; empty = us-east-1</value></data>
+  <data name="Con_S3RegionOwn" xml:space="preserve"><value>empty = us-east-1 (fine for most servers)</value></data>
+  <data name="Con_S3Address" xml:space="preserve"><value>Address: {0}</value></data>
+  <data name="Con_S3Keys.Text" xml:space="preserve"><value>Access keys</value></data>
+  <data name="Con_S3AccessKey.Header" xml:space="preserve"><value>Access Key ID</value></data>
+  <data name="Con_S3AccessKey.PlaceholderText" xml:space="preserve"><value>empty = anonymous</value></data>
+  <data name="Con_S3Secret.Header" xml:space="preserve"><value>Secret Access Key</value></data>
+  <data name="Con_S3SecretEmpty" xml:space="preserve"><value>empty = asked when connecting</value></data>
+  <data name="Con_S3SecretChange" xml:space="preserve"><value>remembered; type to change</value></data>
+  <data name="Con_S3SecretSaved" xml:space="preserve"><value>The secret key is remembered in the Windows Credential Manager.</value></data>
+  <data name="Con_S3SecretNotSaved" xml:space="preserve"><value>The secret key is not remembered: it will be asked when connecting.</value></data>
+  <data name="Con_S3Anonymous" xml:space="preserve"><value>Without an access key the connection is anonymous (public buckets).</value></data>
+  <data name="Con_S3Forget.Content" xml:space="preserve"><value>Forget the secret key</value></data>
+  <data name="Con_S3Start.Text" xml:space="preserve"><value>Where to start</value></data>
+  <data name="Con_S3Bucket.Header" xml:space="preserve"><value>Bucket</value></data>
+  <data name="Con_S3Bucket.PlaceholderText" xml:space="preserve"><value>empty = the list of buckets</value></data>
+  <data name="Con_S3Folder.Header" xml:space="preserve"><value>Folder in the bucket</value></data>
+  <data name="Con_S3Folder.PlaceholderText" xml:space="preserve"><value>empty = the top of the bucket</value></data>
+  <data name="Con_S3BucketHint.Text" xml:space="preserve"><value>Name the bucket when the key may use only that one and cannot list them all.</value></data>
+  <data name="Con_PlainFtp" xml:space="preserve"><value>Plain FTP encrypts nothing, the password included. If the server allows it, choose FTPS or SFTP.</value></data>
   <data name="Con_Forget.Content" xml:space="preserve"><value>Forget password</value></data>
   <data name="Con_PasswordSaved" xml:space="preserve"><value>The password is remembered in the Windows Credential Manager.</value></data>
   <data name="Con_PasswordNotSaved" xml:space="preserve"><value>The password is not remembered: it will be asked when connecting.</value></data>

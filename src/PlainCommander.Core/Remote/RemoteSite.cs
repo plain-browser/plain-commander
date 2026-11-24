@@ -30,6 +30,9 @@ public sealed class RemoteSite
     /// <summary>S3: the region to sign for; empty takes it from an AWS host name, else "us-east-1".</summary>
     public string Region { get; set; } = string.Empty;
 
+    /// <summary>S3: the service the connection form is laid out for; not set on sites saved before it existed (then told from the host name).</summary>
+    public S3Provider Provider { get; set; }
+
     [JsonIgnore]
     public int EffectivePort => Port > 0 ? Port : RemotePath.DefaultPort(Protocol);
 

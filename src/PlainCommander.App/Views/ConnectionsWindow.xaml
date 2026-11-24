@@ -68,37 +68,81 @@
 
       <!-- The selected connection -->
       <ScrollViewer Grid.Column="1" x:Name="Form" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="10" MaxWidth="560" HorizontalAlignment="Left" MinWidth="380">
-          <TextBox x:Uid="Con_Name" Text="{x:Bind ViewModel.Selected.Name, Mode=TwoWay}" />
+        <!-- as wide as there is room, up to 560, the same for every kind of connection -->
+        <Grid Padding="0,0,14,0">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="560" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel Spacing="10">
           <Grid ColumnSpacing="8">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-            <ComboBox x:Name="ProtocolBox" x:Uid="Con_Protocol" HorizontalAlignment="Stretch" SelectionChanged="OnProtocolChanged">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
+            <TextBox x:Uid="Con_Name" Text="{x:Bind ViewModel.Selected.Name, Mode=TwoWay}" />
+            <ComboBox Grid.Column="1" x:Name="ProtocolBox" x:Uid="Con_Protocol" HorizontalAlignment="Stretch" SelectionChanged="OnProtocolChanged">
               <x:String>SFTP</x:String>
               <x:String>FTP</x:String>
               <x:String>FTPS</x:String>
               <x:String>S3</x:String>
             </ComboBox>
-            <TextBox Grid.Column="1" x:Uid="Con_Host" Text="{x:Bind ViewModel.Selected.Host, Mode=TwoWay}" />
-            <TextBox Grid.Column="2" x:Uid="Con_Port" Text="{x:Bind ViewModel.Selected.Port, Mode=TwoWay}" />
           </Grid>
-          <TextBox x:Uid="Con_User" Text="{x:Bind ViewModel.Selected.User, Mode=TwoWay}" />
-          <TextBox x:Uid="Con_StartPath" Text="{x:Bind ViewModel.Selected.StartPath, Mode=TwoWay}" />
-          <Grid x:Name="KeyRow" ColumnSpacing="8">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBox x:Uid="Con_KeyFile" Text="{x:Bind ViewModel.Selected.KeyFile, Mode=TwoWay}" />
-            <Button Grid.Column="1" x:Uid="Con_Browse" VerticalAlignment="Bottom" Click="OnBrowseKey" />
-          </Grid>
-          <CheckBox x:Name="ActiveBox" x:Uid="Con_Active" Checked="OnActiveChanged" Unchecked="OnActiveChanged" />
-          <!-- S3 -->
-          <TextBox x:Name="RegionBox" x:Uid="Con_Region" Text="{x:Bind ViewModel.Selected.Region, Mode=TwoWay}" />
-          <CheckBox x:Name="HttpBox" x:Uid="Con_Http" Checked="OnHttpChanged" Unchecked="OnHttpChanged" />
-          <TextBlock x:Name="S3Hint" x:Uid="Con_S3Hint" TextWrapping="Wrap" FontSize="12.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-          <InfoBar x:Name="PlainWarning" IsOpen="True" IsClosable="False" Severity="Warning" x:Uid="Con_PlainFtp" />
-          <StackPanel Orientation="Horizontal" Spacing="10">
+
+          <!-- SFTP, FTP, FTPS: a server, a user, a folder -->
+          <StackPanel x:Name="ServerPanel" Spacing="10">
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+              <TextBox x:Uid="Con_Host" Text="{x:Bind ViewModel.Selected.Host, Mode=TwoWay}" />
+              <TextBox Grid.Column="1" x:Uid="Con_Port" Text="{x:Bind ViewModel.Selected.Port, Mode=TwoWay}" />
+            </Grid>
+            <TextBox x:Uid="Con_User" Text="{x:Bind ViewModel.Selected.User, Mode=TwoWay}" />
+            <TextBox x:Uid="Con_StartPath" Text="{x:Bind ViewModel.Selected.StartPath, Mode=TwoWay}" />
+            <Grid x:Name="KeyRow" ColumnSpacing="8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <TextBox x:Uid="Con_KeyFile" Text="{x:Bind ViewModel.Selected.KeyFile, Mode=TwoWay}" />
+              <Button Grid.Column="1" x:Uid="Con_Browse" VerticalAlignment="Bottom" Click="OnBrowseKey" />
+            </Grid>
+            <CheckBox x:Name="ActiveBox" x:Uid="Con_Active" Checked="OnActiveChanged" Unchecked="OnActiveChanged" />
+          </StackPanel>
+
+          <!-- S3: a service, a pair of keys, a bucket -->
+          <StackPanel x:Name="S3Panel" Spacing="10">
+            <TextBlock x:Uid="Con_S3Service" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,6,0,0" />
+            <ComboBox x:Name="ProviderBox" x:Uid="Con_S3Provider" HorizontalAlignment="Stretch" SelectionChanged="OnProviderChanged" />
+            <Grid x:Name="EndpointRow" ColumnSpacing="8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <TextBox x:Name="EndpointBox" x:Uid="Con_S3Endpoint" Text="{x:Bind ViewModel.Selected.Endpoint, Mode=TwoWay}" />
+              <TextBox x:Name="S3PortBox" Grid.Column="1" Width="90" x:Uid="Con_Port" Text="{x:Bind ViewModel.Selected.Port, Mode=TwoWay}" />
+            </Grid>
+            <AutoSuggestBox x:Name="RegionBox" x:Uid="Con_S3Region" Text="{x:Bind ViewModel.Selected.Region, Mode=TwoWay}"
+                            TextChanged="OnRegionTextChanged" GotFocus="OnRegionGotFocus" />
+            <TextBlock x:Name="AwsAddress" FontSize="12.5" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <CheckBox x:Name="HttpBox" x:Uid="Con_Http" Checked="OnHttpChanged" Unchecked="OnHttpChanged" />
+
+            <TextBlock x:Uid="Con_S3Keys" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,10,0,0" />
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <TextBox x:Uid="Con_S3AccessKey" Text="{x:Bind ViewModel.Selected.User, Mode=TwoWay}" IsSpellCheckEnabled="False" />
+              <PasswordBox Grid.Column="1" x:Name="SecretBox" x:Uid="Con_S3Secret" LostFocus="OnSecretLostFocus" />
+            </Grid>
+            <Grid ColumnSpacing="10">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <TextBlock x:Name="SecretState" VerticalAlignment="Center" FontSize="12.5" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <HyperlinkButton Grid.Column="1" x:Name="ForgetSecretButton" x:Uid="Con_S3Forget" Click="OnForget" Padding="4,2" />
+            </Grid>
+
+            <TextBlock x:Uid="Con_S3Start" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,10,0,0" />
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <TextBox x:Uid="Con_S3Bucket" Text="{x:Bind ViewModel.Selected.Bucket, Mode=TwoWay}" IsSpellCheckEnabled="False" />
+              <TextBox Grid.Column="1" x:Uid="Con_S3Folder" Text="{x:Bind ViewModel.Selected.BucketFolder, Mode=TwoWay}"
+                       IsEnabled="{x:Bind ViewModel.Selected.HasBucket, Mode=OneWay}" />
+            </Grid>
+            <TextBlock x:Uid="Con_S3BucketHint" TextWrapping="Wrap" FontSize="12.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          </StackPanel>
+
+          <InfoBar x:Name="PlainWarning" IsOpen="True" IsClosable="False" Severity="Warning" />
+          <StackPanel x:Name="PasswordRow" Orientation="Horizontal" Spacing="10">
             <TextBlock x:Name="PasswordState" VerticalAlignment="Center" FontSize="12.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <HyperlinkButton x:Name="ForgetButton" x:Uid="Con_Forget" Click="OnForget" Padding="4,2" />
           </StackPanel>
         </StackPanel>
+        </Grid>
       </ScrollViewer>
       <TextBlock x:Name="EmptyHint" Grid.Column="1" x:Uid="Con_Empty" TextWrapping="Wrap" VerticalAlignment="Center"
                  HorizontalAlignment="Center" MaxWidth="360" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
