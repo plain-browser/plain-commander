@@ -1014,6 +1014,11 @@ nowych plików i zgłoszą „Not a Plain Commander encrypted file”).
 
 ### Etap 24 — `.pce` na S3: kontener rozłożony na obiekty — zrobiony 2026-11-20 (kroki 1–7), wydanie 1.16.0 przygotowane
 
+Wydanie 1.16.1 (2026-11-24, commit 7e866bf + podniesienie wersji): okno Ctrl+F ma osobny formularz S3 — dostawca
+(Amazon, R2, B2, Wasabi, własny serwer), region/adres, klucz dostępu i tajny (do Menedżera poświadczeń), kubełek
++ katalog. `S3Endpoints` w Core, `RemoteSite.Provider` (0 = z adresu, stare zapisy działają), testy
+`S3EndpointsTests` i trzy w `RemotePanelTests`. Notatki `docs/release-notes-1.16.1.md`, tekst Sklepu zaktualizowany.
+
 Wydanie 1.16.0 przygotowane 2026-11-20 (do polecenia: commit, push, `gh release create v1.16.0`, Sklep): wersja
 w `Directory.Build.props`, manifeście i `site/index.html`; notatki `docs/release-notes-1.16.0.md`; tekst Sklepu
 `docs/store/whats-new-en.txt`. Testy na Windows (VM): Core 1117, Presentation 448, bez porażek. Pakiet
