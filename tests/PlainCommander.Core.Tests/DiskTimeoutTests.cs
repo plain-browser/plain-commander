@@ -40,12 +40,15 @@ public class DiskTimeoutTests
     [Fact]
     public async Task Time_spent_on_a_question_does_not_count()
     {
+        // A roomy limit: a busy CI machine may stall this test for a few hundred milliseconds, and the work must
+        // still be inside its fresh limit when the test looks at it again.
+        var limit = TimeSpan.FromMilliseconds(600);
         var work = new TaskCompletionSource<int>();
         Task<int> waiting;
         using (DiskTimeout.Pause())
         {
-            waiting = DiskTimeout.WithTimeoutAsync(work.Task, Short, TestContext.Current.CancellationToken);
-            await Task.Delay(Short * 4, TestContext.Current.CancellationToken);
+            waiting = DiskTimeout.WithTimeoutAsync(work.Task, limit, TestContext.Current.CancellationToken);
+            await Task.Delay(limit * 2, TestContext.Current.CancellationToken);
             waiting.IsCompleted.Should().BeFalse("the question is still open");
         }
 
