@@ -51,6 +51,16 @@ if ($Status) {
   $lines = @()
   $published = $app.lastPublishedApplicationSubmission
   $lines += if ($published) { "Published submission: $($published.id)" } else { 'Published submission: none' }
+  if ($published) {
+    try {
+      $live = Invoke-Store Get "/submissions/$($published.id)"
+      $liveNames = @($live.applicationPackages | Where-Object { $_.fileStatus -ne 'PendingDelete' } | ForEach-Object { "$($_.fileName) $($_.version)" })
+      if ($liveNames) { $lines += "  packages: $($liveNames -join ', ')" }
+      if ($live.targetPublishDate) { $lines += "  target publish date: $($live.targetPublishDate)" }
+      if ($live.status) { $lines += "  submission status: $($live.status)" }
+    }
+    catch { $lines += "  (the published submission could not be read: $($_.Exception.Message))" }
+  }
   if (-not $pending) {
     $lines += 'Open submission: none (nothing is waiting in Partner Center; a new submission can be sent)'
   }
