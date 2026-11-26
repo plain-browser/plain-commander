@@ -127,7 +127,11 @@ try {
   $buffer = [byte[]]::new(16MB); $blockIds = @()
   while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
     $blockId = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(('{0:d6}' -f $blockIds.Count)))
-    $chunk = if ($read -eq $buffer.Length) { $buffer } else { $buffer[0..($read - 1)] }
+    # A copy, not $buffer[0..($read - 1)]: a PowerShell slice is an object[], which Invoke-RestMethod sends as the
+    # text "80 75 3 4 …". That broke the last block of every zip (where its directory is), and the Store then kept
+    # the submission in CommitStarted without ever reading the packages.
+    $chunk = $buffer
+    if ($read -lt $buffer.Length) { $chunk = [byte[]]::new($read); [Array]::Copy($buffer, $chunk, $read) }
     Invoke-RestMethod -Method Put -Uri "$uploadUrl&comp=block&blockid=$([Uri]::EscapeDataString($blockId))" -Headers $blobHeaders `
       -Body $chunk -ContentType 'application/octet-stream' | Out-Null
     $blockIds += $blockId
